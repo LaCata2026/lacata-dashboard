@@ -295,12 +295,19 @@ function AdminView({users,teams,token,onRefresh}){
               <p style={{fontSize:13,fontWeight:600}}>{u.name}</p>
               <p style={{fontSize:12,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</p>
             </div>
-            <select value={u.role} onChange={e=>changeUserRole(u.id,e.target.value)}
-              style={{width:130,padding:"6px 10px",fontSize:13,borderRadius:8,marginRight:8,background:"var(--bg4)",color:"var(--text)",border:"1px solid var(--purple)",cursor:"pointer",fontFamily:"inherit"}}>
-              <option value="colaborador">Colaborador</option>
-              <option value="cuentas">Cuentas</option>
-              <option value="director">Director</option>
-            </select>
+            <div style={{display:"flex",gap:4,marginRight:8}}>
+              {["colaborador","cuentas","director"].map(r=>(
+                <button key={r} onClick={()=>changeUserRole(u.id,r)}
+                  style={{padding:"4px 10px",borderRadius:8,fontSize:12,cursor:"pointer",fontFamily:"inherit",
+                    background:u.role===r?(r==="director"?"var(--purple)":r==="cuentas"?"var(--yellow)":"var(--blue)"):"var(--bg4)",
+                    color:u.role===r?"#fff":"var(--muted2)",
+                    border:u.role===r?"none":"1px solid var(--border)",
+                    fontWeight:u.role===r?600:400,
+                  }}>
+                  {r.charAt(0).toUpperCase()+r.slice(1)}
+                </button>
+              ))}
+            </div>
             <select value={u.team_id||""} onChange={e=>changeUserTeam(u.id,e.target.value)}
               style={{width:"auto",padding:"5px 8px",fontSize:12,borderRadius:8,marginRight:8,maxWidth:140}}>
               <option value="">Sin equipo</option>
