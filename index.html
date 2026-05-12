@@ -199,11 +199,11 @@ function AdminView({users,teams,token,onRefresh}){
     if(!uForm.name||!uForm.email){alert("Nombre y correo son obligatorios.");return;}
     setLoading(true);
     try{
-      // Insert directly into usuarios table with a generated UUID
-      const newId = crypto.randomUUID();
+      const authUser=await sb.inviteUser(uForm.email,uForm.name);
+      if(!authUser||!authUser.id)throw new Error(authUser.msg||"No se pudo crear el usuario");
       const initials=getInitials(uForm.name);
       await sb.insert("usuarios",{
-        id:newId,
+        id:authUser.id,
         email:uForm.email.toLowerCase(),
         name:uForm.name,
         role:uForm.role,
@@ -211,13 +211,11 @@ function AdminView({users,teams,token,onRefresh}){
         avatar_color:uForm.avatar_color,
         initials,
       },token);
-      // Also create Supabase Auth user
-      await sb.inviteUser(uForm.email,uForm.name);
-      showToast(`✅ Usuario ${uForm.name} creado`,"success");
+      showToast("Invitacion enviada a "+uForm.email,"success");
       setUForm({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
       setShowNewUser(false);
       onRefresh();
-    }catch(e){showToast("Error al crear usuario: "+e.message,"error");}
+    }catch(e){showToast("Error: "+e.message,"error");}
     setLoading(false);
   }
 
