@@ -22,25 +22,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 h1,h2,h3,h4{font-family:'Syne',sans-serif}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:4px}
-input,select,textarea{
-  width:100%;background:var(--bg3);border:1px solid var(--border);
-  border-radius:10px;padding:10px 14px;color:var(--text);
-  font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s;
-}
+input,select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s}
 input:focus,select:focus,textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(139,92,246,.1)}
 select option{background:var(--bg3)}
 textarea{resize:vertical;min-height:90px}
 input[type="file"]{display:none}
 button{border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.15s;font-size:14px}
 .btn{padding:10px 18px;border-radius:10px;font-weight:500}
-.btn-primary{background:var(--purple);color:#fff}
-.btn-primary:hover{background:#7c3aed}
-.btn-white{background:#fff;color:#0a0a0f;font-weight:600}
-.btn-white:hover{background:#e5e5f0}
-.btn-ghost{background:var(--bg3);color:var(--muted2);border:1px solid var(--border)}
-.btn-ghost:hover{background:var(--bg4);color:var(--text)}
-.btn-danger{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
-.btn-danger:hover{background:rgba(239,68,68,.25)}
+.btn-primary{background:var(--purple);color:#fff}.btn-primary:hover{background:#7c3aed}
+.btn-white{background:#fff;color:#0a0a0f;font-weight:600}.btn-white:hover{background:#e5e5f0}
+.btn-ghost{background:var(--bg3);color:var(--muted2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg4);color:var(--text)}
+.btn-danger{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}.btn-danger:hover{background:rgba(239,68,68,.25)}
 .btn-sm{padding:6px 12px;font-size:13px;border-radius:8px}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px}
 .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:500}
@@ -52,24 +44,12 @@ button{border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.1
 .pill-orange{background:rgba(249,115,22,.15);color:#fdba74}
 .pill-gray{background:rgba(112,112,160,.1);color:var(--muted2)}
 .avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;flex-shrink:0}
-.file-drop{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:6px;min-height:80px;background:var(--bg3);border:1px dashed var(--border2);
-  border-radius:10px;cursor:pointer;color:var(--muted);font-size:13px;transition:.2s;padding:16px;
-}
+.file-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:80px;background:var(--bg3);border:1px dashed var(--border2);border-radius:10px;cursor:pointer;color:var(--muted);font-size:13px;transition:.2s;padding:16px}
 .file-drop:hover{border-color:var(--purple);color:var(--purple2)}
 .app-shell{display:flex;min-height:100vh}
-.sidebar{
-  width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;padding:24px 16px;position:sticky;top:0;height:100vh;
-}
+.sidebar{width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 16px;position:sticky;top:0;height:100vh}
 .main-content{flex:1;overflow:auto;padding:28px}
-.nav-item{
-  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;
-  color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;transition:.15s;
-  margin-bottom:2px;background:none;width:100%;text-align:left;border:none;
-  font-family:'DM Sans',sans-serif;
-}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;transition:.15s;margin-bottom:2px;background:none;width:100%;text-align:left;border:none;font-family:'DM Sans',sans-serif}
 .nav-item:hover{background:var(--bg3);color:var(--text)}
 .nav-item.active{background:rgba(139,92,246,.15);color:var(--purple2)}
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
@@ -88,12 +68,7 @@ button{border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.1
 .filter-chip.active{background:var(--purple);color:#fff;border-color:var(--purple)}
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 .section-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700}
-.login-wrap{
-  display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;
-  background:var(--bg);
-  background-image:radial-gradient(ellipse at 20% 50%,rgba(139,92,246,.08) 0%,transparent 60%),
-                   radial-gradient(ellipse at 80% 20%,rgba(59,130,246,.06) 0%,transparent 50%);
-}
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:var(--bg);background-image:radial-gradient(ellipse at 20% 50%,rgba(139,92,246,.08) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(59,130,246,.06) 0%,transparent 50%)}
 .login-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:36px}
 .logo-mark{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-size:20px}
 .form-label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px;font-weight:500;text-transform:uppercase;letter-spacing:.4px}
@@ -111,9 +86,23 @@ button{border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.1
 <script type="text/babel">
 const {useState,useEffect,useCallback}=React;
 
-/* ── SUPABASE ── */
 const SB_URL  = "https://puaonadnfhwgeybkuxgh.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1YW9uYWRuZmh3Z2V5Ymt1eGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTk5NzcsImV4cCI6MjA5NDA3NTk3N30.t29__W64x10eqpLmhPhrMkmQZNX0Yd6FQCEJFe8STqM";
+
+// Director emails — agrega aquí los correos de directores
+const DIRECTOR_EMAILS = ["jorge@agarrate-catalina.com"];
+
+function getRole(email){
+  return DIRECTOR_EMAILS.includes(email.toLowerCase()) ? "director" : "colaborador";
+}
+function getInitials(email){
+  return email.substring(0,2).toUpperCase();
+}
+function getAvatarColor(email){
+  const colors=["#7c3aed","#2563eb","#059669","#d97706","#dc2626","#0891b2"];
+  let h=0;for(let c of email)h=(h*31+c.charCodeAt(0))%colors.length;
+  return colors[Math.abs(h)];
+}
 
 const hdr=(token)=>({
   "apikey":SB_ANON,
@@ -131,39 +120,39 @@ const sb={
     });
     const d=await r.json();
     if(d.error||d.error_description)throw new Error("Correo o contraseña incorrectos");
-    return d;
+    // Build profile from auth data directly — no DB query needed
+    const profile={
+      id:d.user.id,
+      email:d.user.email,
+      name:d.user.user_metadata?.name||d.user.email.split("@")[0],
+      role:getRole(d.user.email),
+      avatar_color:getAvatarColor(d.user.email),
+      initials:getInitials(d.user.email),
+    };
+    return {profile, access_token:d.access_token};
   },
-  async getProfile(uid,token){
-    const r=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${uid}&select=*`,{
-      headers:hdr(token),
-    });
-    const d=await r.json();
-    if(!Array.isArray(d)||d.length===0)throw new Error("Perfil no encontrado en la base de datos");
-    return d[0];
-  },
-  async get(table,params){
-    const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(SB_ANON)});
+  async get(table,params,token){
+    const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(token)});
     return r.json();
   },
-  async insert(table,data){
+  async insert(table,data,token){
     const r=await fetch(`${SB_URL}/rest/v1/${table}`,{
       method:"POST",headers:hdr(token),body:JSON.stringify(data),
     });
     return r.json();
   },
-  async update(table,id,data){
+  async update(table,id,data,token){
     await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{
       method:"PATCH",headers:hdr(token),body:JSON.stringify(data),
     });
   },
-  async del(table,id){
+  async del(table,id,token){
     await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{
       method:"DELETE",headers:hdr(token),
     });
   },
 };
 
-/* ── UTILS ── */
 const LS={
   get:(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
   set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),
@@ -180,7 +169,6 @@ const NAV=[
   {id:"desempeno",icon:"📊",label:"Desempeño",  roles:["director"]},
 ];
 
-/* ── TOAST ── */
 let _toast=null;
 const showToast=(m)=>_toast&&_toast(m);
 function Toast(){
@@ -190,7 +178,6 @@ function Toast(){
   return <div className={`toast${show?" show":""}`}>{msg}</div>;
 }
 
-/* ── AVATAR ── */
 function Av({u,size=32}){
   return(
     <div className="avatar" style={{width:size,height:size,background:u?.avatar_color||"#7c3aed",fontSize:size*.33,color:"#fff"}}>
@@ -199,7 +186,6 @@ function Av({u,size=32}){
   );
 }
 
-/* ── STAT CARD ── */
 function SC({label,value,sub,color}){
   return(
     <div className="stat-card fade-in" style={{"--ac":color||"var(--purple)"}}>
@@ -210,8 +196,7 @@ function SC({label,value,sub,color}){
   );
 }
 
-/* ── TASK CARD ── */
-function TaskCard({task,users,teams,me,onRefresh}){
+function TaskCard({task,users,teams,me,token,onRefresh}){
   const [exp,setExp]=useState(false);
   const isDir=me.role==="director";
   const assigned=users.find(u=>u.id===task.assigned_to);
@@ -219,13 +204,13 @@ function TaskCard({task,users,teams,me,onRefresh}){
 
   async function changeStatus(s){
     const h=[...(task.history||[]),`Estado → ${statusLabel[s]} (${new Date().toLocaleDateString("es-GT")})`];
-    await sb.update("tareas",task.id,{status:s,history:h});
+    await sb.update("tareas",task.id,{status:s,history:h},token);
     showToast("Estado actualizado");onRefresh();
   }
   async function addChange(){
     const c=prompt("Describe el cambio:");if(!c)return;
     const h=[...(task.history||[]),`Cambio ${(task.changes||0)+1}: ${c}`];
-    await sb.update("tareas",task.id,{changes:(task.changes||0)+1,history:h});
+    await sb.update("tareas",task.id,{changes:(task.changes||0)+1,history:h},token);
     showToast("Cambio registrado");onRefresh();
   }
   async function reassign(){
@@ -235,13 +220,13 @@ function TaskCard({task,users,teams,me,onRefresh}){
     const idx=parseInt(prompt(`Nuevo responsable:\n${list}`))-1;
     if(isNaN(idx)||!opts[idx])return;
     const nu=opts[idx];
-    const h=[...(task.history||[]),`Reasignado a ${nu.name} (${new Date().toLocaleDateString("es-GT")})`];
-    await sb.update("tareas",task.id,{assigned_to:nu.id,history:h});
+    const h=[...(task.history||[]),`Reasignado a ${nu.name}`];
+    await sb.update("tareas",task.id,{assigned_to:nu.id,history:h},token);
     showToast(`Reasignado a ${nu.name}`);onRefresh();
   }
   async function del(){
     if(!confirm(`¿Eliminar "${task.title}"?`))return;
-    await sb.del("tareas",task.id);
+    await sb.del("tareas",task.id,token);
     showToast("Orden eliminada");onRefresh();
   }
 
@@ -262,11 +247,6 @@ function TaskCard({task,users,teams,me,onRefresh}){
             <span>📅 {fmtDate(task.due_date)}</span>
             {task.hours>0&&<span>⏱ {task.hours}h</span>}
           </div>
-          {task.files?.length>0&&(
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
-              {task.files.map((f,i)=><span key={i} style={{fontSize:12,padding:"3px 10px",background:"var(--bg3)",borderRadius:999,color:"var(--muted2)"}}>📎 {f}</span>)}
-            </div>
-          )}
         </div>
         {(isDir||task.assigned_to===me.id)&&(
           <select value={task.status} onChange={e=>changeStatus(e.target.value)}
@@ -301,8 +281,7 @@ function TaskCard({task,users,teams,me,onRefresh}){
   );
 }
 
-/* ── CREATE TASK ── */
-function CreateTask({users,teams,me,onCreated}){
+function CreateTask({users,teams,me,token,onCreated}){
   const blank={title:"",description:"",assigned_to:"",team_id:"",priority:"Normal",hours:"",due_date:"",status:"pendiente"};
   const [form,setForm]=useState(blank);
   const [files,setFiles]=useState([]);
@@ -319,7 +298,7 @@ function CreateTask({users,teams,me,onCreated}){
         ...form,hours:Number(form.hours)||0,changes:0,
         history:[`Orden creada — ${new Date().toLocaleDateString("es-GT")}`],
         files:files.map(f=>f.name),created_by:me.id,
-      });
+      },token);
       showToast("✅ Orden creada correctamente");
       setForm(blank);setFiles([]);onCreated();
     }catch(e){alert("Error: "+e.message);}
@@ -337,7 +316,7 @@ function CreateTask({users,teams,me,onCreated}){
           </div>
           <div style={{gridColumn:"1/-1"}}>
             <label className="form-label">Brief y especificaciones *</label>
-            <textarea value={form.description} onChange={set("description")} placeholder="Entregables, formatos, dimensiones, referencias..."/>
+            <textarea value={form.description} onChange={set("description")} placeholder="Entregables, formatos, dimensiones..."/>
           </div>
           <div>
             <label className="form-label">Responsable *</label>
@@ -397,7 +376,6 @@ function CreateTask({users,teams,me,onCreated}){
   );
 }
 
-/* ── TEAMS VIEW ── */
 function TeamsView({tasks,users,teams}){
   return(
     <div>
@@ -442,21 +420,20 @@ function TeamsView({tasks,users,teams}){
   );
 }
 
-/* ── PERFORMANCE ── */
 function PerformanceView({tasks,users,teams}){
   const colabs=users.filter(u=>u.role==="colaborador");
-  const sorted=[...colabs].sort((a,b)=>{
-    return tasks.filter(t=>t.assigned_to===b.id&&t.status!=="completada").length
-          -tasks.filter(t=>t.assigned_to===a.id&&t.status!=="completada").length;
-  });
+  const sorted=[...colabs].sort((a,b)=>
+    tasks.filter(t=>t.assigned_to===b.id&&t.status!=="completada").length-
+    tasks.filter(t=>t.assigned_to===a.id&&t.status!=="completada").length
+  );
   return(
     <div>
       <div className="section-header"><h2 className="section-title">Desempeño</h2></div>
       <div className="stat-grid" style={{marginBottom:24}}>
-        <SC label="Tareas activas"   value={tasks.filter(t=>t.status!=="completada").length} color="var(--blue)"/>
-        <SC label="Completadas"      value={tasks.filter(t=>t.status==="completada").length}  color="var(--green)"/>
-        <SC label="Vencidas"         value={tasks.filter(t=>t.status==="vencida").length}     color="var(--red)"/>
-        <SC label="Horas totales"    value={tasks.reduce((s,t)=>s+(Number(t.hours)||0),0)+"h"} color="var(--purple)"/>
+        <SC label="Tareas activas"  value={tasks.filter(t=>t.status!=="completada").length} color="var(--blue)"/>
+        <SC label="Completadas"     value={tasks.filter(t=>t.status==="completada").length}  color="var(--green)"/>
+        <SC label="Vencidas"        value={tasks.filter(t=>t.status==="vencida").length}     color="var(--red)"/>
+        <SC label="Horas totales"   value={tasks.reduce((s,t)=>s+(Number(t.hours)||0),0)+"h"} color="var(--purple)"/>
       </div>
       <div className="card fade-in">
         <h3 style={{fontSize:16,fontWeight:700,marginBottom:18}}>Carga por colaborador</h3>
@@ -495,8 +472,7 @@ function PerformanceView({tasks,users,teams}){
   );
 }
 
-/* ── ORDENES ── */
-function OrdenesView({tasks,users,teams,me,onRefresh}){
+function OrdenesView({tasks,users,teams,me,token,onRefresh}){
   const [sf,setSf]=useState("todas");
   const [tf,setTf]=useState("todas");
   const isDir=me.role==="director";
@@ -526,13 +502,12 @@ function OrdenesView({tasks,users,teams,me,onRefresh}){
       </div>
       {visible.length===0
         ?<div className="empty"><div style={{fontSize:40,opacity:.4}}>📋</div><p>No hay órdenes con estos filtros.</p></div>
-        :visible.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} onRefresh={onRefresh}/>)
+        :visible.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)
       }
     </div>
   );
 }
 
-/* ── DASHBOARD ── */
 function Dashboard({session,onLogout}){
   const {user,token}=session;
   const [tab,setTab]=useState("ordenes");
@@ -546,16 +521,16 @@ function Dashboard({session,onLogout}){
     setLoading(true);
     try{
       const [t,u,eq]=await Promise.all([
-        sb.get("tareas","select=*&order=created_at.desc"),
-        sb.get("usuarios","select=*"),
-        sb.get("equipos","select=*"),
+        sb.get("tareas","select=*&order=created_at.desc",token),
+        sb.get("usuarios","select=*",token),
+        sb.get("equipos","select=*",token),
       ]);
       setTasks(Array.isArray(t)?t:[]);
       setUsers(Array.isArray(u)?u:[]);
       setTeams(Array.isArray(eq)?eq:[]);
     }catch(e){console.error(e);}
     setLoading(false);
-  },[]);
+  },[token]);
 
   useEffect(()=>{load();},[load]);
 
@@ -600,16 +575,16 @@ function Dashboard({session,onLogout}){
           :(
             <>
               <div className="stat-grid">
-                <SC label="Tareas activas"  value={active.length}      sub={`${active.reduce((s,t)=>s+t.hours,0)}h acumuladas`} color="var(--blue)"/>
-                <SC label="Completadas"      value={done.length}         sub="Este período"         color="var(--green)"/>
-                <SC label="Con cambios"      value={withChanges.length}  sub="Requieren revisión"   color="var(--yellow)"/>
+                <SC label="Tareas activas" value={active.length} sub={`${active.reduce((s,t)=>s+(t.hours||0),0)}h acumuladas`} color="var(--blue)"/>
+                <SC label="Completadas"    value={done.length}   sub="Este período"        color="var(--green)"/>
+                <SC label="Con cambios"    value={withChanges.length} sub="Requieren revisión" color="var(--yellow)"/>
                 {overdue.length>0
                   ?<SC label="Vencidas" value={overdue.length} sub="⚠ Atención requerida" color="var(--red)"/>
                   :<SC label="Al día"   value="✓"              sub="Sin vencidas"          color="var(--green)"/>
                 }
               </div>
-              {tab==="ordenes"  &&<OrdenesView tasks={tasks} users={users} teams={teams} me={user} onRefresh={load}/>}
-              {tab==="crear"    &&isDir&&<CreateTask users={users} teams={teams} me={user} onCreated={()=>{load();setTab("ordenes");}}/>}
+              {tab==="ordenes"  &&<OrdenesView tasks={tasks} users={users} teams={teams} me={user} token={token} onRefresh={load}/>}
+              {tab==="crear"    &&isDir&&<CreateTask users={users} teams={teams} me={user} token={token} onCreated={()=>{load();setTab("ordenes");}}/>}
               {tab==="equipos"  &&isDir&&<TeamsView tasks={tasks} users={users} teams={teams}/>}
               {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams}/>}
             </>
@@ -620,7 +595,6 @@ function Dashboard({session,onLogout}){
   );
 }
 
-/* ── LOGIN ── */
 function Login({onLogin}){
   const [email,setEmail]=useState("jorge@agarrate-catalina.com");
   const [pw,setPw]=useState("");
@@ -631,9 +605,8 @@ function Login({onLogin}){
     if(!email||!pw){setErr("Completa correo y contraseña.");return;}
     setLoading(true);setErr("");
     try{
-      const auth=await sb.signIn(email,pw);
-      const profile=await sb.getProfile(auth.user.id,auth.access_token);
-      const session={user:profile,token:auth.access_token};
+      const {profile,access_token}=await sb.signIn(email,pw);
+      const session={user:profile,token:access_token};
       LS.set("lc_session",session);
       onLogin(session);
     }catch(e){setErr(e.message);}
@@ -675,7 +648,6 @@ function Login({onLogin}){
   );
 }
 
-/* ── ROOT ── */
 function App(){
   const [session,setSession]=useState(()=>LS.get("lc_session",null));
   return(
