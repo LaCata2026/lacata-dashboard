@@ -248,6 +248,12 @@ function AdminView({users,teams,token,onRefresh}){
     onRefresh();
   }
 
+  async function changeUserRole(userId,newRole){
+    await sb.update("usuarios",userId,{role:newRole},token);
+    showToast("Rol actualizado","success");
+    onRefresh();
+  }
+
   async function changeUserTeam(userId,teamId){
     await sb.update("usuarios",userId,{team_id:teamId||null},token);
     showToast("Equipo actualizado","success");
@@ -291,7 +297,12 @@ function AdminView({users,teams,token,onRefresh}){
               <p style={{fontSize:13,fontWeight:600}}>{u.name}</p>
               <p style={{fontSize:12,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</p>
             </div>
-            <span className={`pill ${u.role==="director"?"pill-purple":u.role==="cuentas"?"pill-yellow":"pill-blue"}`} style={{marginRight:8,flexShrink:0}}>{u.role}</span>
+            <select value={u.role} onChange={e=>changeUserRole(u.id,e.target.value)}
+              style={{width:"auto",padding:"5px 8px",fontSize:12,borderRadius:8,marginRight:8,background:"var(--bg3)",color:"var(--text)",border:"1px solid var(--border)"}}>
+              <option value="colaborador">Colaborador</option>
+              <option value="cuentas">Cuentas</option>
+              <option value="director">Director</option>
+            </select>
             <select value={u.team_id||""} onChange={e=>changeUserTeam(u.id,e.target.value)}
               style={{width:"auto",padding:"5px 8px",fontSize:12,borderRadius:8,marginRight:8,maxWidth:140}}>
               <option value="">Sin equipo</option>
