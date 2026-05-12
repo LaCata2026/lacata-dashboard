@@ -120,12 +120,11 @@ const sb={
     const profile={id:d.user.id,email:d.user.email,name:d.user.user_metadata?.full_name||d.user.email.split("@")[0],role:getRole(d.user.email),avatar_color:getAvatarColor(d.user.email),initials:getInitials(d.user.user_metadata?.full_name||d.user.email.split("@")[0])};
     return{profile,access_token:d.access_token};
   },
-  async createUser(email,pw,name,token){
-    // Create auth user via admin endpoint
-    const r=await fetch(`${SB_URL}/auth/v1/admin/users`,{
+  async inviteUser(email,name,token){
+    const r=await fetch(`${SB_URL}/auth/v1/invite`,{
       method:"POST",
-      headers:{...hdr(token),"Authorization":`Bearer ${token}`},
-      body:JSON.stringify({email,password:pw,email_confirm:true,user_metadata:{full_name:name}}),
+      headers:{"Content-Type":"application/json","apikey":SB_ANON,"Authorization":`Bearer ${token}`},
+      body:JSON.stringify({email,data:{full_name:name}}),
     });
     return r.json();
   },
@@ -186,14 +185,14 @@ function SC({label,value,sub,color}){
 function AdminView({users,teams,token,onRefresh}){
   const [showNewUser,setShowNewUser]=useState(false);
   const [showNewTeam,setShowNewTeam]=useState(false);
-  const [uForm,setUForm]=useState({name:"",email:"",password:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
+  const [uForm,setUForm]=useState({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
   const [tForm,setTForm]=useState({name:"",color:"#7c3aed"});
   const [loading,setLoading]=useState(false);
   const setU=k=>e=>setUForm(f=>({...f,[k]:e.target.value}));
   const setT=k=>e=>setTForm(f=>({...f,[k]:e.target.value}));
 
   async function createUser(){
-    if(!uForm.name||!uForm.email||!uForm.password){alert("Nombre, correo y contraseña son obligatorios.");return;}
+    if(!uForm.name||!uForm.email){alert("Nombre y correo son obligatorios.");return;}
     setLoading(true);
     try{
       // Insert directly into usuarios table with a generated UUID
@@ -209,9 +208,9 @@ function AdminView({users,teams,token,onRefresh}){
         initials,
       },token);
       // Also create Supabase Auth user
-      await sb.createUser(uForm.email,uForm.password,uForm.name,token);
+      await sb.inviteUser(uForm.email,uForm.name,token);
       showToast(`✅ Usuario ${uForm.name} creado`,"success");
-      setUForm({name:"",email:"",password:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
+      setUForm({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
       setShowNewUser(false);
       onRefresh();
     }catch(e){showToast("Error al crear usuario: "+e.message,"error");}
@@ -312,10 +311,7 @@ function AdminView({users,teams,token,onRefresh}){
               <label className="form-label">Correo *</label>
               <input type="email" value={uForm.email} onChange={setU("email")} placeholder="lucia@lacata.com"/>
             </div>
-            <div className="form-group">
-              <label className="form-label">Contraseña temporal *</label>
-              <input type="text" value={uForm.password} onChange={setU("password")} placeholder="Mínimo 6 caracteres"/>
-            </div>
+
             <div className="form-group">
               <label className="form-label">Rol</label>
               <select value={uForm.role} onChange={setU("role")}>
@@ -348,7 +344,7 @@ function AdminView({users,teams,token,onRefresh}){
             </div>}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-ghost" onClick={()=>setShowNewUser(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={createUser} disabled={loading}>{loading?"Creando...":"Crear usuario"}</button>
+              <button className="btn btn-primary" onClick={createUser} disabled={loading}>{loading?"Enviando...":"Enviar invitación por correo"}</button>
             </div>
           </div>
         </div>
