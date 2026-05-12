@@ -296,7 +296,7 @@ function AdminView({users,teams,token,onRefresh}){
               <p style={{fontSize:12,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</p>
             </div>
             <select value={u.role} onChange={e=>changeUserRole(u.id,e.target.value)}
-              style={{width:"auto",padding:"5px 8px",fontSize:12,borderRadius:8,marginRight:8,background:"var(--bg3)",color:"var(--text)",border:"1px solid var(--border)"}}>
+              style={{width:130,padding:"6px 10px",fontSize:13,borderRadius:8,marginRight:8,background:"var(--bg4)",color:"var(--text)",border:"1px solid var(--purple)",cursor:"pointer",fontFamily:"inherit"}}>
               <option value="colaborador">Colaborador</option>
               <option value="cuentas">Cuentas</option>
               <option value="director">Director</option>
