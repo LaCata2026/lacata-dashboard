@@ -100,10 +100,12 @@ const {useState,useEffect,useCallback}=React;
 
 const SB_URL  = "https://puaonadnfhwgeybkuxgh.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1YW9uYWRuZmh3Z2V5Ymt1eGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTk5NzcsImV4cCI6MjA5NDA3NTk3N30.t29__W64x10eqpLmhPhrMkmQZNX0Yd6FQCEJFe8STqM";
+const SB_SERVICE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1YW9uYWRuZmh3Z2V5Ymt1eGdoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODQ5OTk3NywiZXhwIjoyMDk0MDc1OTc3fQ.Ky_u-JfRsfOh3t8Juub0kISItxQbSM5PO8X7EXayNyE";
 const DIRECTOR_EMAILS=["jorge@agarrate-catalina.com"];
+const CUENTAS_EMAILS=[];
 const COLORS=["#7c3aed","#2563eb","#059669","#d97706","#dc2626","#0891b2","#db2777","#65a30d","#ea580c","#7c2d12"];
 
-function getRole(e){return DIRECTOR_EMAILS.includes(e.toLowerCase())?"director":"colaborador"}
+function getRole(e){const em=e.toLowerCase();if(DIRECTOR_EMAILS.includes(em))return "director";if(CUENTAS_EMAILS.includes(em))return "cuentas";return "colaborador"}
 function getInitials(name){return name.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase()}
 function getAvatarColor(email){let h=0;for(let c of email)h=(h*31+c.charCodeAt(0))%COLORS.length;return COLORS[Math.abs(h)]}
 
@@ -120,13 +122,15 @@ const sb={
     const profile={id:d.user.id,email:d.user.email,name:d.user.user_metadata?.full_name||d.user.email.split("@")[0],role:getRole(d.user.email),avatar_color:getAvatarColor(d.user.email),initials:getInitials(d.user.user_metadata?.full_name||d.user.email.split("@")[0])};
     return{profile,access_token:d.access_token};
   },
-  async inviteUser(email,name,token){
+  async inviteUser(email,name){
     const r=await fetch(`${SB_URL}/auth/v1/invite`,{
       method:"POST",
-      headers:{"Content-Type":"application/json","apikey":SB_ANON,"Authorization":`Bearer ${token}`},
+      headers:{"Content-Type":"application/json","apikey":SB_SERVICE,"Authorization":`Bearer ${SB_SERVICE}`},
       body:JSON.stringify({email,data:{full_name:name}}),
     });
-    return r.json();
+    const d=await r.json();
+    if(d.error)throw new Error(d.msg||d.error);
+    return d;
   },
   async get(table,params,token){
     const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(token)});
@@ -150,9 +154,9 @@ const statusLabel={pendiente:"Pendiente",en_progreso:"En progreso",completada:"C
 const statusPill={pendiente:"pill-yellow",en_progreso:"pill-blue",completada:"pill-green",vencida:"pill-red"};
 const prioPill={Normal:"pill-gray",Alta:"pill-orange",Urgente:"pill-red"};
 const NAV=[
-  {id:"ordenes",  icon:"📋",label:"Órdenes",      section:"trabajo", roles:["director","colaborador"]},
-  {id:"crear",    icon:"➕",label:"Nueva orden",   section:"trabajo", roles:["director"]},
-  {id:"equipos",  icon:"👥",label:"Equipos",       section:"trabajo", roles:["director"]},
+  {id:"ordenes",  icon:"📋",label:"Órdenes",      section:"trabajo", roles:["director","colaborador","cuentas"]},
+  {id:"crear",    icon:"➕",label:"Nueva orden",   section:"trabajo", roles:["director","cuentas"]},
+  {id:"equipos",  icon:"👥",label:"Equipos",       section:"trabajo", roles:["director","cuentas"]},
   {id:"desempeno",icon:"📊",label:"Desempeño",     section:"trabajo", roles:["director"]},
   {id:"admin",    icon:"⚙️",label:"Administración",section:"admin",   roles:["director"]},
 ];
@@ -208,7 +212,7 @@ function AdminView({users,teams,token,onRefresh}){
         initials,
       },token);
       // Also create Supabase Auth user
-      await sb.inviteUser(uForm.email,uForm.name,token);
+      await sb.inviteUser(uForm.email,uForm.name);
       showToast(`✅ Usuario ${uForm.name} creado`,"success");
       setUForm({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
       setShowNewUser(false);
@@ -287,7 +291,7 @@ function AdminView({users,teams,token,onRefresh}){
               <p style={{fontSize:13,fontWeight:600}}>{u.name}</p>
               <p style={{fontSize:12,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</p>
             </div>
-            <span className={`pill ${u.role==="director"?"pill-purple":"pill-blue"}`} style={{marginRight:8,flexShrink:0}}>{u.role}</span>
+            <span className={`pill ${u.role==="director"?"pill-purple":u.role==="cuentas"?"pill-yellow":"pill-blue"}`} style={{marginRight:8,flexShrink:0}}>{u.role}</span>
             <select value={u.team_id||""} onChange={e=>changeUserTeam(u.id,e.target.value)}
               style={{width:"auto",padding:"5px 8px",fontSize:12,borderRadius:8,marginRight:8,maxWidth:140}}>
               <option value="">Sin equipo</option>
@@ -316,6 +320,7 @@ function AdminView({users,teams,token,onRefresh}){
               <label className="form-label">Rol</label>
               <select value={uForm.role} onChange={setU("role")}>
                 <option value="colaborador">Colaborador</option>
+                <option value="cuentas">Cuentas</option>
                 <option value="director">Director</option>
               </select>
             </div>
@@ -607,8 +612,45 @@ function PerformanceView({tasks,users,teams}){
           );
         })}
       </div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
+        <button className="btn btn-green" onClick={()=>exportExcel(tasks,users,teams)} style={{display:"flex",alignItems:"center",gap:8}}>
+          <span>📥</span> Exportar Excel
+        </button>
+      </div>
     </div>
   );
+}
+
+/* ── EXCEL EXPORT ── */
+function exportExcel(tasks,users,teams){
+  const rows=[["Proyecto","Responsable","Equipo","Prioridad","Estado","Horas Estimadas","Fecha Límite","Cambios"]];
+  tasks.forEach(t=>{
+    const u=users.find(x=>x.id===t.assigned_to);
+    const team=teams.find(x=>x.id===t.team_id);
+    const statusMap={pendiente:"Pendiente",en_progreso:"En progreso",completada:"Completada",vencida:"Vencida"};
+    rows.push([
+      t.title||"",
+      u?.name||"Sin asignar",
+      team?.name||"Sin equipo",
+      t.priority||"",
+      statusMap[t.status]||t.status||"",
+      t.hours||0,
+      t.due_date||"",
+      t.changes||0,
+    ]);
+  });
+  // Build CSV with BOM for Excel UTF-8
+  const bom="﻿";
+  const csv=bom+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("
+");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`LaCata_Proyectos_${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("📥 Archivo descargado","success");
 }
 
 /* ── ORDENES ── */
@@ -704,7 +746,7 @@ function Dashboard({session,onLogout}){
             <Av u={user} size={32}/>
             <div style={{minWidth:0}}>
               <p style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</p>
-              <p style={{fontSize:11,color:isDir?"var(--purple2)":"var(--green)"}}>{isDir?"Director":"Colaborador"}</p>
+              <p style={{fontSize:11,color:user.role==="director"?"var(--purple2)":user.role==="cuentas"?"var(--yellow)":"var(--green)"}}>{user.role==="director"?"Director":user.role==="cuentas"?"Cuentas":"Colaborador"}</p>
             </div>
           </div>
           <button className="btn btn-ghost btn-sm" style={{width:"100%"}} onClick={onLogout}>Cerrar sesión</button>
@@ -722,8 +764,8 @@ function Dashboard({session,onLogout}){
                 {overdue.length>0?<SC label="Vencidas" value={overdue.length} sub="⚠ Atención requerida" color="var(--red)"/>:<SC label="Al día" value="✓" sub="Sin vencidas" color="var(--green)"/>}
               </div>
               {tab==="ordenes"  &&<OrdenesView tasks={tasks} users={users} teams={teams} me={user} token={token} onRefresh={load}/>}
-              {tab==="crear"    &&isDir&&<CreateTask users={users} teams={teams} me={user} token={token} onCreated={()=>{load();setTab("ordenes");}}/>}
-              {tab==="equipos"  &&isDir&&<TeamsView tasks={tasks} users={users} teams={teams}/>}
+              {tab==="crear"    &&(isDir||user.role==="cuentas")&&<CreateTask users={users} teams={teams} me={user} token={token} onCreated={()=>{load();setTab("ordenes");}}/>}
+              {tab==="equipos"  &&(isDir||user.role==="cuentas")&&<TeamsView tasks={tasks} users={users} teams={teams}/>}
               {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams}/>}
               {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} token={token} onRefresh={load}/>}
             </>
