@@ -623,34 +623,33 @@ function PerformanceView({tasks,users,teams}){
 
 /* ── EXCEL EXPORT ── */
 function exportExcel(tasks,users,teams){
-  const rows=[["Proyecto","Responsable","Equipo","Prioridad","Estado","Horas Estimadas","Fecha Límite","Cambios"]];
-  tasks.forEach(t=>{
-    const u=users.find(x=>x.id===t.assigned_to);
-    const team=teams.find(x=>x.id===t.team_id);
-    const statusMap={pendiente:"Pendiente",en_progreso:"En progreso",completada:"Completada",vencida:"Vencida"};
-    rows.push([
-      t.title||"",
-      u?.name||"Sin asignar",
-      team?.name||"Sin equipo",
-      t.priority||"",
-      statusMap[t.status]||t.status||"",
+  const header=["Proyecto","Responsable","Equipo","Prioridad","Estado","Horas","Fecha Limite","Cambios"];
+  const statusMap={pendiente:"Pendiente",en_progreso:"En progreso",completada:"Completada",vencida:"Vencida"};
+  const lines=[header.join(",")];
+  tasks.forEach(function(t){
+    var u=users.find(function(x){return x.id===t.assigned_to;});
+    var team=teams.find(function(x){return x.id===t.team_id;});
+    var row=[
+      (t.title||"").replace(/,/g," "),
+      (u?u.name:"Sin asignar").replace(/,/g," "),
+      (team?team.name:"Sin equipo").replace(/,/g," "),
+      (t.priority||"").replace(/,/g," "),
+      (statusMap[t.status]||t.status||"").replace(/,/g," "),
       t.hours||0,
       t.due_date||"",
       t.changes||0,
-    ]);
+    ];
+    lines.push(row.join(","));
   });
-  // Build CSV with BOM for Excel UTF-8
-  const bom="﻿";
-  const csv=bom+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("
-");
-  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
+  var csv=lines.join("\n");
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
   a.href=url;
-  a.download=`LaCata_Proyectos_${new Date().toISOString().split("T")[0]}.csv`;
+  a.download="LaCata_Proyectos_"+new Date().toISOString().split("T")[0]+".csv";
   a.click();
   URL.revokeObjectURL(url);
-  showToast("📥 Archivo descargado","success");
+  showToast("Archivo descargado","success");
 }
 
 /* ── ORDENES ── */
