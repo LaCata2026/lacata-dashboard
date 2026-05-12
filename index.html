@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>La Cata — Creative Ops</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--bg4:#22222f;
+  --border:#2a2a3a;--border2:#333345;
+  --text:#f0f0f5;--muted:#7070a0;--muted2:#9090b8;
+  --purple:#8b5cf6;--purple2:#a78bfa;
+  --blue:#3b82f6;--green:#10b981;--yellow:#f59e0b;
+  --red:#ef4444;--orange:#f97316;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+h1,h2,h3,h4{font-family:'Syne',sans-serif}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:4px}
+input,select,textarea{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;padding:10px 14px;color:var(--text);
+  font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(139,92,246,.1)}
+select option{background:var(--bg3)}
+textarea{resize:vertical;min-height:90px}
+input[type="file"]{display:none}
+button{border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.15s;font-size:14px}
+.btn{padding:10px 18px;border-radius:10px;font-weight:500}
+.btn-primary{background:var(--purple);color:#fff}
+.btn-primary:hover{background:#7c3aed}
+.btn-white{background:#fff;color:#0a0a0f;font-weight:600}
+.btn-white:hover{background:#e5e5f0}
+.btn-ghost{background:var(--bg3);color:var(--muted2);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg4);color:var(--text)}
+.btn-danger{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.btn-sm{padding:6px 12px;font-size:13px;border-radius:8px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:500}
+.pill-purple{background:rgba(139,92,246,.15);color:var(--purple2)}
+.pill-blue{background:rgba(59,130,246,.15);color:#93c5fd}
+.pill-green{background:rgba(16,185,129,.15);color:#6ee7b7}
+.pill-yellow{background:rgba(245,158,11,.15);color:#fcd34d}
+.pill-red{background:rgba(239,68,68,.15);color:#fca5a5}
+.pill-orange{background:rgba(249,115,22,.15);color:#fdba74}
+.pill-gray{background:rgba(112,112,160,.1);color:var(--muted2)}
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;flex-shrink:0}
+.file-drop{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;min-height:80px;background:var(--bg3);border:1px dashed var(--border2);
+  border-radius:10px;cursor:pointer;color:var(--muted);font-size:13px;transition:.2s;padding:16px;
+}
+.file-drop:hover{border-color:var(--purple);color:var(--purple2)}
+.app-shell{display:flex;min-height:100vh}
+.sidebar{
+  width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:24px 16px;position:sticky;top:0;height:100vh;
+}
+.main-content{flex:1;overflow:auto;padding:28px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;
+  color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;transition:.15s;
+  margin-bottom:2px;background:none;width:100%;text-align:left;border:none;
+  font-family:'DM Sans',sans-serif;
+}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(139,92,246,.15);color:var(--purple2)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:-30px;right:-30px;width:80px;height:80px;border-radius:50%;background:var(--ac,var(--purple));opacity:.06}
+.stat-label{font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.stat-value{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;line-height:1}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.task-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:12px;transition:.15s}
+.task-card:hover{border-color:var(--border2);background:var(--bg3)}
+.progress-bar{height:5px;background:var(--bg4);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width .5s}
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+.filter-chip{padding:5px 12px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;background:var(--bg3);color:var(--muted2);border:1px solid var(--border);transition:.15s}
+.filter-chip:hover{border-color:var(--border2);color:var(--text)}
+.filter-chip.active{background:var(--purple);color:#fff;border-color:var(--purple)}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.section-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700}
+.login-wrap{
+  display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;
+  background:var(--bg);
+  background-image:radial-gradient(ellipse at 20% 50%,rgba(139,92,246,.08) 0%,transparent 60%),
+                   radial-gradient(ellipse at 80% 20%,rgba(59,130,246,.06) 0%,transparent 50%);
+}
+.login-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:36px}
+.logo-mark{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-size:20px}
+.form-label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px;font-weight:500;text-transform:uppercase;letter-spacing:.4px}
+.form-group{margin-bottom:14px}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--muted);gap:12px;text-align:center}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:12px 18px;font-size:13px;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:.3s;pointer-events:none;z-index:999}
+.toast.show{opacity:1;transform:translateY(0)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .25s ease}
+@media(max-width:768px){.sidebar{display:none}.main-content{padding:16px}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback}=React;
+
+/* ── SUPABASE ── */
+const SB_URL  = "https://puaonadnfhwgeybkuxgh.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1YW9uYWRuZmh3Z2V5Ymr1eGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTk5NzcsImV4cCI6MjA5NDA3NTk3N30.t29__W64x10eqpLmhPhrMkmQZNX0Yd6FQCEJFe8STqM";
+
+const hdr=(token)=>({
+  "apikey":SB_ANON,
+  "Authorization":`Bearer ${token||SB_ANON}`,
+  "Content-Type":"application/json",
+  "Prefer":"return=representation",
+});
+
+const sb={
+  async signIn(email,pw){
+    const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_ANON},
+      body:JSON.stringify({email,password:pw}),
+    });
+    const d=await r.json();
+    if(d.error||d.error_description)throw new Error("Correo o contraseña incorrectos");
+    return d;
+  },
+  async getProfile(uid){
+    const r=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${uid}&select=*`,{
+      headers:hdr(SB_ANON),
+    });
+    const d=await r.json();
+    if(!Array.isArray(d)||d.length===0)throw new Error("Perfil no encontrado en la base de datos");
+    return d[0];
+  },
+  async get(table,params){
+    const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(SB_ANON)});
+    return r.json();
+  },
+  async insert(table,data){
+    const r=await fetch(`${SB_URL}/rest/v1/${table}`,{
+      method:"POST",headers:hdr(SB_ANON),body:JSON.stringify(data),
+    });
+    return r.json();
+  },
+  async update(table,id,data){
+    await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{
+      method:"PATCH",headers:hdr(SB_ANON),body:JSON.stringify(data),
+    });
+  },
+  async del(table,id){
+    await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{
+      method:"DELETE",headers:hdr(SB_ANON),
+    });
+  },
+};
+
+/* ── UTILS ── */
+const LS={
+  get:(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
+  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),
+  del:(k)=>localStorage.removeItem(k),
+};
+const fmtDate=d=>{if(!d)return"—";const[y,m,dd]=d.split("-");return`${dd}/${m}/${y}`};
+const statusLabel={pendiente:"Pendiente",en_progreso:"En progreso",completada:"Completada",vencida:"Vencida"};
+const statusPill={pendiente:"pill-yellow",en_progreso:"pill-blue",completada:"pill-green",vencida:"pill-red"};
+const prioPill={Normal:"pill-gray",Alta:"pill-orange",Urgente:"pill-red"};
+const NAV=[
+  {id:"ordenes",  icon:"📋",label:"Órdenes",   roles:["director","colaborador"]},
+  {id:"crear",    icon:"➕",label:"Nueva orden",roles:["director"]},
+  {id:"equipos",  icon:"👥",label:"Equipos",    roles:["director"]},
+  {id:"desempeno",icon:"📊",label:"Desempeño",  roles:["director"]},
+];
+
+/* ── TOAST ── */
+let _toast=null;
+const showToast=(m)=>_toast&&_toast(m);
+function Toast(){
+  const [msg,setMsg]=useState("");
+  const [show,setShow]=useState(false);
+  _toast=(m)=>{setMsg(m);setShow(true);setTimeout(()=>setShow(false),2800)};
+  return <div className={`toast${show?" show":""}`}>{msg}</div>;
+}
+
+/* ── AVATAR ── */
+function Av({u,size=32}){
+  return(
+    <div className="avatar" style={{width:size,height:size,background:u?.avatar_color||"#7c3aed",fontSize:size*.33,color:"#fff"}}>
+      {u?.initials||"?"}
+    </div>
+  );
+}
+
+/* ── STAT CARD ── */
+function SC({label,value,sub,color}){
+  return(
+    <div className="stat-card fade-in" style={{"--ac":color||"var(--purple)"}}>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value" style={{color:color||"var(--text)"}}>{value}</div>
+      {sub&&<div className="stat-sub">{sub}</div>}
+    </div>
+  );
+}
+
+/* ── TASK CARD ── */
+function TaskCard({task,users,teams,me,onRefresh}){
+  const [exp,setExp]=useState(false);
+  const isDir=me.role==="director";
+  const assigned=users.find(u=>u.id===task.assigned_to);
+  const team=teams.find(t=>t.id===task.team_id);
+
+  async function changeStatus(s){
+    const h=[...(task.history||[]),`Estado → ${statusLabel[s]} (${new Date().toLocaleDateString("es-GT")})`];
+    await sb.update("tareas",task.id,{status:s,history:h});
+    showToast("Estado actualizado");onRefresh();
+  }
+  async function addChange(){
+    const c=prompt("Describe el cambio:");if(!c)return;
+    const h=[...(task.history||[]),`Cambio ${(task.changes||0)+1}: ${c}`];
+    await sb.update("tareas",task.id,{changes:(task.changes||0)+1,history:h});
+    showToast("Cambio registrado");onRefresh();
+  }
+  async function reassign(){
+    const opts=users.filter(u=>u.role==="colaborador"&&u.id!==task.assigned_to);
+    if(!opts.length){alert("No hay otros colaboradores.");return;}
+    const list=opts.map((u,i)=>`${i+1}. ${u.name}`).join("\n");
+    const idx=parseInt(prompt(`Nuevo responsable:\n${list}`))-1;
+    if(isNaN(idx)||!opts[idx])return;
+    const nu=opts[idx];
+    const h=[...(task.history||[]),`Reasignado a ${nu.name} (${new Date().toLocaleDateString("es-GT")})`];
+    await sb.update("tareas",task.id,{assigned_to:nu.id,history:h});
+    showToast(`Reasignado a ${nu.name}`);onRefresh();
+  }
+  async function del(){
+    if(!confirm(`¿Eliminar "${task.title}"?`))return;
+    await sb.del("tareas",task.id);
+    showToast("Orden eliminada");onRefresh();
+  }
+
+  return(
+    <div className="task-card fade-in">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+            <span className={`pill ${prioPill[task.priority]||"pill-gray"}`}>{task.priority}</span>
+            <span className={`pill ${statusPill[task.status]||"pill-gray"}`}>{statusLabel[task.status]||task.status}</span>
+            {task.changes>0&&<span className="pill pill-purple">🔄 {task.changes} cambio{task.changes>1?"s":""}</span>}
+            {team&&<span className="pill" style={{background:team.color+"22",color:team.color}}>{team.name}</span>}
+          </div>
+          <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{task.title}</h3>
+          {task.description&&<p style={{color:"var(--muted2)",fontSize:13,marginBottom:10,lineHeight:1.5}}>{task.description}</p>}
+          <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:13,color:"var(--muted)",alignItems:"center"}}>
+            {assigned&&<span style={{display:"flex",alignItems:"center",gap:6}}><Av u={assigned} size={20}/>{assigned.name}</span>}
+            <span>📅 {fmtDate(task.due_date)}</span>
+            {task.hours>0&&<span>⏱ {task.hours}h</span>}
+          </div>
+          {task.files?.length>0&&(
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
+              {task.files.map((f,i)=><span key={i} style={{fontSize:12,padding:"3px 10px",background:"var(--bg3)",borderRadius:999,color:"var(--muted2)"}}>📎 {f}</span>)}
+            </div>
+          )}
+        </div>
+        {(isDir||task.assigned_to===me.id)&&(
+          <select value={task.status} onChange={e=>changeStatus(e.target.value)}
+            style={{width:"auto",padding:"6px 10px",fontSize:12,borderRadius:8,cursor:"pointer"}}>
+            {Object.entries(statusLabel).map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select>
+        )}
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+        <button className="btn btn-ghost btn-sm" onClick={()=>setExp(!exp)}>
+          {exp?"Ocultar":"Ver historial"}
+          {task.history?.length>0&&<span style={{marginLeft:6,background:"var(--bg4)",borderRadius:999,padding:"1px 6px",fontSize:11}}>{task.history.length}</span>}
+        </button>
+        {isDir&&<button className="btn btn-ghost btn-sm" onClick={reassign}>Reasignar</button>}
+        {isDir&&<button className="btn btn-ghost btn-sm" onClick={addChange}>+ Cambio</button>}
+        {isDir&&<button className="btn btn-danger btn-sm" onClick={del}>Eliminar</button>}
+      </div>
+      {exp&&(
+        <div style={{marginTop:12,background:"var(--bg)",borderRadius:10,padding:14}}>
+          <p style={{fontSize:11,color:"var(--muted)",marginBottom:8,textTransform:"uppercase",letterSpacing:".5px",fontWeight:600}}>Historial</p>
+          {(task.history||[]).length===0
+            ?<p style={{fontSize:13,color:"var(--muted)"}}>Sin historial.</p>
+            :(task.history||[]).map((h,i)=>(
+              <p key={i} style={{fontSize:13,color:"var(--muted2)",padding:"5px 0",borderBottom:"1px solid var(--border)"}}>
+                <span style={{color:"var(--muted)",fontSize:11,marginRight:8}}>#{i+1}</span>{h}
+              </p>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── CREATE TASK ── */
+function CreateTask({users,teams,me,onCreated}){
+  const blank={title:"",description:"",assigned_to:"",team_id:"",priority:"Normal",hours:"",due_date:"",status:"pendiente"};
+  const [form,setForm]=useState(blank);
+  const [files,setFiles]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+
+  async function submit(){
+    if(!form.title||!form.description||!form.assigned_to||!form.team_id||!form.due_date){
+      alert("Completa todos los campos marcados con *");return;
+    }
+    setLoading(true);
+    try{
+      await sb.insert("tareas",{
+        ...form,hours:Number(form.hours)||0,changes:0,
+        history:[`Orden creada — ${new Date().toLocaleDateString("es-GT")}`],
+        files:files.map(f=>f.name),created_by:me.id,
+      });
+      showToast("✅ Orden creada correctamente");
+      setForm(blank);setFiles([]);onCreated();
+    }catch(e){alert("Error: "+e.message);}
+    setLoading(false);
+  }
+
+  return(
+    <div>
+      <div className="section-header"><h2 className="section-title">Nueva orden de trabajo</h2></div>
+      <div className="card fade-in" style={{maxWidth:680}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div style={{gridColumn:"1/-1"}}>
+            <label className="form-label">Nombre del proyecto *</label>
+            <input value={form.title} onChange={set("title")} placeholder="Ej: Campaña verano Claro"/>
+          </div>
+          <div style={{gridColumn:"1/-1"}}>
+            <label className="form-label">Brief y especificaciones *</label>
+            <textarea value={form.description} onChange={set("description")} placeholder="Entregables, formatos, dimensiones, referencias..."/>
+          </div>
+          <div>
+            <label className="form-label">Responsable *</label>
+            <select value={form.assigned_to} onChange={set("assigned_to")}>
+              <option value="">— Seleccionar —</option>
+              {users.filter(u=>u.role==="colaborador").map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Equipo *</label>
+            <select value={form.team_id} onChange={set("team_id")}>
+              <option value="">— Seleccionar —</option>
+              {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Prioridad</label>
+            <select value={form.priority} onChange={set("priority")}>
+              <option>Normal</option><option>Alta</option><option>Urgente</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Horas estimadas</label>
+            <input type="number" value={form.hours} onChange={set("hours")} placeholder="Ej: 16" min="1"/>
+          </div>
+          <div>
+            <label className="form-label">Fecha límite *</label>
+            <input type="date" value={form.due_date} onChange={set("due_date")}/>
+          </div>
+          <div>
+            <label className="form-label">Estado inicial</label>
+            <select value={form.status} onChange={set("status")}>
+              <option value="pendiente">Pendiente</option>
+              <option value="en_progreso">En progreso</option>
+            </select>
+          </div>
+          <div style={{gridColumn:"1/-1"}}>
+            <label className="form-label">Referencias / archivos</label>
+            <label className="file-drop">
+              <span style={{fontSize:24}}>📎</span>
+              <span>Arrastra archivos o haz clic para seleccionar</span>
+              <span style={{fontSize:12,color:"var(--muted)"}}>PDF, PNG, JPG, AI, MP4</span>
+              <input type="file" multiple onChange={e=>setFiles([...e.target.files])}/>
+            </label>
+            {files.length>0&&(
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
+                {files.map((f,i)=><span key={i} style={{fontSize:12,padding:"3px 10px",background:"var(--bg3)",borderRadius:999,color:"var(--muted2)"}}>📎 {f.name}</span>)}
+              </div>
+            )}
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{width:"100%",marginTop:20,padding:13,fontSize:15,fontWeight:700}} onClick={submit} disabled={loading}>
+          {loading?"Creando...":"Crear orden de trabajo"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── TEAMS VIEW ── */
+function TeamsView({tasks,users,teams}){
+  return(
+    <div>
+      <div className="section-header"><h2 className="section-title">Equipos y carga de trabajo</h2></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:16}}>
+        {teams.map(team=>{
+          const members=users.filter(u=>u.team_id===team.id&&u.role==="colaborador");
+          const tt=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada");
+          return(
+            <div key={team.id} className="card fade-in">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <div>
+                  <h3 style={{fontSize:16,fontWeight:700}}>{team.name}</h3>
+                  <p style={{fontSize:12,color:"var(--muted)",marginTop:2}}>{members.length} miembros · {tt.length} tareas activas</p>
+                </div>
+                <div style={{width:10,height:10,borderRadius:"50%",background:team.color}}/>
+              </div>
+              {members.length===0&&<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:20}}>Sin miembros asignados</p>}
+              {members.map(m=>{
+                const mt=tasks.filter(t=>t.assigned_to===m.id&&t.status!=="completada").length;
+                const pct=Math.min(100,Math.round(mt/8*100));
+                return(
+                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <Av u={m} size={28}/>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                        <span style={{fontSize:13,fontWeight:500}}>{m.name}</span>
+                        <span style={{fontSize:12,color:mt>=7?"var(--red)":"var(--muted)",fontWeight:600}}>{mt}</span>
+                      </div>
+                      <div className="progress-bar">
+                        <div className="progress-fill" style={{width:`${pct}%`,background:pct>=90?"var(--red)":team.color}}/>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── PERFORMANCE ── */
+function PerformanceView({tasks,users,teams}){
+  const colabs=users.filter(u=>u.role==="colaborador");
+  const sorted=[...colabs].sort((a,b)=>{
+    return tasks.filter(t=>t.assigned_to===b.id&&t.status!=="completada").length
+          -tasks.filter(t=>t.assigned_to===a.id&&t.status!=="completada").length;
+  });
+  return(
+    <div>
+      <div className="section-header"><h2 className="section-title">Desempeño</h2></div>
+      <div className="stat-grid" style={{marginBottom:24}}>
+        <SC label="Tareas activas"   value={tasks.filter(t=>t.status!=="completada").length} color="var(--blue)"/>
+        <SC label="Completadas"      value={tasks.filter(t=>t.status==="completada").length}  color="var(--green)"/>
+        <SC label="Vencidas"         value={tasks.filter(t=>t.status==="vencida").length}     color="var(--red)"/>
+        <SC label="Horas totales"    value={tasks.reduce((s,t)=>s+(Number(t.hours)||0),0)+"h"} color="var(--purple)"/>
+      </div>
+      <div className="card fade-in">
+        <h3 style={{fontSize:16,fontWeight:700,marginBottom:18}}>Carga por colaborador</h3>
+        {sorted.length===0&&<p style={{textAlign:"center",color:"var(--muted)",padding:20}}>No hay colaboradores aún.</p>}
+        {sorted.map((u,i)=>{
+          const ut=tasks.filter(t=>t.assigned_to===u.id&&t.status!=="completada");
+          const uc=tasks.filter(t=>t.assigned_to===u.id&&t.status==="completada");
+          const uv=tasks.filter(t=>t.assigned_to===u.id&&t.status==="vencida");
+          const team=teams.find(t=>t.id===u.team_id);
+          const pct=Math.min(100,Math.round(ut.length/8*100));
+          return(
+            <div key={u.id} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:"1px solid var(--border)"}}>
+              <span style={{fontSize:16,fontWeight:800,color:"var(--muted)",minWidth:24}}>#{i+1}</span>
+              <Av u={u} size={36}/>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:6}}>
+                  <span style={{fontWeight:600,fontSize:14}}>
+                    {u.name}
+                    {team&&<span style={{fontWeight:400,color:"var(--muted)",fontSize:12,marginLeft:8}}>· {team.name}</span>}
+                  </span>
+                  <div style={{display:"flex",gap:8,fontSize:12}}>
+                    <span style={{color:"var(--green)"}}>✓ {uc.length}</span>
+                    {uv.length>0&&<span style={{color:"var(--red)"}}>⚠ {uv.length}</span>}
+                  </div>
+                </div>
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{width:`${pct}%`,background:pct>=90?"var(--red)":team?.color||"var(--purple)"}}/>
+                </div>
+              </div>
+              <span style={{fontSize:18,fontWeight:800,minWidth:28,textAlign:"right",color:ut.length>=7?"var(--red)":"var(--text)"}}>{ut.length}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── ORDENES ── */
+function OrdenesView({tasks,users,teams,me,onRefresh}){
+  const [sf,setSf]=useState("todas");
+  const [tf,setTf]=useState("todas");
+  const isDir=me.role==="director";
+  const visible=tasks.filter(t=>{
+    const mine=isDir||t.assigned_to===me.id;
+    return mine&&(sf==="todas"||t.status===sf)&&(tf==="todas"||t.team_id===tf);
+  });
+  return(
+    <div>
+      <div className="section-header">
+        <h2 className="section-title">Órdenes de trabajo</h2>
+        <span style={{fontSize:13,color:"var(--muted)"}}>{visible.length} orden{visible.length!==1?"es":""}</span>
+      </div>
+      <div className="filter-bar">
+        {["todas","pendiente","en_progreso","completada","vencida"].map(s=>(
+          <button key={s} className={`filter-chip${sf===s?" active":""}`} onClick={()=>setSf(s)}>
+            {s==="todas"?"Todas":statusLabel[s]}
+          </button>
+        ))}
+        {isDir&&(
+          <select value={tf} onChange={e=>setTf(e.target.value)}
+            style={{width:"auto",padding:"5px 10px",fontSize:12,borderRadius:999}}>
+            <option value="todas">Todos los equipos</option>
+            {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        )}
+      </div>
+      {visible.length===0
+        ?<div className="empty"><div style={{fontSize:40,opacity:.4}}>📋</div><p>No hay órdenes con estos filtros.</p></div>
+        :visible.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} onRefresh={onRefresh}/>)
+      }
+    </div>
+  );
+}
+
+/* ── DASHBOARD ── */
+function Dashboard({session,onLogout}){
+  const {user,token}=session;
+  const [tab,setTab]=useState("ordenes");
+  const [tasks,setTasks]=useState([]);
+  const [users,setUsers]=useState([]);
+  const [teams,setTeams]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const isDir=user.role==="director";
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    try{
+      const [t,u,eq]=await Promise.all([
+        sb.get("tareas","select=*&order=created_at.desc"),
+        sb.get("usuarios","select=*"),
+        sb.get("equipos","select=*"),
+      ]);
+      setTasks(Array.isArray(t)?t:[]);
+      setUsers(Array.isArray(u)?u:[]);
+      setTeams(Array.isArray(eq)?eq:[]);
+    }catch(e){console.error(e);}
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{load();},[load]);
+
+  const myT=isDir?tasks:tasks.filter(t=>t.assigned_to===user.id);
+  const active=myT.filter(t=>t.status!=="completada");
+  const done=myT.filter(t=>t.status==="completada");
+  const withChanges=myT.filter(t=>t.changes>0);
+  const overdue=myT.filter(t=>t.status==="vencida");
+  const visibleNav=NAV.filter(n=>n.roles.includes(user.role));
+
+  return(
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:32}}>
+          <div className="logo-mark">🎨</div>
+          <div>
+            <div style={{fontFamily:"Syne,sans-serif",fontWeight:800,fontSize:16}}>La Cata</div>
+            <div style={{fontSize:11,color:"var(--muted)"}}>Creative Ops</div>
+          </div>
+        </div>
+        <nav style={{flex:1}}>
+          {visibleNav.map(n=>(
+            <button key={n.id} className={`nav-item${tab===n.id?" active":""}`} onClick={()=>setTab(n.id)}>
+              <span style={{fontSize:16,width:20,textAlign:"center"}}>{n.icon}</span>{n.label}
+            </button>
+          ))}
+        </nav>
+        <div style={{borderTop:"1px solid var(--border)",paddingTop:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <Av u={user} size={32}/>
+            <div style={{minWidth:0}}>
+              <p style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</p>
+              <p style={{fontSize:11,color:isDir?"var(--purple2)":"var(--green)"}}>{isDir?"Director":"Colaborador"}</p>
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-sm" style={{width:"100%"}} onClick={onLogout}>Cerrar sesión</button>
+        </div>
+      </aside>
+      <main className="main-content">
+        {loading
+          ?<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh",color:"var(--muted)"}}>Cargando...</div>
+          :(
+            <>
+              <div className="stat-grid">
+                <SC label="Tareas activas"  value={active.length}      sub={`${active.reduce((s,t)=>s+t.hours,0)}h acumuladas`} color="var(--blue)"/>
+                <SC label="Completadas"      value={done.length}         sub="Este período"         color="var(--green)"/>
+                <SC label="Con cambios"      value={withChanges.length}  sub="Requieren revisión"   color="var(--yellow)"/>
+                {overdue.length>0
+                  ?<SC label="Vencidas" value={overdue.length} sub="⚠ Atención requerida" color="var(--red)"/>
+                  :<SC label="Al día"   value="✓"              sub="Sin vencidas"          color="var(--green)"/>
+                }
+              </div>
+              {tab==="ordenes"  &&<OrdenesView tasks={tasks} users={users} teams={teams} me={user} onRefresh={load}/>}
+              {tab==="crear"    &&isDir&&<CreateTask users={users} teams={teams} me={user} onCreated={()=>{load();setTab("ordenes");}}/>}
+              {tab==="equipos"  &&isDir&&<TeamsView tasks={tasks} users={users} teams={teams}/>}
+              {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams}/>}
+            </>
+          )
+        }
+      </main>
+    </div>
+  );
+}
+
+/* ── LOGIN ── */
+function Login({onLogin}){
+  const [email,setEmail]=useState("jorge@agarrate-catalina.com");
+  const [pw,setPw]=useState("");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  async function go(){
+    if(!email||!pw){setErr("Completa correo y contraseña.");return;}
+    setLoading(true);setErr("");
+    try{
+      const auth=await sb.signIn(email,pw);
+      const profile=await sb.getProfile(auth.user.id);
+      const session={user:profile,token:auth.access_token};
+      LS.set("lc_session",session);
+      onLogin(session);
+    }catch(e){setErr(e.message);}
+    setLoading(false);
+  }
+
+  return(
+    <div className="login-wrap">
+      <div className="login-card fade-in">
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+          <div className="logo-mark">🎨</div>
+          <div>
+            <h1 style={{fontSize:24,fontWeight:800,letterSpacing:"-0.4px"}}>La Cata</h1>
+            <p style={{fontSize:12,color:"var(--muted)"}}>Creative Ops Dashboard</p>
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Correo</label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com"/>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Contraseña</label>
+          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="••••••••"/>
+        </div>
+        {err&&(
+          <div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:14}}>
+            ⚠ {err}
+          </div>
+        )}
+        <button className="btn btn-primary" style={{width:"100%",padding:13,fontSize:15,fontWeight:700}} onClick={go} disabled={loading}>
+          {loading?"Ingresando...":"Ingresar"}
+        </button>
+        <p style={{textAlign:"center",color:"var(--muted)",fontSize:12,marginTop:20}}>
+          Sistema exclusivo de La Cata Agency.<br/>
+          ¿Problemas? Contacta a jorge@agarrate-catalina.com
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── ROOT ── */
+function App(){
+  const [session,setSession]=useState(()=>LS.get("lc_session",null));
+  return(
+    <>
+      <Toast/>
+      {session
+        ?<Dashboard session={session} onLogout={()=>{LS.del("lc_session");setSession(null);}}/>
+        :<Login onLogin={s=>setSession(s)}/>
+      }
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
