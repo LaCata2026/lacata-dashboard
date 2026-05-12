@@ -407,7 +407,7 @@ function AdminView({users,teams,token,onRefresh}){
 /* ── TASK CARD ── */
 function TaskCard({task,users,teams,me,token,onRefresh}){
   const [exp,setExp]=useState(false);
-  const isDir=me.role==="director";
+  const isDir=me.role==="director"||me.role==="cuentas";
   const assigned=users.find(u=>u.id===task.assigned_to);
   const team=teams.find(t=>t.id===task.team_id);
   async function changeStatus(s){
@@ -672,7 +672,7 @@ function exportExcel(tasks,users,teams){
 function OrdenesView({tasks,users,teams,me,token,onRefresh}){
   const [sf,setSf]=useState("todas");
   const [tf,setTf]=useState("todas");
-  const isDir=me.role==="director";
+  const isDir=me.role==="director"||me.role==="cuentas";
   const visible=tasks.filter(t=>{
     const mine=isDir||t.assigned_to===me.id;
     return mine&&(sf==="todas"||t.status===sf)&&(tf==="todas"||t.team_id===tf);
