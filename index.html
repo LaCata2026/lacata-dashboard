@@ -133,9 +133,9 @@ const sb={
     if(d.error||d.error_description)throw new Error("Correo o contraseña incorrectos");
     return d;
   },
-  async getProfile(uid){
+  async getProfile(uid,token){
     const r=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${uid}&select=*`,{
-      headers:hdr(SB_ANON),
+      headers:hdr(token),
     });
     const d=await r.json();
     if(!Array.isArray(d)||d.length===0)throw new Error("Perfil no encontrado en la base de datos");
@@ -147,18 +147,18 @@ const sb={
   },
   async insert(table,data){
     const r=await fetch(`${SB_URL}/rest/v1/${table}`,{
-      method:"POST",headers:hdr(SB_ANON),body:JSON.stringify(data),
+      method:"POST",headers:hdr(token),body:JSON.stringify(data),
     });
     return r.json();
   },
   async update(table,id,data){
     await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{
-      method:"PATCH",headers:hdr(SB_ANON),body:JSON.stringify(data),
+      method:"PATCH",headers:hdr(token),body:JSON.stringify(data),
     });
   },
   async del(table,id){
     await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{
-      method:"DELETE",headers:hdr(SB_ANON),
+      method:"DELETE",headers:hdr(token),
     });
   },
 };
@@ -632,7 +632,7 @@ function Login({onLogin}){
     setLoading(true);setErr("");
     try{
       const auth=await sb.signIn(email,pw);
-      const profile=await sb.getProfile(auth.user.id);
+      const profile=await sb.getProfile(auth.user.id,auth.access_token);
       const session={user:profile,token:auth.access_token};
       LS.set("lc_session",session);
       onLogin(session);
