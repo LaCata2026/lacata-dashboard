@@ -162,7 +162,8 @@ const statusLabel={pendiente:"Pendiente",en_progreso:"En progreso",en_pausa:"En 
 const statusPill={pendiente:"pill-yellow",en_progreso:"pill-blue",en_pausa:"pill-orange",en_revision:"pill-purple",completada:"pill-green",vencida:"pill-red"};
 const prioPill={Normal:"pill-gray",Alta:"pill-orange",Urgente:"pill-red"};
 const NAV=[
-  {id:"ordenes",  icon:"📋",label:"Órdenes",      section:"trabajo", roles:["director","colaborador","cuentas"]},
+  {id:"home",     icon:"🏠",label:"Inicio",        section:"trabajo", roles:["director","colaborador","cuentas"]},
+  {id:"ordenes",  icon:"📋",label:"Órdenes",       section:"trabajo", roles:["director","colaborador","cuentas"]},
   {id:"crear",    icon:"➕",label:"Nueva orden",   section:"trabajo", roles:["director","cuentas"]},
   {id:"equipos",  icon:"👥",label:"Equipos",       section:"trabajo", roles:["director","cuentas"]},
   {id:"desempeno",icon:"📊",label:"Desempeño",     section:"trabajo", roles:["director"]},
@@ -488,7 +489,8 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
             {task.order_number&&<span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,background:"rgba(139,92,246,.15)",color:"var(--purple2)",letterSpacing:"0.5px"}}>#{String(task.order_number).padStart(4,"0")}</span>}
             <h3 style={{fontSize:16,fontWeight:700}}>{task.title}</h3>
           </div>
-          {task.description&&<p style={{color:"var(--muted2)",fontSize:13,marginBottom:10,lineHeight:1.5}}>{task.description}</p>}
+          {task.description&&<p style={{color:"var(--muted2)",fontSize:13,marginBottom:6,lineHeight:1.5}}>{task.description}</p>}
+          {task.materials&&<p style={{color:"var(--muted)",fontSize:12,marginBottom:8,padding:"6px 10px",background:"var(--bg3)",borderRadius:8}}><span style={{color:"var(--yellow)"}}>📦 Materiales:</span> {task.materials}</p>}
           <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:13,color:"var(--muted)",alignItems:"center"}}>
             {assigned&&<span style={{display:"flex",alignItems:"center",gap:6}}><Av u={assigned} size={20}/>{assigned.name}</span>}
             <span>📅 {fmtDate(task.due_date)}</span>
@@ -548,7 +550,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
 
 /* ── CREATE TASK ── */
 function CreateTask({users,teams,me,token,onCreated}){
-  const blank={title:"",description:"",assigned_to:"",team_id:"",priority:"Normal",hours:"",due_date:"",status:"pendiente"};
+  const blank={title:"",description:"",assigned_to:"",team_id:"",priority:"Normal",hours:"",due_date:"",status:"pendiente",materials:""};
   const [form,setForm]=useState(blank);
   const [files,setFiles]=useState([]);
   const [loading,setLoading]=useState(false);
@@ -561,7 +563,7 @@ function CreateTask({users,teams,me,token,onCreated}){
       const existing=await sb.get("tareas","select=order_number&order=order_number.desc&limit=1",token);
       const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
       const orderNum=lastNum+1;
-      await sb.insert("tareas",{...form,hours:Number(form.hours)||0,changes:0,order_number:orderNum,history:["Orden #"+String(orderNum).padStart(4,"0")+" creada — "+new Date().toLocaleDateString("es-GT")],files:files.map(f=>f.name),created_by:me.id},token);
+      await sb.insert("tareas",{...form,hours:Number(form.hours)||0,changes:0,materials:form.materials||"",order_number:orderNum,history:["Orden #"+String(orderNum).padStart(4,"0")+" creada — "+new Date().toLocaleDateString("es-GT")],files:files.map(f=>f.name),created_by:me.id},token);
       showToast("✅ Orden creada","success");setForm(blank);setFiles([]);onCreated();
     }catch(e){alert("Error: "+e.message);}
     setLoading(false);
@@ -592,6 +594,10 @@ function CreateTask({users,teams,me,token,onCreated}){
           <div><label className="form-label">Fecha límite *</label><input type="date" value={form.due_date} onChange={set("due_date")}/></div>
           <div><label className="form-label">Estado inicial</label>
             <select value={form.status} onChange={set("status")}><option value="pendiente">Pendiente</option><option value="en_progreso">En progreso</option></select>
+          </div>
+          <div style={{gridColumn:"1/-1"}}>
+            <label className="form-label">Materiales necesarios</label>
+            <textarea value={form.materials||""} onChange={e=>setForm(f=>({...f,materials:e.target.value}))} placeholder="Lista de materiales, insumos o recursos necesarios para esta tarea..." style={{minHeight:70}}/>
           </div>
           <div style={{gridColumn:"1/-1"}}>
             <label className="form-label">Referencias / archivos</label>
@@ -737,14 +743,258 @@ function exportExcel(tasks,users,teams){
   showToast("Reporte descargado","success");
 }
 
+
+/* ── HOME DASHBOARD ── */
+function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
+  const isDir=me.role==="director";
+  const isCuentas=me.role==="cuentas";
+  const isCollab=me.role==="colaborador";
+
+  // My tasks (for collaborators)
+  const myTasks=tasks.filter(t=>t.assigned_to===me.id);
+  const myActive=myTasks.filter(t=>!["completada"].includes(t.status));
+  const myUrgent=myActive.filter(t=>t.priority==="Urgente"||t.status==="vencida");
+
+  // Global stats (for directors/cuentas)
+  const allActive=tasks.filter(t=>t.status!=="completada");
+  const forReview=tasks.filter(t=>t.status==="en_revision");
+  const overdue=tasks.filter(t=>t.status==="vencida");
+  const inProgress=tasks.filter(t=>t.status==="en_progreso");
+  const onPause=tasks.filter(t=>t.status==="en_pausa");
+
+  // Workload per collaborator
+  const collabs=users.filter(u=>u.role==="colaborador");
+  const workload=collabs.map(u=>({
+    ...u,
+    active:tasks.filter(t=>t.assigned_to===u.id&&t.status!=="completada").length,
+    overdue:tasks.filter(t=>t.assigned_to===u.id&&t.status==="vencida").length,
+    done:tasks.filter(t=>t.assigned_to===u.id&&t.status==="completada").length,
+  })).sort((a,b)=>b.active-a.active);
+  const maxLoad=Math.max(...workload.map(w=>w.active),1);
+
+  return(
+    <div className="fade-in">
+      {/* COLLABORATOR VIEW */}
+      {isCollab&&(
+        <>
+          <div style={{marginBottom:20}}>
+            <h2 style={{fontSize:20,fontWeight:700,marginBottom:4}}>Buenos días, {me.name.split(" ")[0]} 👋</h2>
+            <p style={{color:"var(--muted)",fontSize:14}}>Tienes {myActive.length} tarea{myActive.length!==1?"s":""} activa{myActive.length!==1?"s":""}</p>
+          </div>
+          <div className="stat-grid" style={{marginBottom:20}}>
+            <div className="stat-card" style={{"--ac":"var(--blue)"}}>
+              <div className="stat-label">Mis tareas activas</div>
+              <div className="stat-value" style={{color:"var(--blue)"}}>{myActive.length}</div>
+            </div>
+            <div className="stat-card" style={{"--ac":"var(--red)"}}>
+              <div className="stat-label">Urgentes / Vencidas</div>
+              <div className="stat-value" style={{color:myUrgent.length>0?"var(--red)":"var(--green)"}}>{myUrgent.length}</div>
+            </div>
+            <div className="stat-card" style={{"--ac":"var(--green)"}}>
+              <div className="stat-label">Completadas</div>
+              <div className="stat-value" style={{color:"var(--green)"}}>{myTasks.filter(t=>t.status==="completada").length}</div>
+            </div>
+          </div>
+          {myUrgent.length>0&&(
+            <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:14,padding:16,marginBottom:16}}>
+              <p style={{fontSize:13,fontWeight:700,color:"#fca5a5",marginBottom:10}}>⚠️ Requieren atención inmediata</p>
+              {myUrgent.slice(0,3).map(t=>(
+                <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid rgba(239,68,68,.1)"}}>
+                  {t.order_number&&<span style={{fontSize:11,color:"#fca5a5",fontWeight:700}}>#{String(t.order_number).padStart(4,"0")}</span>}
+                  <span style={{flex:1,fontSize:13}}>{t.title}</span>
+                  <span style={{fontSize:11,color:"var(--muted)"}}>{t.due_date}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>Mis tareas activas</h3>
+            {myActive.length===0
+              ?<div className="empty"><div style={{fontSize:36,opacity:.4}}>🎉</div><p>Sin tareas pendientes</p></div>
+              :myActive.map(t=>{
+                const team=teams.find(x=>x.id===t.team_id);
+                return(
+                  <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:12,marginBottom:8,cursor:"pointer"}} onClick={()=>onNavigate("ordenes")}>
+                    {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--purple2)",minWidth:45}}>#{String(t.order_number).padStart(4,"0")}</span>}
+                    <div style={{flex:1}}>
+                      <p style={{fontSize:13,fontWeight:600}}>{t.title}</p>
+                      <p style={{fontSize:11,color:"var(--muted)"}}>{team?.name} · {t.due_date}</p>
+                    </div>
+                    <span className={`pill ${statusPill[t.status]||"pill-gray"}`}>{statusLabel[t.status]}</span>
+                  </div>
+                );
+              })
+            }
+          </div>
+        </>
+      )}
+
+      {/* DIRECTOR/CUENTAS VIEW */}
+      {(isDir||isCuentas)&&(
+        <>
+          <div style={{marginBottom:20}}>
+            <h2 style={{fontSize:20,fontWeight:700,marginBottom:4}}>Panel de control 📊</h2>
+            <p style={{color:"var(--muted)",fontSize:14}}>{new Date().toLocaleDateString("es-GT",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
+          </div>
+
+          {/* PULSE METRICS */}
+          <div className="stat-grid" style={{marginBottom:20}}>
+            <div className="stat-card" style={{"--ac":"var(--blue)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes")}>
+              <div className="stat-label">Activas</div>
+              <div className="stat-value" style={{color:"var(--blue)"}}>{allActive.length}</div>
+              <div className="stat-sub">{inProgress.length} en progreso · {onPause.length} pausadas</div>
+            </div>
+            <div className="stat-card" style={{"--ac":"var(--purple)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes")}>
+              <div className="stat-label">En revisión</div>
+              <div className="stat-value" style={{color:"var(--purple)"}}>{forReview.length}</div>
+              <div className="stat-sub">Esperando aprobación</div>
+            </div>
+            <div className="stat-card" style={{"--ac":overdue.length>0?"var(--red)":"var(--green)"}}>
+              <div className="stat-label">Vencidas</div>
+              <div className="stat-value" style={{color:overdue.length>0?"var(--red)":"var(--green)"}}>{overdue.length}</div>
+              <div className="stat-sub">{overdue.length===0?"Todo al día":"Requieren atención"}</div>
+            </div>
+            <div className="stat-card" style={{"--ac":"var(--green)"}}>
+              <div className="stat-label">Completadas</div>
+              <div className="stat-value" style={{color:"var(--green)"}}>{tasks.filter(t=>t.status==="completada").length}</div>
+              <div className="stat-sub">Este período</div>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+            {/* REVIEW QUEUE */}
+            <div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                <h3 style={{fontSize:15,fontWeight:700}}>🔍 Cola de revisión</h3>
+                <span style={{fontSize:12,color:"var(--muted)"}}>{forReview.length}</span>
+              </div>
+              {forReview.length===0
+                ?<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:16}}>Sin tareas en revisión</p>
+                :forReview.slice(0,5).map(t=>{
+                  const u=users.find(x=>x.id===t.assigned_to);
+                  return(
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+                      {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--purple2)",minWidth:40}}>#{String(t.order_number).padStart(4,"0")}</span>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <p style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p>
+                        <p style={{fontSize:11,color:"var(--muted)"}}>{u?.name||"—"}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              }
+            </div>
+
+            {/* OVERDUE */}
+            <div className="card" style={{borderColor:overdue.length>0?"rgba(239,68,68,.3)":"var(--border)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                <h3 style={{fontSize:15,fontWeight:700,color:overdue.length>0?"#fca5a5":"var(--text)"}}>⚠️ Vencidas</h3>
+                <span style={{fontSize:12,color:"var(--muted)"}}>{overdue.length}</span>
+              </div>
+              {overdue.length===0
+                ?<p style={{fontSize:13,color:"var(--green)",textAlign:"center",padding:16}}>✓ Todo al día</p>
+                :overdue.slice(0,5).map(t=>{
+                  const u=users.find(x=>x.id===t.assigned_to);
+                  const days=Math.ceil((new Date()-new Date(t.due_date))/(1000*60*60*24));
+                  return(
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(239,68,68,.1)"}}>
+                      {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"#fca5a5",minWidth:40}}>#{String(t.order_number).padStart(4,"0")}</span>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <p style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p>
+                        <p style={{fontSize:11,color:"var(--muted)"}}>{u?.name||"—"}</p>
+                      </div>
+                      <span style={{fontSize:11,color:"#fca5a5",fontWeight:600,flexShrink:0}}>{days}d</span>
+                    </div>
+                  );
+                })
+              }
+            </div>
+          </div>
+
+          {/* TEAM SEMAPHORE */}
+          {isDir&&(
+            <div className="card" style={{marginBottom:16}}>
+              <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}>🚦 Semáforo de equipos</h3>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
+                {teams.map(team=>{
+                  const members=users.filter(u=>u.team_id===team.id&&u.role==="colaborador");
+                  const teamTasks=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada");
+                  const teamOverdue=tasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length;
+                  const avgLoad=members.length>0?teamTasks.length/members.length:0;
+                  const health=teamOverdue>0?"red":avgLoad>=6?"yellow":"green";
+                  const healthColor={red:"var(--red)",yellow:"var(--yellow)",green:"var(--green)"}[health];
+                  return(
+                    <div key={team.id} style={{padding:14,background:"var(--bg3)",borderRadius:12,border:`1px solid ${healthColor}44`,cursor:"pointer"}} onClick={()=>onNavigate("equipo_"+team.id)}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                        <div style={{width:10,height:10,borderRadius:"50%",background:healthColor,boxShadow:`0 0 6px ${healthColor}`}}/>
+                        <span style={{fontSize:13,fontWeight:600}}>{team.name}</span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--muted)"}}>
+                        <span>{teamTasks.length} activas</span>
+                        <span>{members.length} miembros</span>
+                        {teamOverdue>0&&<span style={{color:"var(--red)"}}>{teamOverdue} vencidas</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* WORKLOAD CHART */}
+          <div className="card">
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}>⚖️ Carga de trabajo por colaborador</h3>
+            {workload.length===0
+              ?<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:16}}>No hay colaboradores aún.</p>
+              :workload.map(w=>{
+                const team=teams.find(t=>t.id===w.team_id);
+                const pct=Math.round((w.active/maxLoad)*100);
+                const color=w.active>=8?"var(--red)":w.active>=5?"var(--yellow)":team?.color||"var(--green)";
+                return(
+                  <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                    <div className="avatar" style={{width:30,height:30,background:w.avatar_color,fontSize:11,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{w.initials}</div>
+                    <div style={{minWidth:110,flexShrink:0}}>
+                      <p style={{fontSize:12,fontWeight:600}}>{w.name}</p>
+                      <p style={{fontSize:10,color:"var(--muted)"}}>{team?.name||"Sin equipo"}</p>
+                    </div>
+                    <div style={{flex:1,height:8,background:"var(--bg3)",borderRadius:4,overflow:"hidden"}}>
+                      <div style={{width:pct+"%",height:"100%",background:color,borderRadius:4,transition:"width .5s"}}/>
+                    </div>
+                    <div style={{minWidth:60,textAlign:"right",flexShrink:0}}>
+                      <span style={{fontSize:13,fontWeight:700,color:color}}>{w.active}</span>
+                      <span style={{fontSize:11,color:"var(--muted)"}}> activas</span>
+                    </div>
+                    {w.overdue>0&&<span style={{fontSize:11,padding:"2px 6px",background:"rgba(239,68,68,.15)",color:"#fca5a5",borderRadius:999,flexShrink:0}}>{w.overdue} venc.</span>}
+                  </div>
+                );
+              })
+            }
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── ORDENES ── */
 function OrdenesView({tasks,users,teams,me,token,onRefresh}){
   const [sf,setSf]=useState("todas");
   const [tf,setTf]=useState("todas");
-  const isDir=me.role==="director"||me.role==="cuentas";
+  const isDir=me.role==="director";
+  const isCuentas=me.role==="cuentas";
   const visible=tasks.filter(t=>{
-    const mine=isDir||t.assigned_to===me.id;
-    return mine&&(sf==="todas"||t.status===sf)&&(tf==="todas"||t.team_id===tf);
+    let canSee=false;
+    if(isDir) canSee=true;
+    else if(isCuentas){
+      // Cuentas sees: tasks from their team OR tasks they created OR tasks assigned to their team members
+      const sameTeam=t.team_id===me.team_id;
+      const created=t.created_by===me.id;
+      const assignedByTeammate=tasks.filter(x=>x.created_by===me.id).map(x=>x.id).includes(t.id);
+      canSee=sameTeam||created||assignedByTeammate;
+    } else {
+      canSee=t.assigned_to===me.id;
+    }
+    return canSee&&(sf==="todas"||t.status===sf)&&(tf==="todas"||t.team_id===tf);
   });
   return(
     <div>
@@ -774,7 +1024,7 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh}){
 /* ── DASHBOARD ── */
 function Dashboard({session,onLogout}){
   const {user,token}=session;
-  const [tab,setTab]=useState("ordenes");
+  const [tab,setTab]=useState("home");
   const [tasks,setTasks]=useState([]);
   const [users,setUsers]=useState([]);
   const [teams,setTeams]=useState([]);
@@ -865,6 +1115,7 @@ function Dashboard({session,onLogout}){
                 <SC label="Con cambios" value={withChanges.length} sub="Requieren revisión" color="var(--yellow)"/>
                 {overdue.length>0?<SC label="Vencidas" value={overdue.length} sub="⚠ Atención requerida" color="var(--red)"/>:<SC label="Al día" value="✓" sub="Sin vencidas" color="var(--green)"/>}
               </div>
+              {tab==="home"&&<HomeView tasks={tasks} users={users} teams={teams} me={user} token={token} onRefresh={load} onNavigate={t=>setTab(t)}/>}
               {tab==="ordenes"&&(
                 <>
                   {isDir&&overdue.length>0&&(
