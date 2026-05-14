@@ -412,18 +412,29 @@ function AdminView({users,teams,tasks,token,onRefresh}){
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <h3 style={{fontSize:16,fontWeight:700}}>Equipos / Células</h3>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowNewTeam(true)}>+ Nuevo equipo</button>
-        </div>
-        {teams.length===0&&<p style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:20}}>No hay equipos aún.</p>}
-        {teams.map(t=>(
-          <div key={t.id} className="team-row">
-            <div style={{width:12,height:12,borderRadius:"50%",background:t.color,flexShrink:0}}/>
-            <span style={{flex:1,fontSize:14,fontWeight:500}}>{t.name}</span>
-            <span style={{fontSize:12,color:"var(--muted)",marginRight:12}}>
-              {users.filter(u=>u.team_id===t.id).length} miembros
-            </span>
-            <button className="btn btn-danger btn-sm" onClick={()=>deleteTeam(t)}>Eliminar</button>
-          </div>
-        ))}
+          {teams.map(t=>{
+            const members=users.filter(u=>u.team_id===t.id&&u.role==="colaborador");
+            const totalActive=tasks.filter(x=>x.team_id===t.id&&x.status!=="completada").length;
+            const avgLoad=members.length>0?totalActive/members.length:0;
+            const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
+            const available=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length<=2).length;
+            const sColor=overloaded>0?"var(--red)":avgLoad>=5?"var(--yellow)":"var(--green)";
+            const sLabel=overloaded>0?(overloaded+" sobrecargado"+(overloaded>1?"s":"")):available>0?(available+" disponible"+(available>1?"s":"")):"Carga normal";
+            return(
+              <div key={t.id} className="team-row">
+                <span style={{fontSize:18,flexShrink:0}}>{t.icon||"👥"}</span>
+                <div style={{width:10,height:10,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+                <span style={{flex:1,fontSize:14,fontWeight:500}}>{t.name}</span>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginRight:8}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:sColor,boxShadow:"0 0 4px "+sColor}}/>
+                  <span style={{fontSize:11,color:sColor,fontWeight:600}}>{sLabel}</span>
+                  <span style={{fontSize:11,color:"var(--muted)"}}>· {members.length} miembros</span>
+                </div>
+                <button className="btn btn-ghost btn-sm" style={{marginRight:4}} onClick={()=>setEditingTeam({...t,icon:t.icon||"👥"})}>✏️</button>
+                <button className="btn btn-danger btn-sm" onClick={()=>deleteTeam(t)}>Eliminar</button>
+              </div>
+            );
+          })}
       </div>
 
       {/* USUARIOS */}
