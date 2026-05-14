@@ -321,24 +321,16 @@ function SC({label,value,sub,color}){
 
 /* ── ADMIN VIEW ── */
 function AdminView({users,teams,tasks,token,onRefresh}){
-  const [showNewUser,setShowNewUser]=useState(false);
-  const [showNewTeam,setShowNewTeam]=useState(false);
-  const [editingTeam,setEditingTeam]=useState(null);
-  const [uForm,setUForm]=useState({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
-  const [tForm,setTForm]=useState({name:"",color:"#7c3aed",icon:"👥"});
-  const [loading,setLoading]=useState(false);
-
-  const TEAM_ICONS=["👥","🎨","📱","📊","🎬","💡","🔥","⚡","🚀","🎯","✨","🖌️","📸","🎤","📝"];
-
-  async function saveTeamEdit(){
-    if(!editingTeam)return;
-    await sb.update("equipos",editingTeam.id,{name:editingTeam.name,color:editingTeam.color,icon:editingTeam.icon||"👥"},token);
-    showToast("Equipo actualizado","success");
-    setEditingTeam(null);
-    onRefresh();
-  }
+  const [showNewUser,setShowNewUser]=React.useState(false);
+  const [showNewTeam,setShowNewTeam]=React.useState(false);
+  const [editingTeam,setEditingTeam]=React.useState(null);
+  const [uForm,setUForm]=React.useState({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
+  const [tForm,setTForm]=React.useState({name:"",color:"#7c3aed",icon:"👥"});
+  const [loading,setLoading]=React.useState(false);
   const setU=k=>e=>setUForm(f=>({...f,[k]:e.target.value}));
   const setT=k=>e=>setTForm(f=>({...f,[k]:e.target.value}));
+
+  const TEAM_ICONS=["👥","🎨","📱","📊","🎬","💡","🔥","⚡","🚀","🎯","✨","🖌️","📸","🎤","📝"];
 
   async function createUser(){
     if(!uForm.name||!uForm.email){alert("Nombre y correo son obligatorios.");return;}
@@ -347,15 +339,7 @@ function AdminView({users,teams,tasks,token,onRefresh}){
       const authUser=await sb.inviteUser(uForm.email,uForm.name);
       if(!authUser||!authUser.id)throw new Error(authUser.msg||"No se pudo crear el usuario");
       const initials=getInitials(uForm.name);
-      await sb.insert("usuarios",{
-        id:authUser.id,
-        email:uForm.email.toLowerCase(),
-        name:uForm.name,
-        role:uForm.role,
-        team_id:uForm.team_id||null,
-        avatar_color:uForm.avatar_color,
-        initials,
-      },token);
+      await sb.insert("usuarios",{id:authUser.id,email:uForm.email.toLowerCase(),name:uForm.name,role:uForm.role,team_id:uForm.team_id||null,avatar_color:uForm.avatar_color,initials},token);
       showToast("Invitacion enviada a "+uForm.email,"success");
       setUForm({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
       setShowNewUser(false);
@@ -369,25 +353,33 @@ function AdminView({users,teams,tasks,token,onRefresh}){
     setLoading(true);
     try{
       await sb.insert("equipos",{name:tForm.name,color:tForm.color,icon:tForm.icon||"👥"},token);
-      showToast(`✅ Equipo "${tForm.name}" creado`,"success");
-      setTForm({name:"",color:"#7c3aed"});
+      showToast("Equipo creado","success");
+      setTForm({name:"",color:"#7c3aed",icon:"👥"});
       setShowNewTeam(false);
       onRefresh();
     }catch(e){showToast("Error: "+e.message,"error");}
     setLoading(false);
   }
 
+  async function saveTeamEdit(){
+    if(!editingTeam)return;
+    await sb.update("equipos",editingTeam.id,{name:editingTeam.name,color:editingTeam.color,icon:editingTeam.icon||"👥"},token);
+    showToast("Equipo actualizado","success");
+    setEditingTeam(null);
+    onRefresh();
+  }
+
   async function deleteUser(u){
-    if(!confirm(`¿Eliminar a ${u.name}? Esto no elimina su acceso de Auth.`))return;
+    if(!confirm("Eliminar a "+u.name+"?"))return;
     await sb.del("usuarios",u.id,token);
-    showToast(`${u.name} eliminado`,"success");
+    showToast(u.name+" eliminado","success");
     onRefresh();
   }
 
   async function deleteTeam(t){
-    if(!confirm(`¿Eliminar el equipo "${t.name}"?`))return;
+    if(!confirm("Eliminar el equipo "+t.name+"?"))return;
     await sb.del("equipos",t.id,token);
-    showToast(`Equipo eliminado`,"success");
+    showToast("Equipo eliminado","success");
     onRefresh();
   }
 
@@ -405,38 +397,39 @@ function AdminView({users,teams,tasks,token,onRefresh}){
 
   return(
     <div>
-      <div className="section-header"><h2 className="section-title">⚙️ Administración</h2></div>
+      <div className="section-header"><h2 className="section-title">Administracion</h2></div>
 
       {/* EQUIPOS */}
-      <div className="card fade-in" style={{marginBottom:20}}>
+      <div className="card fade-in" style={{marginBottom:16}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <h3 style={{fontSize:16,fontWeight:700}}>Equipos / Células</h3>
+          <h3 style={{fontSize:16,fontWeight:700}}>Equipos / Celulas</h3>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowNewTeam(true)}>+ Nuevo equipo</button>
-          {teams.map(t=>{
-            const members=users.filter(u=>u.team_id===t.id&&u.role==="colaborador");
-            const totalActive=tasks.filter(x=>x.team_id===t.id&&x.status!=="completada").length;
-            const avgLoad=members.length>0?totalActive/members.length:0;
-            const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
-            const available=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length<=2).length;
-            const sColor=overloaded>0?"var(--red)":avgLoad>=5?"var(--yellow)":"var(--green)";
-            const sLabel=overloaded>0?(overloaded+" sobrecargado"+(overloaded>1?"s":"")):available>0?(available+" disponible"+(available>1?"s":"")):"Carga normal";
-            return(
-              <div key={t.id} className="team-row">
-                <span style={{fontSize:18,flexShrink:0}}>{t.icon||"👥"}</span>
-                <div style={{width:10,height:10,borderRadius:"50%",background:t.color,flexShrink:0}}/>
-                <span style={{flex:1,fontSize:14,fontWeight:500}}>{t.name}</span>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginRight:8}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:sColor,boxShadow:"0 0 4px "+sColor}}/>
-                  <span style={{fontSize:11,color:sColor,fontWeight:600}}>{sLabel}</span>
-                  <span style={{fontSize:11,color:"var(--muted)"}}>· {members.length} miembros</span>
-                </div>
-                <button className="btn btn-ghost btn-sm" style={{marginRight:4}} onClick={()=>setEditingTeam({...t,icon:t.icon||"👥"})}>✏️</button>
-                <button className="btn btn-danger btn-sm" onClick={()=>deleteTeam(t)}>Eliminar</button>
-              </div>
-            );
-          })}</div>
-      </div>
         </div>
+        {teams.length===0&&<p style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:20}}>No hay equipos aun.</p>}
+        {teams.map(t=>{
+          const members=users.filter(u=>u.team_id===t.id&&u.role==="colaborador");
+          const activeCount=tasks.filter(x=>x.team_id===t.id&&x.status!=="completada").length;
+          const avg=members.length>0?activeCount/members.length:0;
+          const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
+          const available=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length<=2).length;
+          const sColor=overloaded>0?"var(--red)":avg>=5?"var(--yellow)":"var(--green)";
+          const sLabel=overloaded>0?(overloaded+" sobrecargado"+(overloaded>1?"s","")):available>0?(available+" disponible"+(available>1?"s","")):"Carga normal";
+          return(
+            <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",borderBottom:"1px solid var(--border)",flexWrap:"wrap"}}>
+              <span style={{fontSize:18,flexShrink:0}}>{t.icon||"👥"}</span>
+              <div style={{width:10,height:10,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+              <span style={{flex:1,fontSize:14,fontWeight:500,minWidth:80}}>{t.name}</span>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:sColor,boxShadow:"0 0 4px "+sColor}}/>
+                <span style={{fontSize:11,color:sColor,fontWeight:600}}>{sLabel}</span>
+                <span style={{fontSize:11,color:"var(--muted)"}}>· {members.length} miembros</span>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setEditingTeam({...t,icon:t.icon||"👥"})}>Editar</button>
+              <button className="btn btn-danger btn-sm" onClick={()=>deleteTeam(t)}>Eliminar</button>
+            </div>
+          );
+        })}
+      </div>
 
       {/* USUARIOS */}
       <div className="card fade-in">
@@ -444,33 +437,30 @@ function AdminView({users,teams,tasks,token,onRefresh}){
           <h3 style={{fontSize:16,fontWeight:700}}>Usuarios ({users.length})</h3>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowNewUser(true)}>+ Nuevo usuario</button>
         </div>
-        {users.length===0&&<p style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:20}}>No hay usuarios aún.</p>}
+        {users.length===0&&<p style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:20}}>No hay usuarios aun.</p>}
         {users.map(u=>(
-          <div key={u.id} className="user-row">
+          <div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",borderBottom:"1px solid var(--border)",flexWrap:"wrap"}}>
             <Av u={u} size={34}/>
-            <div style={{flex:1,minWidth:0}}>
+            <div style={{flex:1,minWidth:120}}>
               <p style={{fontSize:13,fontWeight:600}}>{u.name}</p>
-              <p style={{fontSize:12,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</p>
+              <p style={{fontSize:12,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200}}>{u.email}</p>
             </div>
-            <div style={{display:"flex",gap:4,marginRight:8}}>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
               {["colaborador","cuentas","director"].map(r=>(
                 <button key={r} onClick={()=>changeUserRole(u.id,r)}
                   style={{padding:"4px 10px",borderRadius:8,fontSize:12,cursor:"pointer",fontFamily:"inherit",
                     background:u.role===r?(r==="director"?"var(--purple)":r==="cuentas"?"var(--yellow)":"var(--blue)"):"var(--bg4)",
-                    color:u.role===r?"#fff":"var(--muted2)",
-                    border:u.role===r?"none":"1px solid var(--border)",
-                    fontWeight:u.role===r?600:400,
-                  }}>
+                    color:u.role===r?"#fff":"var(--muted2)",border:"none",fontWeight:u.role===r?600:400}}>
                   {r.charAt(0).toUpperCase()+r.slice(1)}
                 </button>
               ))}
             </div>
             <select value={u.team_id||""} onChange={e=>changeUserTeam(u.id,e.target.value)}
-              style={{width:"auto",padding:"5px 8px",fontSize:12,borderRadius:8,marginRight:8,maxWidth:140}}>
+              style={{width:"auto",padding:"5px 8px",fontSize:12,borderRadius:8,maxWidth:130}}>
               <option value="">Sin equipo</option>
               {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <button className="btn btn-danger btn-sm" onClick={()=>deleteUser(u)}>✕</button>
+            <button className="btn btn-danger btn-sm" onClick={()=>deleteUser(u)}>x</button>
           </div>
         ))}
       </div>
@@ -478,27 +468,18 @@ function AdminView({users,teams,tasks,token,onRefresh}){
       {/* MODAL NUEVO USUARIO */}
       {showNewUser&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowNewUser(false)}>
-          <div className="modal fade-in">
+          <div className="modal fade-in" onClick={e=>e.stopPropagation()}>
             <div className="modal-title">Nuevo usuario</div>
-            <div className="form-group">
-              <label className="form-label">Nombre completo *</label>
-              <input value={uForm.name} onChange={setU("name")} placeholder="Ej: Lucía Mendoza"/>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Correo *</label>
-              <input type="email" value={uForm.email} onChange={setU("email")} placeholder="lucia@lacata.com"/>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Rol</label>
+            <div className="form-group"><label className="form-label">Nombre completo *</label><input value={uForm.name} onChange={setU("name")} placeholder="Ej: Lucia Mendoza"/></div>
+            <div className="form-group"><label className="form-label">Correo *</label><input type="email" value={uForm.email} onChange={setU("email")} placeholder="lucia@lacata.com"/></div>
+            <div className="form-group"><label className="form-label">Rol</label>
               <select value={uForm.role} onChange={setU("role")}>
                 <option value="colaborador">Colaborador</option>
                 <option value="cuentas">Cuentas</option>
                 <option value="director">Director</option>
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Equipo</label>
+            <div className="form-group"><label className="form-label">Equipo</label>
               <select value={uForm.team_id} onChange={setU("team_id")}>
                 <option value="">Sin equipo</option>
                 {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
@@ -506,23 +487,22 @@ function AdminView({users,teams,tasks,token,onRefresh}){
             </div>
             <div className="form-group">
               <label className="form-label">Color de avatar</label>
-              <div className="color-picker">
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
                 {COLORS.map(c=>(
-                  <div key={c} className={`color-swatch${uForm.avatar_color===c?" selected":""}`}
-                    style={{background:c}} onClick={()=>setUForm(f=>({...f,avatar_color:c}))}/>
+                  <div key={c} onClick={()=>setUForm(f=>({...f,avatar_color:c}))}
+                    style={{width:28,height:28,borderRadius:"50%",background:c,cursor:"pointer",border:uForm.avatar_color===c?"2px solid #fff":"2px solid transparent",transform:uForm.avatar_color===c?"scale(1.15)":"scale(1)",transition:".15s"}}/>
                 ))}
               </div>
             </div>
-            {uForm.name&&<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:12,background:"var(--bg3)",borderRadius:10}}>
-              <Av u={{initials:getInitials(uForm.name),avatar_color:uForm.avatar_color}} size={36}/>
-              <div>
-                <p style={{fontSize:13,fontWeight:600}}>{uForm.name}</p>
-                <p style={{fontSize:12,color:"var(--muted)"}}>{uForm.role}</p>
+            {uForm.name&&(
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:12,background:"var(--bg3)",borderRadius:10}}>
+                <Av u={{initials:getInitials(uForm.name),avatar_color:uForm.avatar_color}} size={36}/>
+                <div><p style={{fontSize:13,fontWeight:600}}>{uForm.name}</p><p style={{fontSize:12,color:"var(--muted)"}}>{uForm.role}</p></div>
               </div>
-            </div>}
+            )}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-ghost" onClick={()=>setShowNewUser(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={createUser} disabled={loading}>{loading?"Enviando...":"Enviar invitación por correo"}</button>
+              <button className="btn btn-primary" onClick={createUser} disabled={loading}>{loading?"Enviando...":"Enviar invitacion"}</button>
             </div>
           </div>
         </div>
@@ -531,14 +511,11 @@ function AdminView({users,teams,tasks,token,onRefresh}){
       {/* MODAL NUEVO EQUIPO */}
       {showNewTeam&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowNewTeam(false)}>
-          <div className="modal fade-in" style={{maxWidth:380}}>
+          <div className="modal fade-in" onClick={e=>e.stopPropagation()}>
             <div className="modal-title">Nuevo equipo</div>
+            <div className="form-group"><label className="form-label">Nombre *</label><input value={tForm.name} onChange={setT("name")} placeholder="Ej: Celula Estrategia"/></div>
             <div className="form-group">
-              <label className="form-label">Nombre del equipo *</label>
-              <input value={tForm.name} onChange={setT("name")} placeholder="Ej: Célula Estrategia"/>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Ícono</label>
+              <label className="form-label">Icono</label>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {TEAM_ICONS.map(ic=>(
                   <button key={ic} type="button" onClick={()=>setTForm(f=>({...f,icon:ic}))}
@@ -550,14 +527,14 @@ function AdminView({users,teams,tasks,token,onRefresh}){
             </div>
             <div className="form-group">
               <label className="form-label">Color</label>
-              <div className="color-picker">
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
                 {COLORS.map(c=>(
-                  <div key={c} className={`color-swatch${tForm.color===c?" selected":""}`}
-                    style={{background:c}} onClick={()=>setTForm(f=>({...f,color:c}))}/>
+                  <div key={c} onClick={()=>setTForm(f=>({...f,color:c}))}
+                    style={{width:28,height:28,borderRadius:"50%",background:c,cursor:"pointer",border:tForm.color===c?"2px solid #fff":"2px solid transparent",transform:tForm.color===c?"scale(1.15)":"scale(1)",transition:".15s"}}/>
                 ))}
               </div>
               {tForm.name&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
-                <span style={{fontSize:18}}>{tForm.icon||"👥"}</span>
+                <span style={{fontSize:18}}>{tForm.icon}</span>
                 <div style={{width:10,height:10,borderRadius:"50%",background:tForm.color}}/>
                 <span style={{fontSize:13}}>{tForm.name}</span>
               </div>}
@@ -573,14 +550,11 @@ function AdminView({users,teams,tasks,token,onRefresh}){
       {/* MODAL EDITAR EQUIPO */}
       {editingTeam&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEditingTeam(null)}>
-          <div className="modal fade-in" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
+          <div className="modal fade-in" onClick={e=>e.stopPropagation()}>
             <div className="modal-title">Editar equipo</div>
+            <div className="form-group"><label className="form-label">Nombre</label><input value={editingTeam.name} onChange={e=>setEditingTeam(t=>({...t,name:e.target.value}))}/></div>
             <div className="form-group">
-              <label className="form-label">Nombre</label>
-              <input value={editingTeam.name} onChange={e=>setEditingTeam(t=>({...t,name:e.target.value}))} placeholder="Nombre del equipo"/>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Ícono</label>
+              <label className="form-label">Icono</label>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {TEAM_ICONS.map(ic=>(
                   <button key={ic} type="button" onClick={()=>setEditingTeam(t=>({...t,icon:ic}))}
@@ -592,10 +566,10 @@ function AdminView({users,teams,tasks,token,onRefresh}){
             </div>
             <div className="form-group">
               <label className="form-label">Color</label>
-              <div className="color-picker">
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
                 {COLORS.map(c=>(
-                  <div key={c} className={`color-swatch${editingTeam.color===c?" selected":""}`}
-                    style={{background:c}} onClick={()=>setEditingTeam(t=>({...t,color:c}))}/>
+                  <div key={c} onClick={()=>setEditingTeam(t=>({...t,color:c}))}
+                    style={{width:28,height:28,borderRadius:"50%",background:c,cursor:"pointer",border:editingTeam.color===c?"2px solid #fff":"2px solid transparent",transform:editingTeam.color===c?"scale(1.15)":"scale(1)",transition:".15s"}}/>
                 ))}
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
@@ -614,6 +588,7 @@ function AdminView({users,teams,tasks,token,onRefresh}){
     </div>
   );
 }
+
 
 /* ── TASK CARD ── */
 function TaskCard({task,users,teams,me,token,onRefresh}){
