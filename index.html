@@ -711,9 +711,9 @@ function PerformanceView({tasks,users,teams}){
         <h3 style={{fontSize:16,fontWeight:700,marginBottom:18}}>Carga por colaborador</h3>
         {sorted.length===0&&<p style={{textAlign:"center",color:"var(--muted)",padding:20}}>No hay colaboradores aún.</p>}
         {sorted.map((u,i)=>{
-          const ut=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada");
-          const uc=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status==="completada");
-          const uv=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status==="vencida");
+          const ut=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada";});
+          const uc=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status==="completada";});
+          const uv=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status==="vencida";});
           const team=teams.find(t=>t.id===u.team_id);
           const pct=Math.min(100,Math.round(ut.length/8*100));
           return(
