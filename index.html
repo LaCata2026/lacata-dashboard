@@ -460,15 +460,20 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
     showToast("Cambio registrado","success");onRefresh();
   }
   async function reassign(){
-    const opts=users.filter(u=>u.role==="colaborador"&&u.id!==task.assigned_to);
-    if(!opts.length){alert("No hay otros colaboradores.");return;}
-    const list=opts.map((u,i)=>`${i+1}. ${u.name}`).join("\n");
-    const idx=parseInt(prompt(`Nuevo responsable:\n${list}`))-1;
+    const current=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
+    const opts=users.filter(u=>u.role==="colaborador");
+    if(!opts.length){alert("No hay colaboradores.");return;}
+    const list=opts.map((u,i)=>`${i+1}. ${u.name}${current.includes(u.id)?" (actual)":""}`).join("\n");
+    const choice=prompt(`Agregar/quitar responsable:\n${list}\n\nEscribe el numero:`);
+    const idx=parseInt(choice)-1;
     if(isNaN(idx)||!opts[idx])return;
     const nu=opts[idx];
-    const h=[...(task.history||[]),`Reasignado a ${nu.name}`];
-    await sb.update("tareas",task.id,{assigned_to:nu.id,history:h},token);
-    showToast(`Reasignado a ${nu.name}`,"success");onRefresh();
+    const newAssigned=current.includes(nu.id)?current.filter(x=>x!==nu.id):[...current,nu.id];
+    if(newAssigned.length===0){alert("Debe haber al menos un responsable.");return;}
+    const action=current.includes(nu.id)?"Removido":"Agregado";
+    const h=[...(task.history||[]),`${action}: ${nu.name} — ${me.name} — ${new Date().toLocaleString("es-GT")}`];
+    await sb.update("tareas",task.id,{assigned_to:newAssigned,history:h},token);
+    showToast(`${action}: ${nu.name}`,"success");onRefresh();
   }
   async function del(){
     if(!confirm(`¿Eliminar "${task.title}"?`))return;
@@ -485,14 +490,37 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
             {task.changes>0&&<span className="pill pill-purple">🔄 {task.changes} cambio{task.changes>1?"s":""}</span>}
             {team&&<span className="pill" style={{background:team.color+"22",color:team.color}}>{team.name}</span>}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-            {task.order_number&&<span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,background:"rgba(139,92,246,.15)",color:"var(--purple2)",letterSpacing:"0.5px"}}>#{String(task.order_number).padStart(4,"0")}</span>}
-            <h3 style={{fontSize:16,fontWeight:700}}>{task.title}</h3>
-          </div>
+          <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{task.title}</h3>
           {task.description&&<p style={{color:"var(--muted2)",fontSize:13,marginBottom:6,lineHeight:1.5}}>{task.description}</p>}
           {task.materials&&<p style={{color:"var(--muted)",fontSize:12,marginBottom:8,padding:"6px 10px",background:"var(--bg3)",borderRadius:8}}><span style={{color:"var(--yellow)"}}>📦 Materiales:</span> {task.materials}</p>}
           <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:13,color:"var(--muted)",alignItems:"center"}}>
-            {assigned&&<span style={{display:"flex",alignItems:"center",gap:6}}><Av u={assigned} size={20}/>{assigned.name}</span>}
+            {task.order_number&&(
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+              <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:"rgba(139,92,246,.15)",color:"var(--purple2)",letterSpacing:"0.5px",fontFamily:"monospace"}}>
+                #{String(task.order_number).padStart(4,"0")} - {task.title}
+              </span>
+              <button onClick={()=>{
+                const code="#"+String(task.order_number).padStart(4,"0")+" - "+task.title;
+                navigator.clipboard.writeText(code).then(()=>showToast("Copiado: "+code,"success"));
+              }} title="Copiar codigo de orden" style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:14,padding:"2px 6px",borderRadius:6,background:"var(--bg3)"}}>
+                📋
+              </button>
+            </div>
+          )}
+          {(()=>{
+            const assignedList=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
+            const assignedUsers=assignedList.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+            return assignedUsers.length>0&&(
+              <span style={{display:"flex",alignItems:"center",gap:4}}>
+                {assignedUsers.map(u=>(
+                  <span key={u.id} style={{display:"flex",alignItems:"center",gap:4}}>
+                    <Av u={u} size={20}/>
+                    <span style={{fontSize:12}}>{u.name}</span>
+                  </span>
+                )).reduce((a,b)=>[a,<span key="sep" style={{color:"var(--muted)",fontSize:11}}> · </span>,b])}
+              </span>
+            );
+          })()}
             <span>📅 {fmtDate(task.due_date)}</span>
             {task.hours>0&&<span>⏱ Est: {task.hours}h</span>}{task.hours_real>0&&<span style={{color:"var(--green)"}}>✓ Real: {task.hours_real}h</span>}
           </div>
@@ -550,13 +578,13 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
 
 /* ── CREATE TASK ── */
 function CreateTask({users,teams,me,token,onCreated}){
-  const blank={title:"",description:"",assigned_to:"",team_id:"",priority:"Normal",hours:"",due_date:"",status:"pendiente",materials:""};
+  const blank={title:"",description:"",assigned_to:[],team_id:"",priority:"Normal",hours:"",due_date:"",status:"pendiente",materials:""};
   const [form,setForm]=useState(blank);
   const [files,setFiles]=useState([]);
   const [loading,setLoading]=useState(false);
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   async function submit(){
-    if(!form.title||!form.description||!form.assigned_to||!form.team_id||!form.due_date){alert("Completa los campos con *");return;}
+    if(!form.title||!form.description||!form.assigned_to||form.assigned_to.length===0||!form.team_id||!form.due_date){alert("Completa los campos con *. Selecciona al menos un responsable.");return;}
     setLoading(true);
     try{
       // Get next order number
@@ -575,11 +603,22 @@ function CreateTask({users,teams,me,token,onCreated}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
           <div style={{gridColumn:"1/-1"}}><label className="form-label">Nombre del proyecto *</label><input value={form.title} onChange={set("title")} placeholder="Ej: Campaña verano Claro"/></div>
           <div style={{gridColumn:"1/-1"}}><label className="form-label">Brief y especificaciones *</label><textarea value={form.description} onChange={set("description")} placeholder="Entregables, formatos, dimensiones..."/></div>
-          <div><label className="form-label">Responsable *</label>
-            <select value={form.assigned_to} onChange={set("assigned_to")}>
-              <option value="">— Seleccionar —</option>
-              {users.filter(u=>u.role==="colaborador").map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+          <div><label className="form-label">Responsables * — selecciona uno o varios</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,padding:"10px",background:"var(--bg3)",borderRadius:10,border:"1px solid var(--border)",minHeight:48}}>
+              {users.filter(u=>u.role==="colaborador").length===0&&<p style={{fontSize:13,color:"var(--muted)"}}>No hay colaboradores aun.</p>}
+              {users.filter(u=>u.role==="colaborador").map(u=>{
+                const sel=(form.assigned_to||[]).includes(u.id);
+                return(
+                  <button key={u.id} type="button" onClick={()=>{
+                    const cur=form.assigned_to||[];
+                    setForm(f=>({...f,assigned_to:sel?cur.filter(x=>x!==u.id):[...cur,u.id]}));
+                  }} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:8,background:sel?"var(--purple)":"var(--bg4)",color:sel?"#fff":"var(--muted2)",border:sel?"none":"1px solid var(--border)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>
+                    <div style={{width:20,height:20,borderRadius:"50%",background:u.avatar_color,fontSize:9,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{u.initials}</div>
+                    {u.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div><label className="form-label">Equipo *</label>
             <select value={form.team_id} onChange={set("team_id")}>
@@ -672,9 +711,9 @@ function PerformanceView({tasks,users,teams}){
         <h3 style={{fontSize:16,fontWeight:700,marginBottom:18}}>Carga por colaborador</h3>
         {sorted.length===0&&<p style={{textAlign:"center",color:"var(--muted)",padding:20}}>No hay colaboradores aún.</p>}
         {sorted.map((u,i)=>{
-          const ut=tasks.filter(t=>t.assigned_to===u.id&&t.status!=="completada");
-          const uc=tasks.filter(t=>t.assigned_to===u.id&&t.status==="completada");
-          const uv=tasks.filter(t=>t.assigned_to===u.id&&t.status==="vencida");
+          const ut=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada");
+          const uc=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status==="completada");
+          const uv=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status==="vencida");
           const team=teams.find(t=>t.id===u.team_id);
           const pct=Math.min(100,Math.round(ut.length/8*100));
           return(
@@ -751,7 +790,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
   const isCollab=me.role==="colaborador";
 
   // My tasks (for collaborators)
-  const myTasks=tasks.filter(t=>t.assigned_to===me.id);
+  const myTasks=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(me.id);});
   const myActive=myTasks.filter(t=>!["completada"].includes(t.status));
   const myUrgent=myActive.filter(t=>t.priority==="Urgente"||t.status==="vencida");
 
@@ -766,9 +805,9 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
   const collabs=users.filter(u=>u.role==="colaborador");
   const workload=collabs.map(u=>({
     ...u,
-    active:tasks.filter(t=>t.assigned_to===u.id&&t.status!=="completada").length,
-    overdue:tasks.filter(t=>t.assigned_to===u.id&&t.status==="vencida").length,
-    done:tasks.filter(t=>t.assigned_to===u.id&&t.status==="completada").length,
+    active:tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to];return a.includes(u.id)&&t.status!=="completada";}).length,
+    overdue:tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to];return a.includes(u.id)&&t.status==="vencida";}).length,
+    done:tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to];return a.includes(u.id)&&t.status==="completada";}).length,
   })).sort((a,b)=>b.active-a.active);
   const maxLoad=Math.max(...workload.map(w=>w.active),1);
 
@@ -989,7 +1028,7 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh}){
       // Cuentas sees: tasks from their team OR tasks they created OR tasks assigned to their team members
       const sameTeam=t.team_id===me.team_id;
       const created=t.created_by===me.id;
-      const assignedByTeammate=tasks.filter(x=>x.created_by===me.id).map(x=>x.id).includes(t.id);
+      const assignedByTeammate=t.created_by===me.id;
       canSee=sameTeam||created||assignedByTeammate;
     } else {
       canSee=t.assigned_to===me.id;
@@ -1077,7 +1116,10 @@ function Dashboard({session,onLogout}){
           {teams.length>0&&(
             <div>
               <div className="nav-section">Equipos</div>
-              {teams.map(t=>{
+              {teams.filter(t=>{
+                if(isDir||user.role==="cuentas") return true;
+                return t.id===user.team_id;
+              }).map(t=>{
                 const active=tasks.filter(x=>x.team_id===t.id&&x.status!=="completada").length;
                 const overdue=tasks.filter(x=>x.team_id===t.id&&x.status==="vencida").length;
                 return(
@@ -1109,12 +1151,7 @@ function Dashboard({session,onLogout}){
           ?<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh",color:"var(--muted)"}}>Cargando...</div>
           :(
             <>
-              <div className="stat-grid">
-                <SC label="Tareas activas" value={active.length} sub={`${active.reduce((s,t)=>s+(t.hours||0),0)}h acumuladas`} color="var(--blue)"/>
-                <SC label="Completadas" value={done.length} sub="Este período" color="var(--green)"/>
-                <SC label="Con cambios" value={withChanges.length} sub="Requieren revisión" color="var(--yellow)"/>
-                {overdue.length>0?<SC label="Vencidas" value={overdue.length} sub="⚠ Atención requerida" color="var(--red)"/>:<SC label="Al día" value="✓" sub="Sin vencidas" color="var(--green)"/>}
-              </div>
+
               {tab==="home"&&<HomeView tasks={tasks} users={users} teams={teams} me={user} token={token} onRefresh={load} onNavigate={t=>setTab(t)}/>}
               {tab==="ordenes"&&(
                 <>
@@ -1150,7 +1187,11 @@ function Dashboard({session,onLogout}){
               {tab.startsWith("equipo_")&&(()=>{
                 const teamId=tab.replace("equipo_","");
                 const team=teams.find(t=>t.id===teamId);
-                const teamTasks=tasks.filter(t=>t.team_id===teamId);
+                const teamTasks=tasks.filter(t=>{
+                  if(isDir||user.role==="cuentas") return t.team_id===teamId;
+                  const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
+                  return t.team_id===teamId&&a.includes(user.id);
+                });
                 const teamUsers=users.filter(u=>u.team_id===teamId);
                 if(!team)return null;
                 return(
@@ -1164,7 +1205,7 @@ function Dashboard({session,onLogout}){
                     </div>
                     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
                       {teamUsers.map(u=>{
-                        const ut=tasks.filter(t=>t.assigned_to===u.id&&t.status!=="completada").length;
+                        const ut=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada").length;
                         return(
                           <div key={u.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:10}}>
                             <div className="avatar" style={{width:24,height:24,background:u.avatar_color,fontSize:9,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{u.initials}</div>
