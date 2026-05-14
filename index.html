@@ -127,8 +127,19 @@ const sb={
       body:JSON.stringify({email,password:pw}),
     });
     const d=await r.json();
-    if(d.error||d.error_description)throw new Error("Correo o contraseña incorrectos");
-    const profile={id:d.user.id,email:d.user.email,name:d.user.user_metadata?.full_name||d.user.email.split("@")[0],role:getRole(d.user.email),avatar_color:getAvatarColor(d.user.email),initials:getInitials(d.user.user_metadata?.full_name||d.user.email.split("@")[0])};
+    if(d.error||d.error_description)throw new Error("Correo o contrasena incorrectos");
+    // Fetch real profile from DB to get correct role
+    const profileR=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${d.user.id}&select=*`,{
+      headers:{"apikey":SB_ANON,"Authorization":`Bearer ${d.access_token}`}
+    });
+    const profileData=await profileR.json();
+    let profile;
+    if(Array.isArray(profileData)&&profileData.length>0){
+      profile=profileData[0];
+    }else{
+      // Fallback if not in usuarios table yet
+      profile={id:d.user.id,email:d.user.email,name:d.user.user_metadata?.full_name||d.user.email.split("@")[0],role:getRole(d.user.email),avatar_color:getAvatarColor(d.user.email),initials:getInitials(d.user.user_metadata?.full_name||d.user.email.split("@")[0])};
+    }
     return{profile,access_token:d.access_token};
   },
   async inviteUser(email,name){
