@@ -54,7 +54,7 @@ button{border:none;cursor:pointer;font-family:'Roboto',sans-serif;transition:.15
 .nav-item:hover{background:var(--bg3);color:var(--text)}
 .nav-item.active{background:rgba(139,92,246,.15);color:var(--purple2)}
 .nav-section{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:16px 12px 6px;font-weight:600}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
 .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden}
 .stat-card::before{content:'';position:absolute;top:-30px;right:-30px;width:80px;height:80px;border-radius:50%;background:var(--ac,var(--purple));opacity:.06}
 .stat-label{font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
@@ -91,15 +91,27 @@ button{border:none;cursor:pointer;font-family:'Roboto',sans-serif;transition:.15
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .fade-in{animation:fadeIn .25s ease}
 @media(max-width:768px){
-  .sidebar{display:none;position:fixed;top:0;left:0;height:100vh;z-index:300;width:240px}
+  .sidebar{display:none;position:fixed;top:0;left:0;height:100vh;z-index:300;width:260px;overflow-y:auto}
   .sidebar.open{display:flex}
-  .mobile-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:299;display:none}
+  .mobile-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:299;display:none}
   .mobile-overlay.open{display:block}
-  .main-content{padding:16px}
-  .mobile-topbar{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border);margin-bottom:16px}
-  .hamburger{background:none;border:none;cursor:pointer;color:var(--text);font-size:20px;padding:4px}
+  .main-content{padding:12px;padding-top:0}
+  .mobile-topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border);margin-bottom:12px;position:sticky;top:0;z-index:100}
+  .hamburger{background:none;border:none;cursor:pointer;color:var(--text);font-size:22px;padding:4px;line-height:1}
+  .stat-grid{grid-template-columns:1fr 1fr!important;gap:8px!important}
+  .stat-card{padding:12px!important}
+  .stat-value{font-size:24px!important}
+  .task-card{padding:12px!important}
+  .modal{padding:16px!important;max-height:95vh!important;border-radius:16px!important;margin:0 8px}
+  .filter-bar{gap:4px!important}
+  .filter-chip{padding:4px 8px!important;font-size:11px!important}
+  .card{padding:14px!important}
 }
 @media(min-width:769px){.mobile-topbar{display:none}}
+@media(max-width:480px){
+  .stat-grid{grid-template-columns:1fr 1fr!important}
+  .section-title{font-size:16px!important}
+}
 </style>
 </head>
 <body>
@@ -572,8 +584,8 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
       </div>
       {/* TASK DETAIL MODAL */}
       {modal&&(
-        <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)setModal(false);}} style={{zIndex:200}}>
-          <div className="modal fade-in" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)setModal(false);}} style={{zIndex:200,alignItems:"flex-end",padding:0}}>
+          <div className="modal fade-in" style={{maxWidth:600,width:"100%",borderBottomLeftRadius:0,borderBottomRightRadius:0,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,gap:12}}>
                <div style={{flex:1}}>
                  {task.order_number&&(
@@ -710,21 +722,20 @@ function CreateTask({users,teams,tasks,me,token,onCreated}){
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   async function submit(){
     if(!form.title||!form.description||!form.assigned_to||form.assigned_to.length===0||!form.due_date){alert("Completa los campos con *. Selecciona al menos un responsable.");return;}
-      // Auto-assign team from first selected user if not set
-      let finalTeamId=form.team_id;
-      if(!finalTeamId&&form.assigned_to.length>0){
-        const firstUser=users.find(u=>u.id===form.assigned_to[0]);
-        finalTeamId=firstUser?.team_id||"";
-      }
-      if(!finalTeamId){alert("Por favor selecciona un equipo o asigna responsables con equipo definido.");return;}
-      form={...form,team_id:finalTeamId};
+    // Auto-assign team from first selected user if not set
+    let finalTeamId=form.team_id;
+    if(!finalTeamId&&form.assigned_to.length>0){
+      const firstUser=users.find(u=>u.id===form.assigned_to[0]);
+      finalTeamId=firstUser?.team_id||"";
+    }
+    const formWithTeam={...form,team_id:finalTeamId};
     setLoading(true);
     try{
       // Get next order number
       const existing=await sb.get("tareas","select=order_number&order=order_number.desc&limit=1",token);
       const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
       const orderNum=lastNum+1;
-      const {_teamFilter,...formData}=form;
+      const {_teamFilter,...formData}=formWithTeam;
       // Upload files to storage
       let fileData=[];
       for(const file of files){
