@@ -178,7 +178,7 @@ button{border:none;cursor:pointer;font-family:'Roboto',sans-serif;transition:.15
 }
 
 /* ── ADMIN COMPONENTS ── */
-.team-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.team-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);width:100%}
 .team-row:last-child{border-bottom:none}
 .user-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
 .user-row:last-child{border-bottom:none}
@@ -434,7 +434,7 @@ function AdminView({users,teams,tasks,token,onRefresh}){
                 <button className="btn btn-danger btn-sm" onClick={()=>deleteTeam(t)}>Eliminar</button>
               </div>
             );
-          })}
+          })}</div>
       </div>
         </div>
 
