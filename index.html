@@ -413,7 +413,7 @@ function AdminView({users,teams,tasks,token,onRefresh}){
           const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
           const available=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length<=2).length;
           const sColor=overloaded>0?"var(--red)":avg>=5?"var(--yellow)":"var(--green)";
-          const sLabel=overloaded>0?(overloaded+" sobrecargado"+(overloaded>1?"s","")):available>0?(available+" disponible"+(available>1?"s","")):"Carga normal";
+          const sLabel=overloaded>0?(overloaded+(overloaded>1?" sobrecargados":" sobrecargado")):available>0?(available+(available>1?" disponibles":" disponible")):"Carga normal";
           return(
             <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",borderBottom:"1px solid var(--border)",flexWrap:"wrap"}}>
               <span style={{fontSize:18,flexShrink:0}}>{t.icon||"👥"}</span>
