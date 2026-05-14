@@ -522,7 +522,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
     onRefresh();
   }
   return(
-    <div className="task-card fade-in" style={{cursor:"pointer"}} onClick={()=>setModal(true)}>
+    <div className="task-card fade-in" style={{cursor:"pointer",borderLeft:task.priority==="Urgente"?"3px solid var(--red)":task.priority==="Alta"?"3px solid var(--orange)":"3px solid var(--border2)",paddingLeft:15}} onClick={()=>setModal(true)}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:7,alignItems:"center"}}>
