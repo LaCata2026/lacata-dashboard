@@ -417,6 +417,13 @@ function AdminView({users,teams,token,onRefresh}){
 function TaskCard({task,users,teams,me,token,onRefresh}){
   const [exp,setExp]=useState(false);
   const [modal,setModal]=useState(false);
+  const [editing,setEditing]=useState(false);
+  const [editForm,setEditForm]=useState({});
+  React.useEffect(()=>{
+    function onKey(e){if(e.key==="Escape"){setModal(false);setEditing(false);}}
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[]);
   const isDir=me.role==="director"||me.role==="cuentas";
   const assigned=users.find(u=>u.id===task.assigned_to);
   const team=teams.find(t=>t.id===task.team_id);
@@ -479,14 +486,30 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
   async function del(){
     if(!confirm(`¿Eliminar "${task.title}"?`))return;
     await sb.del("tareas",task.id,token);
-    showToast("Orden eliminada","success");onRefresh();
+    showToast("Orden eliminada","success");setModal(false);onRefresh();
+  }
+
+  async function saveEdit(){
+    const h=[...(task.history||[]),`Editado por ${me.name} — ${new Date().toLocaleString("es-GT")}`];
+    await sb.update("tareas",task.id,{
+      title:editForm.title||task.title,
+      description:editForm.description||task.description,
+      materials:editForm.materials||task.materials||"",
+      hours:Number(editForm.hours)||task.hours||0,
+      due_date:editForm.due_date||task.due_date,
+      priority:editForm.priority||task.priority,
+      history:h,
+    },token);
+    showToast("Orden actualizada","success");
+    setEditing(false);
+    onRefresh();
   }
   return(
     <div className="task-card fade-in" style={{cursor:"pointer"}} onClick={()=>setModal(true)}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:7,alignItems:"center"}}>
-            {task.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--purple2)",fontFamily:"monospace"}}>#{String(task.order_number).padStart(4,"0")}</span>}
+            {task.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--purple2)",fontFamily:"monospace"}}>#{"AC-"+String(task.order_number).padStart(4,"0")}</span>}
             <span className={`pill ${prioPill[task.priority]||"pill-gray"}`}>{task.priority}</span>
             <span className={`pill ${statusPill[task.status]||"pill-gray"}`}>{statusLabel[task.status]||task.status}</span>
             {task.changes>0&&<span className="pill pill-purple">🔄 {task.changes}</span>}
@@ -511,20 +534,28 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
       </div>
       {/* TASK DETAIL MODAL */}
       {modal&&(
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+        <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)setModal(false);}} style={{zIndex:200}}>
           <div className="modal fade-in" style={{maxWidth:600}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,gap:12}}>
-              <div style={{flex:1}}>
-                {task.order_number&&(
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                    <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:"rgba(139,92,246,.15)",color:"var(--purple2)",fontFamily:"monospace"}}>#{String(task.order_number).padStart(4,"0")} - {task.title}</span>
-                    <button onClick={()=>{navigator.clipboard.writeText("#"+String(task.order_number).padStart(4,"0")+" - "+task.title);showToast("Copiado","success");}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:13,padding:"2px 6px",borderRadius:6}}>📋</button>
-                  </div>
-                )}
-                <h2 style={{fontSize:20,fontWeight:700}}>{task.title}</h2>
-              </div>
-              <button onClick={()=>setModal(false)} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"4px 10px",borderRadius:8,flexShrink:0}}>✕</button>
-            </div>
+             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,gap:12}}>
+               <div style={{flex:1}}>
+                 {task.order_number&&(
+                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                     <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:"rgba(139,92,246,.15)",color:"var(--purple2)",fontFamily:"monospace"}}>{"AC-"+String(task.order_number).padStart(4,"0")+" "+task.title}</span>
+                     <button onClick={()=>{navigator.clipboard.writeText("AC-"+String(task.order_number).padStart(4,"0")+" "+task.title);showToast("Copiado","success");}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:13,padding:"2px 6px",borderRadius:6}}>📋</button>
+                   </div>
+                 )}
+                 {editing
+                   ?<input value={editForm.title||task.title} onChange={e=>setEditForm(f=>({...f,title:e.target.value}))} style={{fontSize:18,fontWeight:700,width:"100%",marginBottom:4}}/>
+                   :<h2 style={{fontSize:20,fontWeight:700}}>{task.title}</h2>
+                 }
+               </div>
+               <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
+                 {isDir&&!editing&&<button onClick={()=>{setEditing(true);setEditForm({title:task.title,description:task.description||"",materials:task.materials||"",hours:task.hours,due_date:task.due_date,priority:task.priority});}} style={{background:"rgba(139,92,246,.15)",border:"none",cursor:"pointer",color:"var(--purple2)",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit"}}>✏️ Editar</button>}
+                 {editing&&<button onClick={saveEdit} style={{background:"var(--green)",border:"none",cursor:"pointer",color:"#fff",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit",fontWeight:600}}>Guardar</button>}
+                 {editing&&<button onClick={()=>setEditing(false)} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit"}}>Cancelar</button>}
+                 <button onClick={()=>{setModal(false);setEditing(false);}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"4px 10px",borderRadius:8}}>✕</button>
+               </div>
+             </div>
             {(isDir||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id))&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
                 {[{v:"pendiente",icon:"🕐",label:"Pendiente",bg:"rgba(245,158,11,.15)",color:"#fcd34d"},{v:"en_progreso",icon:"⚡",label:"En progreso",bg:"rgba(59,130,246,.15)",color:"#93c5fd"},{v:"en_pausa",icon:"⏸",label:"En pausa",bg:"rgba(249,115,22,.15)",color:"#fdba74"},{v:"en_revision",icon:"🔍",label:"Revisión",bg:"rgba(139,92,246,.15)",color:"#c4b5fd"},{v:"completada",icon:"✅",label:"Completada",bg:"rgba(16,185,129,.15)",color:"#6ee7b7"}].map(s=>(
@@ -543,8 +574,32 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
                 <p style={{fontSize:12,color:"var(--muted)",marginTop:2}}>⏱ Est: {task.hours||0}h {task.hours_real>0&&<span style={{color:"var(--green)"}}>· Real: {task.hours_real}h</span>}</p>
               </div>
             </div>
-            {task.description&&<div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px",marginBottom:12}}><p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px",marginBottom:6}}>Brief</p><p style={{fontSize:13,color:"var(--muted2)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{task.description}</p></div>}
-            {task.materials&&<div style={{background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.2)",borderRadius:10,padding:"12px 14px",marginBottom:12}}><p style={{fontSize:11,color:"var(--yellow)",fontWeight:600,marginBottom:4}}>📦 Materiales</p><p style={{fontSize:13,color:"var(--muted2)",lineHeight:1.5}}>{task.materials}</p></div>}
+            {editing?(
+              <>
+                <div style={{marginBottom:12}}>
+                  <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px",marginBottom:6}}>Brief</p>
+                  <textarea value={editForm.description||""} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))} style={{width:"100%",minHeight:80}}/>
+                </div>
+                <div style={{marginBottom:12}}>
+                  <p style={{fontSize:11,color:"var(--yellow)",fontWeight:600,marginBottom:6}}>📦 Materiales</p>
+                  <textarea value={editForm.materials||""} onChange={e=>setEditForm(f=>({...f,materials:e.target.value}))} style={{width:"100%",minHeight:60}}/>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+                  <div><p style={{fontSize:11,color:"var(--muted)",marginBottom:4}}>Horas est.</p><input type="number" value={editForm.hours||""} onChange={e=>setEditForm(f=>({...f,hours:e.target.value}))}/></div>
+                  <div><p style={{fontSize:11,color:"var(--muted)",marginBottom:4}}>Fecha límite</p><input type="date" value={editForm.due_date||""} onChange={e=>setEditForm(f=>({...f,due_date:e.target.value}))}/></div>
+                  <div><p style={{fontSize:11,color:"var(--muted)",marginBottom:4}}>Prioridad</p>
+                    <select value={editForm.priority||"Normal"} onChange={e=>setEditForm(f=>({...f,priority:e.target.value}))}>
+                      <option>Normal</option><option>Alta</option><option>Urgente</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            ):(
+              <>
+                {task.description&&<div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px",marginBottom:12}}><p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px",marginBottom:6}}>Brief</p><p style={{fontSize:13,color:"var(--muted2)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{task.description}</p></div>}
+                {task.materials&&<div style={{background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.2)",borderRadius:10,padding:"12px 14px",marginBottom:12}}><p style={{fontSize:11,color:"var(--yellow)",fontWeight:600,marginBottom:4}}>📦 Materiales</p><p style={{fontSize:13,color:"var(--muted2)",lineHeight:1.5}}>{task.materials}</p></div>}
+              </>
+            )}
             {task.files&&task.files.length>0&&<div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px",marginBottom:12}}><p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px",marginBottom:8}}>Archivos adjuntos</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{task.files.map((f,idx)=><span key={idx} style={{fontSize:12,padding:"4px 10px",background:"var(--bg4)",borderRadius:8,color:"var(--muted2)"}}>📎 {f}</span>)}</div></div>}
             <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px"}}>
               <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px",marginBottom:8}}>Historial</p>
@@ -574,7 +629,7 @@ function CreateTask({users,teams,tasks,me,token,onCreated}){
       const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
       const orderNum=lastNum+1;
       const {_teamFilter,...formData}=form;
-await sb.insert("tareas",{...formData,hours:Number(formData.hours)||0,changes:0,materials:formData.materials||"",order_number:orderNum,history:["Orden #"+String(orderNum).padStart(4,"0")+" creada — "+new Date().toLocaleDateString("es-GT")],files:files.map(f=>f.name),created_by:me.id},token);
+await sb.insert("tareas",{...formData,hours:Number(formData.hours)||0,changes:0,materials:formData.materials||"",order_number:orderNum,history:["Orden AC-"+String(orderNum).padStart(4,"0")+" creada — "+new Date().toLocaleDateString("es-GT")],files:files.map(f=>f.name),created_by:me.id},token);
       showToast("✅ Orden creada","success");setForm(blank);setFiles([]);onCreated();
     }catch(e){alert("Error: "+e.message);}
     setLoading(false);
