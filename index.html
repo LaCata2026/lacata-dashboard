@@ -309,12 +309,23 @@ function SC({label,value,sub,color}){
 }
 
 /* ── ADMIN VIEW ── */
-function AdminView({users,teams,token,onRefresh}){
+function AdminView({users,teams,tasks,token,onRefresh}){
   const [showNewUser,setShowNewUser]=useState(false);
   const [showNewTeam,setShowNewTeam]=useState(false);
+  const [editingTeam,setEditingTeam]=useState(null);
   const [uForm,setUForm]=useState({name:"",email:"",role:"colaborador",team_id:"",avatar_color:"#2563eb"});
-  const [tForm,setTForm]=useState({name:"",color:"#7c3aed"});
+  const [tForm,setTForm]=useState({name:"",color:"#7c3aed",icon:"👥"});
   const [loading,setLoading]=useState(false);
+
+  const TEAM_ICONS=["👥","🎨","📱","📊","🎬","💡","🔥","⚡","🚀","🎯","✨","🖌️","📸","🎤","📝"];
+
+  async function saveTeamEdit(){
+    if(!editingTeam)return;
+    await sb.update("equipos",editingTeam.id,{name:editingTeam.name,color:editingTeam.color,icon:editingTeam.icon||"👥"},token);
+    showToast("Equipo actualizado","success");
+    setEditingTeam(null);
+    onRefresh();
+  }
   const setU=k=>e=>setUForm(f=>({...f,[k]:e.target.value}));
   const setT=k=>e=>setTForm(f=>({...f,[k]:e.target.value}));
 
@@ -346,7 +357,7 @@ function AdminView({users,teams,token,onRefresh}){
     if(!tForm.name){alert("El nombre del equipo es obligatorio.");return;}
     setLoading(true);
     try{
-      await sb.insert("equipos",{name:tForm.name,color:tForm.color},token);
+      await sb.insert("equipos",{name:tForm.name,color:tForm.color,icon:tForm.icon||"👥"},token);
       showToast(`✅ Equipo "${tForm.name}" creado`,"success");
       setTForm({name:"",color:"#7c3aed"});
       setShowNewTeam(false);
@@ -497,11 +508,22 @@ function AdminView({users,teams,token,onRefresh}){
       {/* MODAL NUEVO EQUIPO */}
       {showNewTeam&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowNewTeam(false)}>
-          <div className="modal fade-in" style={{maxWidth:360}}>
+          <div className="modal fade-in" style={{maxWidth:380}}>
             <div className="modal-title">Nuevo equipo</div>
             <div className="form-group">
               <label className="form-label">Nombre del equipo *</label>
               <input value={tForm.name} onChange={setT("name")} placeholder="Ej: Célula Estrategia"/>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Ícono</label>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {TEAM_ICONS.map(ic=>(
+                  <button key={ic} type="button" onClick={()=>setTForm(f=>({...f,icon:ic}))}
+                    style={{fontSize:20,padding:"6px 10px",borderRadius:8,background:tForm.icon===ic?"var(--purple)":"var(--bg3)",border:tForm.icon===ic?"none":"1px solid var(--border)",cursor:"pointer"}}>
+                    {ic}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Color</label>
@@ -512,6 +534,7 @@ function AdminView({users,teams,token,onRefresh}){
                 ))}
               </div>
               {tForm.name&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
+                <span style={{fontSize:18}}>{tForm.icon||"👥"}</span>
                 <div style={{width:10,height:10,borderRadius:"50%",background:tForm.color}}/>
                 <span style={{fontSize:13}}>{tForm.name}</span>
               </div>}
@@ -519,6 +542,48 @@ function AdminView({users,teams,token,onRefresh}){
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-ghost" onClick={()=>setShowNewTeam(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={createTeam} disabled={loading}>{loading?"Creando...":"Crear equipo"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR EQUIPO */}
+      {editingTeam&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEditingTeam(null)}>
+          <div className="modal fade-in" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-title">Editar equipo</div>
+            <div className="form-group">
+              <label className="form-label">Nombre</label>
+              <input value={editingTeam.name} onChange={e=>setEditingTeam(t=>({...t,name:e.target.value}))} placeholder="Nombre del equipo"/>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Ícono</label>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {TEAM_ICONS.map(ic=>(
+                  <button key={ic} type="button" onClick={()=>setEditingTeam(t=>({...t,icon:ic}))}
+                    style={{fontSize:20,padding:"6px 10px",borderRadius:8,background:editingTeam.icon===ic?"var(--purple)":"var(--bg3)",border:editingTeam.icon===ic?"none":"1px solid var(--border)",cursor:"pointer"}}>
+                    {ic}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Color</label>
+              <div className="color-picker">
+                {COLORS.map(c=>(
+                  <div key={c} className={`color-swatch${editingTeam.color===c?" selected":""}`}
+                    style={{background:c}} onClick={()=>setEditingTeam(t=>({...t,color:c}))}/>
+                ))}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
+                <span style={{fontSize:18}}>{editingTeam.icon||"👥"}</span>
+                <div style={{width:10,height:10,borderRadius:"50%",background:editingTeam.color}}/>
+                <span style={{fontSize:13,fontWeight:500}}>{editingTeam.name}</span>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button className="btn btn-ghost" onClick={()=>setEditingTeam(null)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={saveTeamEdit}>Guardar cambios</button>
             </div>
           </div>
         </div>
@@ -1477,7 +1542,7 @@ function Dashboard({session,onLogout}){
               {tab==="crear"    &&(isDir||user.role==="cuentas")&&<CreateTask users={users} teams={teams} tasks={tasks} me={user} token={token} onCreated={()=>{load();setTab("ordenes");}}/>}
               {tab==="equipos"  &&(isDir||user.role==="cuentas")&&<TeamsView tasks={tasks} users={users} teams={teams}/>}
               {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams}/>}
-              {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} token={token} onRefresh={load}/>}
+              {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} tasks={tasks} token={token} onRefresh={load}/>}
               {tab.startsWith("equipo_")&&(()=>{
                 const teamId=tab.replace("equipo_","");
                 const team=teams.find(t=>t.id===teamId);
