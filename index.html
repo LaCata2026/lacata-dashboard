@@ -681,7 +681,7 @@ function Linkify({text,style={}}){
     </span>
   );
 }
-function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
+function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers}){
   const [showNewUser,setShowNewUser]=useState(false);
   const [showNewTeam,setShowNewTeam]=useState(false);
   const [editingTeam,setEditingTeam]=useState(null);
@@ -771,16 +771,31 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
   }
 
   async function toggleUserTeam(userId,teamId,currentTeamIds,role){
-    const ids=Array.isArray(currentTeamIds)?currentTeamIds:[];
-    const next=ids.includes(teamId)?ids.filter(x=>x!==teamId):[...ids,teamId];
+    // Normalise — handle null, undefined, non-array from DB
+    const ids=Array.isArray(currentTeamIds)&&currentTeamIds.length>0
+      ? currentTeamIds
+      : []; // never trust DB null — start fresh
+    const next=ids.includes(teamId)
+      ? ids.filter(x=>x!==teamId)
+      : [...ids,teamId];
     const primaryId=next.length>0?next[0]:null;
+
+    // 1. Optimistic UI — update local users state immediately so tags respond on first click
+    setUsers(prev=>prev.map(u=>u.id===userId?{...u,team_ids:next,team_id:primaryId}:u));
+
+    // 2. Persist to Supabase
     try{
-      // Both cuentas and colaborador now support multiple teams via team_ids[]
-      // team_id (singular) kept as primary for backward compat
-      await sb.update("usuarios",userId,{team_ids:next,team_id:primaryId},token);
-      showToast("Equipos actualizados","success");
-      onRefresh();
-    }catch(e){showToast("Error al guardar: "+e.message,"error");}
+      await sb.update("usuarios",userId,{
+        team_ids: next,       // array — requires jsonb column
+        team_id:  primaryId,  // primary team for backward compat
+      },token);
+      showToast(next.length===0?"Sin equipos asignados":`${next.length} equipo${next.length>1?"s":""} asignado${next.length>1?"s":""}` ,"success");
+      onRefresh(); // sync full state from DB in background
+    }catch(e){
+      // Revert optimistic update on error
+      setUsers(prev=>prev.map(u=>u.id===userId?{...u,team_ids:ids,team_id:ids[0]||null}:u));
+      showToast("Error al guardar: "+e.message,"error");
+    }
   }
 
   return(
@@ -856,7 +871,8 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
               </div>
               {/* Users list */}
               {isOpen&&group.map(u=>{
-                const teamIds=Array.isArray(u.team_ids)&&u.team_ids.length>0?u.team_ids:(u.team_id?[u.team_id]:[]);
+                const rawIds=u.team_ids;
+                const teamIds=Array.isArray(rawIds)&&rawIds.length>0?rawIds:(u.team_id?[u.team_id]:[]);
                 const isCuentas=u.role==="cuentas";
                 const isCollab=u.role==="colaborador";
                 const showTeamTags=isCuentas||isCollab;
@@ -2123,13 +2139,11 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
   const isCuentas=me.role==="cuentas";
   const isCollab=me.role==="colaborador";
 
-  // My tasks (for collaborators) — includes assigned + team tasks
+  // My tasks — colaborador sees ONLY tasks assigned to them directly
   const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:(me.team_id?[me.team_id]:[]);
   const myTasks=tasks.filter(t=>{
     const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
-    const assignedToMe=a.includes(me.id);
-    const inMyTeam=myTeamIds.length>0&&myTeamIds.includes(t.team_id);
-    return assignedToMe||inMyTeam;
+    return a.includes(me.id); // only directly assigned
   });
   const myActive=myTasks.filter(t=>!["completada"].includes(t.status));
   const myUrgent=myActive.filter(t=>t.priority==="Urgente"||t.status==="vencida");
@@ -2564,12 +2578,9 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
       const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:null;
       canSee=myTeamIds?myTeamIds.includes(t.team_id):true;
     } else {
-      // Colaborador: sees tasks assigned to them OR from any of their teams
+      // Colaborador: ONLY tasks directly assigned to them
       const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
-      const assignedToMe=a.includes(me.id);
-      const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:(me.team_id?[me.team_id]:[]);
-      const inMyTeam=myTeamIds.length>0&&myTeamIds.includes(t.team_id);
-      canSee=assignedToMe||inMyTeam;
+      canSee=a.includes(me.id);
     }
     const sm=!search||t.title?.toLowerCase().includes(search.toLowerCase())||(t.order_number&&("AC-"+String(t.order_number).padStart(4,"0")).toLowerCase().includes(search.toLowerCase()))||(t.marca||"").toLowerCase().includes(search.toLowerCase());
     return canSee&&(sf==="todas"||t.status===sf)&&(tf==="todas"||t.team_id===tf)&&sm;
@@ -3080,7 +3091,7 @@ function Dashboard({session,onLogout}){
               {tab==="crear"    &&(isDir||user.role==="cuentas")&&<CreateTask users={users} teams={teams} tasks={tasks} me={user} token={token} onCreated={()=>{load();setTab("ordenes");}} onBack={()=>setTab("home")}/>}
               {tab==="equipos"  &&(isDir||user.role==="cuentas")&&<TeamsView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}} onOpenTask={t=>{setTab("ordenes");setTimeout(()=>window._openTask&&window._openTask(t),50);}}/>}
               {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")}/>}
-              {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} tasks={tasks} token={token} onRefresh={load} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}}/>}
+              {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} tasks={tasks} token={token} onRefresh={load} setUsers={setUsers} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}}/>}
               {tab.startsWith("equipo_")&&(()=>{
                 const teamId=tab.replace("equipo_","");
                 const team=teams.find(t=>t.id===teamId);
