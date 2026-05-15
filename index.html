@@ -72,7 +72,42 @@
   --font-mono:'DM Mono',monospace;
 }
 html{-webkit-text-size-adjust:100%}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;overflow-x:hidden;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+
+/* ── LIGHT MODE ── */
+body.light{
+  --bg:#f5f4f0;--bg2:#ffffff;--bg3:#f0efe9;--bg4:#e8e6df;
+  --border:#dddad0;--border2:#c8c4b8;
+  --text:#1a1915;--muted:#8a8880;--muted2:#5a5850;
+  /* Accent stays amber but slightly darker for contrast on light */
+  --accent:#c49a0a;--accent2:#d4aa1a;
+  --accent-dim:rgba(196,154,10,.1);--accent-glow:rgba(196,154,10,.2);
+  /* Status colors — same hue, slightly deeper for readability on white */
+  --s-pendiente:#4a67b0;--s-pendiente-bg:rgba(74,103,176,.1);
+  --s-progreso:#1e7fc4;--s-progreso-bg:rgba(30,127,196,.1);
+  --s-pausa:#5a7485;--s-pausa-bg:rgba(90,116,133,.1);
+  --s-revision:#6a4fc4;--s-revision-bg:rgba(106,79,196,.1);
+  --s-completada:#168a72;--s-completada-bg:rgba(22,138,114,.1);
+  --s-vencida:#c43030;--s-vencida-bg:rgba(196,48,48,.1);
+  --p-normal:#888;--p-normal-bg:rgba(100,100,100,.1);
+  --p-alta:#b05a10;--p-alta-bg:rgba(176,90,16,.1);
+  --p-urgente:#c43030;--p-urgente-bg:rgba(196,48,48,.1);
+  --load-ok:#168a72;--load-warn:#b06010;--load-crit:#c43030;
+  --role-director:#b07800;--role-cuentas:#6a4fc4;--role-colab:#1e7fc4;
+  --blue:var(--s-progreso);--green:var(--s-completada);
+  --yellow:var(--accent);--red:var(--s-vencida);
+  --orange:var(--p-alta);--purple:var(--s-revision);--purple2:#8a6ee0;
+}
+/* Sidebar accent line in light mode */
+body.light .sidebar::before{background:linear-gradient(90deg,var(--accent),transparent);}
+body.light .sidebar{box-shadow:2px 0 12px rgba(0,0,0,.06);}
+body.light .card{box-shadow:0 1px 4px rgba(0,0,0,.05);}
+body.light .task-card{box-shadow:0 1px 3px rgba(0,0,0,.06);}
+body.light .modal{box-shadow:0 20px 60px rgba(0,0,0,.15);}
+/* Scrollbar in light mode */
+body.light ::-webkit-scrollbar-thumb{background:var(--border2);}
+/* Select arrow in light mode */
+body.light select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a5850' d='M6 8L1 3h10z'/%3E%3C/svg%3E");}
 h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.02em}
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -374,10 +409,30 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
 /* ── STATUS LEGEND BAR ── */
 .status-legend{display:flex;gap:12px;flex-wrap:wrap;padding:8px 0 14px;border-bottom:1px solid var(--border);margin-bottom:14px}
 .status-dot{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted2);font-family:var(--font-mono)}
+
+/* ── CONFIRM DIALOG ── */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
+.confirm-box{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:24px;max-width:400px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.6)}
+
+/* ── ACTIVE TIMER ── */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.timer-live{animation:pulse 2s ease-in-out infinite;font-family:var(--font-mono);font-weight:700}
+
+/* ── IMAGE PREVIEW ── */
+.img-preview{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;transition:.15s}
+.img-preview:hover{transform:scale(1.06);border-color:var(--accent)}
+
+/* ── FIELD VALIDATION ── */
+.field-error{border-color:var(--s-vencida)!important;box-shadow:0 0 0 3px rgba(232,93,93,.15)!important}
+.field-hint{font-size:11px;color:var(--s-vencida);margin-top:4px;fontFamily:var(--font-mono)}
 </style>
 </head>
 <body>
 <div id="root"></div>
+<script>
+// Apply saved theme immediately to avoid flash of wrong theme
+(function(){const t=localStorage.getItem("lc_theme");if(t==="light")document.body.classList.add("light");})();
+</script>
 <script type="text/babel">
 const {useState,useEffect,useCallback,useRef}=React;
 
@@ -514,12 +569,12 @@ const statusPill={pendiente:"pill-pendiente",en_progreso:"pill-progreso",en_paus
 const statusColor={pendiente:"var(--s-pendiente)",en_progreso:"var(--s-progreso)",en_pausa:"var(--s-pausa)",en_revision:"var(--s-revision)",completada:"var(--s-completada)",vencida:"var(--s-vencida)"};
 const prioPill={Normal:"pill-prio-normal",Alta:"pill-prio-alta",Urgente:"pill-prio-urgente"};
 const NAV=[
-  {id:"home",     icon:"🏠",label:"Inicio",        section:"trabajo", roles:["director","colaborador","cuentas"]},
-  {id:"ordenes",  icon:"📋",label:"Órdenes",       section:"trabajo", roles:["director","colaborador","cuentas"]},
-  {id:"crear",    icon:"➕",label:"Nueva orden",   section:"trabajo", roles:["director","cuentas"]},
-  {id:"equipos",  icon:"👥",label:"Equipos",       section:"trabajo", roles:["director","cuentas"]},
-  {id:"desempeno",icon:"📊",label:"Desempeño",     section:"trabajo", roles:["director"]},
-  {id:"admin",    icon:"⚙️",label:"Administración",section:"admin",   roles:["director"]},
+  {id:"home",     icon:"home",label:"Inicio",        section:"trabajo", roles:["director","colaborador","cuentas"]},
+  {id:"ordenes",  icon:"ordenes",label:"Órdenes",       section:"trabajo", roles:["director","colaborador","cuentas"]},
+  {id:"crear",    icon:"nueva",label:"Nueva orden",   section:"trabajo", roles:["director","cuentas"]},
+  {id:"equipos",  icon:"equipos",label:"Equipos",       section:"trabajo", roles:["director","cuentas"]},
+  {id:"desempeno",icon:"desempeno",label:"Desempeño",     section:"trabajo", roles:["director"]},
+  {id:"admin",    icon:"admin",label:"Administración",section:"admin",   roles:["director"]},
 ];
 
 let _toast=null;
@@ -560,7 +615,71 @@ function ModalPortal({children}){
   return ReactDOM.createPortal(children,el.current);
 }
 
-/* ── SPOTLIGHT (Cmd+K global search) ── */
+/* ── ICON SYSTEM ── */
+/* ── ICON SYSTEM — custom SVG icons, minimalistas ── */
+const ICONS={
+  // Nav
+  home:     `<path d="M3 9L8 4l5 5v6H10v-3H6v3H3V9z" stroke-linejoin="round"/>`,
+  ordenes:  `<rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M5 6h6M5 9h4"/>`,
+  nueva:    `<path d="M8 3v10M3 8h10"/>`,
+  equipos:  `<circle cx="8" cy="5" r="2"/><circle cx="13" cy="5" r="1.5"/><circle cx="3" cy="5" r="1.5"/><path d="M5 12c0-1.66 1.34-3 3-3s3 1.34 3 3"/><path d="M10.5 10c.83-.6 2.5-.5 3.5.5v1.5"/><path d="M5.5 10c-.83-.6-2.5-.5-3.5.5V12"/>`,
+  desempeno:`<polyline points="3,12 6,8 9,10 13,5"/><polyline points="10,5 13,5 13,8"/>`,
+  admin:    `<circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.93 2.93l1.41 1.41M11.66 11.66l1.41 1.41M11.66 4.34l-1.41 1.41M4.34 11.66l-1.41 1.41"/>`,
+  // Actions
+  buscar:   `<circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3"/>`,
+  nuevo:    `<path d="M8 3v10M3 8h10"/>`,
+  exportar: `<path d="M8 3v8M5 8l3 3 3-3"/><path d="M3 13h10"/>`,
+  duplicar: `<rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M5 5V3.5A1.5 1.5 0 0 1 6.5 2H12a1.5 1.5 0 0 1 1.5 1.5V11"/>`,
+  reasignar:`<path d="M10 3l3 3-3 3"/><path d="M3 6h10M6 11l-3 3 3 3"/><path d="M13 14H3"/>`,
+  cambio:   `<path d="M13 5a5 5 0 0 0-9.9 1M3 11a5 5 0 0 0 9.9-1"/><path d="M11 3l2 2-2 2M5 13l-2-2 2-2"/>`,
+  editar:   `<path d="M10 3l3 3L6 13H3v-3L10 3z"/>`,
+  eliminar: `<path d="M3 5h10M6 5V3h4v2M11 5v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5"/>`,
+  volver:   `<path d="M10 3L5 8l5 5"/><path d="M5 8h8"/>`,
+  // Status
+  pendiente:`<circle cx="8" cy="8" r="5"/><path d="M8 5v3.5L10 10"/>`,
+  progreso: `<path d="M4 8l3 3 6-6"/><circle cx="8" cy="8" r="5" fill="none"/>`,
+  pausa:    `<rect x="5" y="4" width="2" height="8" rx="0.5"/><rect x="9" y="4" width="2" height="8" rx="0.5"/>`,
+  revision: `<circle cx="8" cy="8" r="5"/><path d="M6 8l1.5 1.5 3-3"/>`,
+  completada:`<circle cx="8" cy="8" r="5"/><path d="M5 8l2.5 2.5 4-4"/>`,
+  vencida:  `<path d="M8 3l5 9H3L8 3z"/><path d="M8 7v3"/><circle cx="8" cy="11.5" r=".75" fill="currentColor"/>`,
+  // Content
+  detalles: `<path d="M5 5h6M5 8h6M5 11h4"/><rect x="2" y="2" width="12" height="13" rx="1.5"/>`,
+  comentar: `<path d="M13 3H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h1v3l3-3h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1z"/>`,
+  historial:`<circle cx="8" cy="8" r="5"/><path d="M8 5v3.5L6 10"/>`,
+  adjunto:  `<path d="M13 8.5A4.5 4.5 0 0 1 4 8.5V4a3 3 0 0 1 6 0v5a1.5 1.5 0 0 1-3 0V4"/>`,
+  link:     `<path d="M6 9a3 3 0 0 0 4.24.06l2-2a3 3 0 0 0-4.24-4.24l-1 1"/><path d="M10 7a3 3 0 0 0-4.24-.06l-2 2a3 3 0 0 0 4.24 4.24l1-1"/>`,
+  // Data
+  kanban:   `<rect x="2" y="3" width="3.5" height="10" rx="1"/><rect x="6.25" y="3" width="3.5" height="7" rx="1"/><rect x="10.5" y="3" width="3.5" height="5" rx="1"/>`,
+  lista:    `<path d="M4 5h9M4 8h9M4 11h6"/><circle cx="2" cy="5" r=".75" fill="currentColor"/><circle cx="2" cy="8" r=".75" fill="currentColor"/><circle cx="2" cy="11" r=".75" fill="currentColor"/>`,
+  // Misc
+  copia:    `<rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M5 5V3.5A1.5 1.5 0 0 1 6.5 2H12a1.5 1.5 0 0 1 1.5 1.5V11"/>`,
+  sol:      `<circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.22 3.22l1.42 1.42M11.36 11.36l1.42 1.42M11.36 4.64l-1.42 1.42M4.64 11.36l-1.42 1.42"/>`,
+  luna:     `<path d="M12 12.5A6 6 0 0 1 6.5 3a6 6 0 1 0 5.5 9.5z"/>`,
+  alerta:   `<path d="M8 3l5 9H3L8 3z"/><path d="M8 7v2.5"/><circle cx="8" cy="11" r=".75" fill="currentColor"/>`,
+  check:    `<path d="M3 8l4 4 6-6"/>`,
+  cerrar:   `<path d="M4 4l8 8M12 4l-8 8"/>`,
+  colapsar: `<path d="M4 6l4 4 4-4"/>`,
+  expandir: `<path d="M4 10l4-4 4 4"/>`,
+  tiempo:   `<circle cx="8" cy="8" r="5"/><path d="M8 5v3.5L10 10"/>`,
+  carga:    `<path d="M8 3v2M8 11v2M3 8h2M11 8h2M4.93 4.93l1.41 1.41M9.66 9.66l1.41 1.41M9.66 6.34l-1.41 1.41M6.34 9.66l-1.41 1.41"/><circle cx="8" cy="8" r="3"/>`,
+  flecha_der:`<path d="M5 8h6M8 5l3 3-3 3"/>`,
+  persona:  `<circle cx="8" cy="5" r="2.5"/><path d="M4 13a4 4 0 0 1 8 0"/>`,
+  equipo2:  `<circle cx="6" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><path d="M2 13a4 4 0 0 1 8 0"/><path d="M10 11a4 4 0 0 1 4 2"/>`,
+  marca:    `<path d="M3 3h6l4 4-7 7-4-4V3z"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/>`,
+  semaforo: `<rect x="5" y="2" width="6" height="12" rx="3"/><circle cx="8" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="11" r="1" fill="currentColor"/>`,
+};
+
+function Icon({n,size=16,color="currentColor",style={},className=""}){
+  const path=ICONS[n];
+  if(!path)return null;
+  return(
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"
+      stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+      style={{flexShrink:0,display:"inline-block",...style}}
+      className={className}
+      dangerouslySetInnerHTML={{__html:path}}/>
+  );
+}
 function Spotlight({tasks,users,teams,onNavigate,onClose}){
   const [q,setQ]=useState("");
   const [sel,setSel]=useState(0);
@@ -579,7 +698,12 @@ function Spotlight({tasks,users,teams,onNavigate,onClose}){
   });
 
   function go(r){
-    if(r.type==="task"){onNavigate("ordenes");onClose();}
+    if(r.type==="task"){
+      // Open the task directly via global handler
+      onNavigate("ordenes");
+      onClose();
+      setTimeout(()=>{window._openTask&&window._openTask(r.t);},80);
+    }
   }
   function onKey(e){
     if(e.key==="ArrowDown"){e.preventDefault();setSel(s=>Math.min(s+1,results.length-1));}
@@ -618,8 +742,8 @@ function Spotlight({tasks,users,teams,onNavigate,onClose}){
         )}
         {!q.trim()&&(
           <div style={{padding:"12px 16px",display:"flex",gap:16}}>
-            {[{icon:"📋",label:"Busca por nombre"},{"icon":"🔢","label":"Busca por AC-0001"},{"icon":"🏷️","label":"Busca por marca"}].map((h,i)=>(
-              <span key={i} style={{fontSize:11,color:"var(--muted)",display:"flex",alignItems:"center",gap:5}}><span>{h.icon}</span>{h.label}</span>
+            {[{icon:"ordenes",label:"Busca por nombre"},{icon:"buscar",label:"AC-0001"},{icon:"marca",label:"Busca por marca"}].map((h,i)=>(
+              <span key={i} style={{fontSize:11,color:"var(--muted)",display:"flex",alignItems:"center",gap:5}}><Icon n={h.icon} size={13} style={{marginRight:2}}/>{h.label}</span>
             ))}
           </div>
         )}
@@ -681,6 +805,166 @@ function Linkify({text,style={}}){
     </span>
   );
 }
+/* ── CONFIRM DIALOG — replaces browser confirm() ── */
+let _confirm=null;
+function ConfirmDialog(){
+  const [state,setState]=useState(null);
+  _confirm=(msg,opts={})=>new Promise(res=>{
+    setState({msg,opts:{title:opts.title||"¿Confirmar?",confirmLabel:opts.confirmLabel||"Confirmar",confirmColor:opts.confirmColor||"var(--s-vencida)",cancelLabel:opts.cancelLabel||"Cancelar",detail:opts.detail||""},res});
+  });
+  if(!state)return null;
+  function close(val){const r=state.res;setState(null);r(val);}
+  return ReactDOM.createPortal(
+    <div className="confirm-overlay" onClick={e=>e.target===e.currentTarget&&close(false)}>
+      <div className="confirm-box fade-in">
+        <h3 style={{fontSize:16,fontWeight:700,marginBottom:8,fontFamily:"var(--font-display)"}}>{state.opts.title}</h3>
+        <p style={{fontSize:14,color:"var(--muted2)",marginBottom:state.opts.detail?6:20,lineHeight:1.5}}>{state.msg}</p>
+        {state.opts.detail&&<p style={{fontSize:12,color:"var(--muted)",marginBottom:20,fontFamily:"var(--font-mono)"}}>{state.opts.detail}</p>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button className="btn btn-ghost btn-sm" onClick={()=>close(false)}>{state.opts.cancelLabel}</button>
+          <button className="btn btn-sm" onClick={()=>close(true)}
+            style={{background:state.opts.confirmColor,color:"#fff",fontWeight:700,border:"none"}}>
+            {state.opts.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+async function showConfirm(msg,opts={}){
+  if(!_confirm)return window.confirm(msg);
+  return _confirm(msg,opts);
+}
+
+/* ── ACTIVE TIMER — live clock for en_progreso tasks ── */
+function ActiveTimer({startedAt,hoursReal}){
+  const [elapsed,setElapsed]=useState(0);
+  useEffect(()=>{
+    if(!startedAt)return;
+    const update=()=>setElapsed(Math.max(0,(Date.now()-new Date(startedAt).getTime())/3600000));
+    update();
+    const id=setInterval(update,10000);
+    return()=>clearInterval(id);
+  },[startedAt]);
+  const total=Number(hoursReal||0)+elapsed;
+  const h=Math.floor(total);
+  const m=Math.floor((total-h)*60);
+  return <span className="timer-live" style={{color:"var(--s-progreso)",fontSize:12}}>⏱ {h}h {m.toString().padStart(2,"0")}m corriendo</span>;
+}
+
+/* ── SESSION FILTER PERSISTENCE ── */
+const _sessionFilters={};
+function useSessionFilters(key,defaults){
+  const stored=_sessionFilters[key]||defaults;
+  const [state,setState]=useState(stored);
+  function set(val){_sessionFilters[key]=val;setState(val);}
+  return [state,set];
+}
+
+/* ── REASSIGN MODAL — replaces prompt() ── */
+function ReassignModal({task,users,teams,token,onClose,onRefresh,me}){
+  const current=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
+  const [selected,setSelected]=useState([...current]);
+  const [saving,setSaving]=useState(false);
+  const opts=users.filter(u=>u.role==="colaborador");
+  async function save(){
+    if(selected.length===0){showToast("Debe haber al menos un responsable","error");return;}
+    setSaving(true);
+    const h=[...(task.history||[]),`Responsables actualizados por ${me.name} — ${new Date().toLocaleString("es-GT")}`];
+    await sb.update("tareas",task.id,{assigned_to:selected,history:h},token);
+    showToast("Responsables actualizados","success");
+    onRefresh();onClose();setSaving(false);
+  }
+  return ReactDOM.createPortal(
+    <div className="confirm-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="confirm-box fade-in" style={{maxWidth:460}}>
+        <h3 style={{fontSize:16,fontWeight:700,marginBottom:4,fontFamily:"var(--font-display)"}}>Reasignar responsables</h3>
+        <p style={{fontSize:12,color:"var(--muted)",marginBottom:16,fontFamily:"var(--font-mono)"}}>{task.title}</p>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20,maxHeight:260,overflowY:"auto"}}>
+          {opts.map(u=>{
+            const sel=selected.includes(u.id);
+            const uTeam=teams.find(t=>t.id===u.team_id);
+            return(
+              <div key={u.id} onClick={()=>setSelected(s=>sel?s.filter(x=>x!==u.id):[...s,u.id])}
+                style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,cursor:"pointer",
+                  background:sel?"var(--bg4)":"transparent",border:`1px solid ${sel?"var(--border2)":"transparent"}`,transition:".13s"}}>
+                <Av u={u} size={28}/>
+                <div style={{flex:1}}><p style={{fontSize:13,fontWeight:600}}>{u.name}</p><p style={{fontSize:11,color:"var(--muted)"}}>{uTeam?.name||""}</p></div>
+                <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${sel?"var(--accent)":"var(--border2)"}`,background:sel?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:".13s"}}>
+                  {sel&&<span style={{color:"#0d0d0d",fontSize:11,fontWeight:700}}>✓</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"var(--muted)"}}>{selected.length} seleccionado{selected.length!==1?"s":""}</span>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
+            <button className="btn btn-primary btn-sm" onClick={save} disabled={saving||selected.length===0}>{saving?"...":"Guardar"}</button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ── ADD CHANGE MODAL — replaces prompt() ── */
+function AddChangeModal({task,token,onClose,onRefresh,me}){
+  const [text,setText]=useState("");
+  const [saving,setSaving]=useState(false);
+  async function save(){
+    if(!text.trim())return;
+    setSaving(true);
+    const n=(task.changes||0)+1;
+    const h=[...(task.history||[]),`Cambio ${n}: ${text.trim()} — ${me.name} — ${new Date().toLocaleString("es-GT")}`];
+    await sb.update("tareas",task.id,{changes:n,history:h},token);
+    showToast("Cambio #"+n+" registrado","success");
+    onRefresh();onClose();setSaving(false);
+  }
+  return ReactDOM.createPortal(
+    <div className="confirm-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="confirm-box fade-in">
+        <h3 style={{fontSize:16,fontWeight:700,marginBottom:4,fontFamily:"var(--font-display)"}}>Registrar cambio #{(task.changes||0)+1}</h3>
+        <p style={{fontSize:12,color:"var(--muted)",marginBottom:14,fontFamily:"var(--font-mono)"}}>{task.title}</p>
+        <textarea value={text} onChange={e=>setText(e.target.value)} autoFocus
+          placeholder="Describe el cambio solicitado..."
+          style={{width:"100%",minHeight:90,marginBottom:8,resize:"vertical"}}
+          onKeyDown={e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();save();}}}/>
+        <p style={{fontSize:11,color:"var(--muted)",marginBottom:14,fontFamily:"var(--font-mono)"}}>⌘+Enter para guardar</p>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={!text.trim()||saving}>{saving?"...":"Registrar"}</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ── DUPLICATE TASK ── */
+async function duplicateTask(task,token,onRefresh){
+  try{
+    const existing=await sb.get("tareas","select=order_number&order=order_number.desc&limit=1",token);
+    const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
+    const orderNum=lastNum+1;
+    const {id,created_at,started_at,hours_real,comments,history,...rest}=task;
+    await sb.insert("tareas",{
+      ...rest,
+      order_number:orderNum,
+      status:"pendiente",
+      hours_real:0,
+      changes:0,
+      comments:[],
+      history:[`Orden AC-${String(orderNum).padStart(4,"0")} creada (copia de AC-${String(task.order_number||0).padStart(4,"0")}) — ${new Date().toLocaleDateString("es-GT")}`],
+    },token);
+    showToast(`Orden duplicada como AC-${String(orderNum).padStart(4,"0")}","success`);
+    onRefresh();
+  }catch(e){showToast("Error al duplicar: "+e.message,"error");}
+}
+
 /* ── USER TEAM ROW — own local state so multi-team toggles work without waiting for DB refresh ── */
 function UserTeamRow({u,teams,tasks,token,onRefresh,onViewUser,changeUserRole,deleteUser}){
   const [localIds,setLocalIds]=useState(
@@ -719,7 +1003,7 @@ function UserTeamRow({u,teams,tasks,token,onRefresh,onViewUser,changeUserRole,de
         <div style={{flex:1,minWidth:120,cursor:isCollab&&onViewUser?"pointer":"default"}} onClick={isCollab&&onViewUser?()=>onViewUser(u):undefined}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             <p style={{fontSize:13,fontWeight:600}}>{u.name}</p>
-            {isCollab&&overdue>0&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}>⚠{overdue}</span>}
+            {isCollab&&overdue>0&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/>{overdue}</span>}
             {isCollab&&onViewUser&&<span style={{fontSize:10,color:"var(--muted)"}}>→ ver tareas</span>}
           </div>
           <p style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200}}>{u.email}</p>
@@ -764,7 +1048,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
   const [showNewTeam,setShowNewTeam]=useState(false);
   const [editingTeam,setEditingTeam]=useState(null);
   const [uForm,setUForm]=useState({name:"",email:"",role:"colaborador",team_id:"",team_ids:[],avatar_color:COLLAB_COLORS[0]});
-  const [tForm,setTForm]=useState({name:"",color:"#7c3aed",icon:"👥"});
+  const [tForm,setTForm]=useState({name:"",color:"#7c3aed",icon:"equipos"});
   const [loading,setLoading]=useState(false);
   const [secOpen,setSecOpen]=useState({equipos:true,directores:true,cuentas:true,colaboradores:true});
   const toggleSec=(k)=>setSecOpen(s=>({...s,[k]:!s[k]}));
@@ -778,7 +1062,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
   };
   const setT=k=>e=>setTForm(f=>({...f,[k]:e.target.value}));
 
-  const TEAM_ICONS=["👥","🎨","📱","📊","🎬","💡","🔥","⚡","🚀","🎯","✨","🖌️","📸","🎤","📝"];
+  const TEAM_ICONS=["equipos","editar","progreso","desempeno","completada","semaforo","vencida","nueva","flecha_der","buscar","carga","marca","adjunto","comentar","detalles"];
 
   async function createUser(){
     if(!uForm.name||!uForm.email){alert("Nombre y correo son obligatorios.");return;}
@@ -803,9 +1087,9 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
     if(!tForm.name){alert("El nombre del equipo es obligatorio.");return;}
     setLoading(true);
     try{
-      await sb.insert("equipos",{name:tForm.name,color:tForm.color,icon:tForm.icon||"👥"},token);
+      await sb.insert("equipos",{name:tForm.name,color:tForm.color,icon:tForm.icon||"equipos"},token);
       showToast("Equipo creado","success");
-      setTForm({name:"",color:"#7c3aed",icon:"👥"});
+      setTForm({name:"",color:"#7c3aed",icon:"equipos"});
       setShowNewTeam(false);
       onRefresh();
     }catch(e){showToast("Error: "+e.message,"error");}
@@ -814,7 +1098,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
 
   async function saveTeamEdit(){
     if(!editingTeam)return;
-    await sb.update("equipos",editingTeam.id,{name:editingTeam.name,color:editingTeam.color,icon:editingTeam.icon||"👥"},token);
+    await sb.update("equipos",editingTeam.id,{name:editingTeam.name,color:editingTeam.color,icon:editingTeam.icon||"equipos"},token);
     showToast("Equipo actualizado","success");
     setEditingTeam(null);
     onRefresh();
@@ -904,7 +1188,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
               const sLabel=overdueCount>0?`${overdueCount} vencida${overdueCount>1?"s":""}`:overloaded>0?`${overloaded} sobrecargado${overloaded>1?"s":""}`:avg>=4?`~${avg.toFixed(1)} t/persona`:"Carga normal";
               return(
                 <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderBottom:"1px solid var(--border)",flexWrap:"wrap"}}>
-                  <span style={{fontSize:16,flexShrink:0}}>{t.icon||"👥"}</span>
+                  <span style={{fontSize:16,flexShrink:0}}>{<Icon n={t.icon||"equipos"} size={16}/>}</span>
                   <div style={{width:9,height:9,borderRadius:"50%",background:teamColor(t),flexShrink:0}}/>
                   <span style={{flex:1,fontSize:14,fontWeight:600,minWidth:80}}>{t.name}</span>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -913,7 +1197,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
                     <span style={{fontSize:11,color:"var(--muted)"}}>· {members.length} miembro{members.length!==1?"s":""}</span>
                     {activeCount>0&&<span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{activeCount} activas</span>}
                   </div>
-                  <button className="btn btn-ghost btn-sm" onClick={()=>setEditingTeam({...t,icon:t.icon||"👥"})}>Editar</button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>setEditingTeam({...t,icon:t.icon||"equipos"})}>Editar</button>
                   <button className="btn btn-danger btn-sm" onClick={()=>deleteTeam(t)}>Eliminar</button>
                 </div>
               );
@@ -982,7 +1266,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
                     return(
                       <button key={t.id} type="button" onClick={()=>setUForm(f=>({...f,team_ids:sel?(f.team_ids||[]).filter(x=>x!==t.id):[...(f.team_ids||[]),t.id]}))}
                         style={{padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",background:sel?teamColor(t):"var(--bg4)",color:sel?"#fff":"var(--muted2)",border:sel?"none":"1px solid var(--border)",fontWeight:sel?700:400,transition:".13s"}}>
-                        {t.icon||"👥"} {t.name}
+                        {<Icon n={t.icon||"equipos"} size={16}/>} {t.name}
                       </button>
                     );
                   })}
@@ -1089,7 +1373,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
                 ))}
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
-                <span style={{fontSize:18}}>{editingTeam.icon||"👥"}</span>
+                <span style={{display:"flex",alignItems:"center",justifyContent:"center",width:24}}><Icon n={editingTeam.icon||"equipos"} size={18}/></span>
                 <div style={{width:10,height:10,borderRadius:"50%",background:editingTeam.color}}/>
                 <span style={{fontSize:13,fontWeight:500}}>{editingTeam.name}</span>
               </div>
@@ -1109,92 +1393,71 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
 
 /* ── TASK CARD ── */
 function TaskCard({task,users,teams,me,token,onRefresh}){
-  const [exp,setExp]=useState(false);
   const [modal,setModal]=useState(false);
   const [editing,setEditing]=useState(false);
   const [editForm,setEditForm]=useState({});
-  const [activeTab,setActiveTab]=useState("detalles"); // "detalles" | "conversacion"
+  const [activeTab,setActiveTab]=useState("detalles");
   const [commentText,setCommentText]=useState("");
   const [sendingComment,setSendingComment]=useState(false);
   const [mentionState,setMentionState]=useState({open:false,query:"",pos:0});
+  const [showReassign,setShowReassign]=useState(false);
+  const [showAddChange,setShowAddChange]=useState(false);
+  const [imgPreview,setImgPreview]=useState(null); // fullscreen image preview
   const textareaRef=useRef(null);
   const commentsEndRef=useRef(null);
   useEffect(()=>{
-    function onKey(e){if(e.key==="Escape"){setModal(false);setEditing(false);}}
+    function onKey(e){if(e.key==="Escape"){setModal(false);setEditing(false);setImgPreview(null);}}
     window.addEventListener("keydown",onKey);
     return()=>window.removeEventListener("keydown",onKey);
   },[]);
-  // Auto-scroll to latest comment when conversation tab opens or comments grow
   useEffect(()=>{
     if(activeTab==="conversacion"&&commentsEndRef.current)commentsEndRef.current.scrollIntoView({behavior:"smooth"});
   },[activeTab,task.comments?.length]);
 
   const comments=Array.isArray(task.comments)?task.comments:[];
-  const unreadCount=comments.filter(c=>c.user_id!==me.id).length;
   const isDir=me.role==="director"||me.role==="cuentas";
-  const assigned=users.find(u=>u.id===task.assigned_to);
   const team=teams.find(t=>t.id===task.team_id);
-  async function changeStatus(s){
-    const now=new Date();
-    const nowStr=now.toLocaleString("es-GT");
-    const prev=task.status;
-    let newHoursReal=Number(task.hours_real)||0;
-    let entry="";
 
-    // Stop clock when going to revision OR pausa (not just pausa)
+  // Last activity timestamp
+  const lastActivity=(()=>{
+    const history=task.history||[];
+    const comments=Array.isArray(task.comments)?task.comments:[];
+    let latest=task.created_at?new Date(task.created_at):null;
+    comments.forEach(c=>{const d=new Date(c.created_at);if(d>latest)latest=d;});
+    if(!latest)return null;
+    const diff=Date.now()-latest.getTime();
+    const h=Math.floor(diff/3600000);
+    if(h<1)return"hace un momento";
+    if(h<24)return`hace ${h}h`;
+    const d=Math.floor(h/24);
+    return`hace ${d}d`;
+  })();
+
+  async function changeStatus(s){
+    const now=new Date();const nowStr=now.toLocaleString("es-GT");const prev=task.status;
+    let newHoursReal=Number(task.hours_real)||0;let entry="";
     if(prev==="en_progreso"&&task.started_at&&(s==="en_pausa"||s==="en_revision"||s==="completada")){
-      const started=new Date(task.started_at);
-      const diffH=Math.round(((now-started)/3600000)*100)/100;
+      const started=new Date(task.started_at);const diffH=Math.round(((now-started)/3600000)*100)/100;
       newHoursReal=Math.round((newHoursReal+diffH)*100)/100;
       if(s==="en_revision")entry=`🔍 ${me.name} envió a revisión — ${nowStr} (⏱ ${diffH}h sesión · total: ${newHoursReal}h — reloj detenido)`;
       else if(s==="en_pausa")entry=`⏸ ${me.name} → Pausa — ${nowStr} (${diffH}h sesión · total: ${newHoursReal}h)`;
       else entry=`✅ ${me.name} completó — ${nowStr} — Total: ${newHoursReal}h`;
-    } else if(s==="en_progreso"){
-      entry=`⚡ ${me.name} inició trabajo — ${nowStr}`;
-    } else if(s==="en_revision"&&prev!=="en_progreso"){
-      entry=`🔍 ${me.name} envió a revisión — ${nowStr}`;
-    } else if(s==="completada"){
-      entry=`✅ ${me.name} marcó como completada — ${nowStr} — Total: ${newHoursReal}h reales`;
-    } else {
-      entry=`${statusLabel[s]} — ${me.name} — ${nowStr}`;
-    }
-
+    } else if(s==="en_progreso"){entry=`⚡ ${me.name} inició trabajo — ${nowStr}`;
+    } else if(s==="en_revision"&&prev!=="en_progreso"){entry=`🔍 ${me.name} envió a revisión — ${nowStr}`;
+    } else if(s==="completada"){entry=`✅ ${me.name} marcó como completada — ${nowStr} — Total: ${newHoursReal}h reales`;
+    } else {entry=`${statusLabel[s]} — ${me.name} — ${nowStr}`;}
     const h=[...(task.history||[]),entry];
-    const updates={
-      status:s,
-      history:h,
-      hours_real:newHoursReal,
-      // Clear started_at when stopping clock (pausa OR revision); set when starting
-      started_at:s==="en_progreso"?now.toISOString():(prev==="en_progreso"?null:task.started_at||null),
-    };
+    const updates={status:s,history:h,hours_real:newHoursReal,
+      started_at:s==="en_progreso"?now.toISOString():(prev==="en_progreso"?null:task.started_at||null)};
     await sb.update("tareas",task.id,updates,token);
-    showToast("Estado: "+statusLabel[s],"success");
-    onRefresh();
+    showToast("Estado: "+statusLabel[s],"success");onRefresh();
   }
-  async function addChange(){
-    const c=prompt("Describe el cambio:");if(!c)return;
-    const h=[...(task.history||[]),`Cambio ${(task.changes||0)+1}: ${c}`];
-    await sb.update("tareas",task.id,{changes:(task.changes||0)+1,history:h},token);
-    showToast("Cambio registrado","success");onRefresh();
-  }
-  async function reassign(){
-    const current=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
-    const opts=users.filter(u=>u.role==="colaborador");
-    if(!opts.length){alert("No hay colaboradores.");return;}
-    const list=opts.map((u,i)=>`${i+1}. ${u.name}${current.includes(u.id)?" (actual)":""}`).join("\n");
-    const choice=prompt(`Agregar/quitar responsable:\n${list}\n\nEscribe el numero:`);
-    const idx=parseInt(choice)-1;
-    if(isNaN(idx)||!opts[idx])return;
-    const nu=opts[idx];
-    const newAssigned=current.includes(nu.id)?current.filter(x=>x!==nu.id):[...current,nu.id];
-    if(newAssigned.length===0){alert("Debe haber al menos un responsable.");return;}
-    const action=current.includes(nu.id)?"Removido":"Agregado";
-    const h=[...(task.history||[]),`${action}: ${nu.name} — ${me.name} — ${new Date().toLocaleString("es-GT")}`];
-    await sb.update("tareas",task.id,{assigned_to:newAssigned,history:h},token);
-    showToast(`${action}: ${nu.name}`,"success");onRefresh();
-  }
+
   async function del(){
-    if(!confirm(`¿Eliminar "${task.title}"?`))return;
+    const ok=await showConfirm(`¿Eliminar "${task.title}"?`,{
+      title:"Eliminar orden",confirmLabel:"Sí, eliminar",confirmColor:"var(--s-vencida)",
+      detail:`Esta acción no se puede deshacer. AC-${String(task.order_number||0).padStart(4,"0")}`});
+    if(!ok)return;
     await sb.del("tareas",task.id,token);
     showToast("Orden eliminada","success");setModal(false);onRefresh();
   }
@@ -1287,8 +1550,8 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
             {task.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",fontFamily:"monospace"}}>#{"AC-"+String(task.order_number).padStart(4,"0")}</span>}
             <span className={`pill ${prioPill[task.priority]||"pill-gray"}`}>{task.priority}</span>
             <span className={`pill ${statusPill[task.status]||"pill-gray"}`}>{statusLabel[task.status]||task.status}</span>
-            {task.changes>0&&<span className="pill pill-purple">🔄 {task.changes}</span>}
-            {comments.length>0&&<span className="pill" style={{background:"rgba(155,127,232,.12)",color:"var(--s-revision)"}}>💬 {comments.length}</span>}
+            {task.changes>0&&<span className="pill pill-purple"><Icon n="cambio" size={10}/> {task.changes}</span>}
+            {comments.length>0&&<span className="pill" style={{background:"rgba(155,127,232,.12)",color:"var(--s-revision)"}}><Icon n="comentar" size={10}/> {comments.length}</span>}
             {team&&(()=>{const tc=teamColor(team);return <span className="pill" style={{background:tc+"22",color:tc}}>{team.name}</span>;})()}
           </div>
           <h3 style={{fontSize:15,fontWeight:700,marginBottom:6}}>{task.title}</h3>
@@ -1301,9 +1564,12 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
                 </span>
               ));
             })()}
-            {(()=>{const dr=fmtDateRelative(task.due_date);return(<span style={{color:dr.color,fontWeight:dr.urgent?700:400,background:dr.urgent?"rgba(240,107,107,.08)":"transparent",padding:dr.urgent?"2px 6px":"0",borderRadius:5}}>📅 {dr.label}</span>);})()}
-            {task.hours>0&&<span>⏱ {task.hours}h</span>}
-            {task.hours_real>0&&<span style={{color:"var(--green)"}}>✓ {task.hours_real}h real</span>}
+            {(()=>{const dr=fmtDateRelative(task.due_date);return(<span style={{color:dr.color,fontWeight:dr.urgent?700:400,background:dr.urgent?"rgba(240,107,107,.08)":"transparent",padding:dr.urgent?"2px 6px":"0",borderRadius:5}}><Icon n="tiempo" size={11} style={{marginRight:3}}/>{dr.label}</span>);})()}
+            {task.status==="en_progreso"&&task.started_at
+              ?<ActiveTimer startedAt={task.started_at} hoursReal={task.hours_real}/>
+              :task.hours>0&&<span>⏱ {task.hours}h</span>}
+            {task.hours_real>0&&task.status!=="en_progreso"&&<span style={{color:"var(--s-completada)"}}>✓ {task.hours_real}h real</span>}
+            {lastActivity&&<span style={{color:"var(--muted)",fontSize:11}}>{lastActivity}</span>}
           </div>
         </div>
         <span style={{fontSize:12,color:"var(--accent)",flexShrink:0,padding:"4px 10px",background:"rgba(139,92,246,.1)",borderRadius:8}}>Ver detalle ↗</span>
@@ -1322,8 +1588,8 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
   navigator.clipboard.writeText("AC-"+String(task.order_number).padStart(4,"0")+" "+task.title);
   e.target.textContent="✓";
   e.target.style.color="var(--green)";
-  setTimeout(()=>{e.target.textContent="📋";e.target.style.color="";},1500);
-}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:13,padding:"2px 6px",borderRadius:6,transition:".2s"}}>📋</button>
+  setTimeout(()=>{e.target.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M5 5V3.5A1.5 1.5 0 0 1 6.5 2H12a1.5 1.5 0 0 1 1.5 1.5V11"/></svg>';e.target.style.color="";},1500);
+}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:13,padding:"2px 6px",borderRadius:6,transition:".2s"}}><Icon n="copia" size={13}/></button>
                    </div>
                  )}
                  {editing
@@ -1332,7 +1598,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
                  }
                </div>
                <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
-                 {(isDir||me.role==="cuentas")&&!editing&&<button onClick={()=>{setEditing(true);setEditForm({title:task.title,description:task.description||"",materials:task.materials||"",hours:task.hours,due_date:task.due_date,priority:task.priority});}} style={{background:"var(--accent-dim)",border:"none",cursor:"pointer",color:"var(--accent)",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit"}}>✏️ Editar</button>}
+                 {(isDir||me.role==="cuentas")&&!editing&&<button onClick={()=>{setEditing(true);setEditForm({title:task.title,description:task.description||"",materials:task.materials||"",hours:task.hours,due_date:task.due_date,priority:task.priority});}} style={{background:"var(--accent-dim)",border:"none",cursor:"pointer",color:"var(--accent)",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit"}}><Icon n="editar" size={14}/> Editar</button>}
                  {editing&&<button onClick={saveEdit} style={{background:"var(--green)",border:"none",cursor:"pointer",color:"#fff",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit",fontWeight:600}}>Guardar</button>}
                  {editing&&<button onClick={()=>setEditing(false)} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit"}}>Cancelar</button>}
                  <button onClick={(e)=>{e.stopPropagation();setModal(false);setEditing(false);}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"4px 10px",borderRadius:8,zIndex:999,position:"relative"}}>✕</button>
@@ -1341,12 +1607,12 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
             {(isDir||me.role==="cuentas"||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id))&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
                 {[
-                  {v:"pendiente",  icon:"🕐",label:"Pendiente",  c:"var(--s-pendiente)", bg:"var(--s-pendiente-bg)"},
-                  {v:"en_progreso",icon:"⚡",label:"En progreso",c:"var(--s-progreso)",  bg:"var(--s-progreso-bg)"},
-                  {v:"en_pausa",   icon:"⏸",label:"En pausa",   c:"var(--s-pausa)",     bg:"var(--s-pausa-bg)"},
-                  {v:"en_revision",icon:"🔍",label:"Revisión",   c:"var(--s-revision)",  bg:"var(--s-revision-bg)"},
-                  {v:"completada", icon:"✅",label:"Completada", c:"var(--s-completada)",bg:"var(--s-completada-bg)"},
-                  ...((isDir||me.role==="cuentas")?[{v:"vencida",icon:"⚠️",label:"Vencida",c:"var(--s-vencida)",bg:"var(--s-vencida-bg)"}]:[])
+                  {v:"pendiente",  icon:"pendiente",label:"Pendiente",  c:"var(--s-pendiente)", bg:"var(--s-pendiente-bg)"},
+                  {v:"en_progreso",icon:"progreso",label:"En progreso",c:"var(--s-progreso)",  bg:"var(--s-progreso-bg)"},
+                  {v:"en_pausa",   icon:"pausa",label:"En pausa",   c:"var(--s-pausa)",     bg:"var(--s-pausa-bg)"},
+                  {v:"en_revision",icon:"revision",label:"Revisión",   c:"var(--s-revision)",  bg:"var(--s-revision-bg)"},
+                  {v:"completada", icon:"completada",label:"Completada", c:"var(--s-completada)",bg:"var(--s-completada-bg)"},
+                  ...((isDir||me.role==="cuentas")?[{v:"vencida",icon:"vencida",label:"Vencida",c:"var(--s-vencida)",bg:"var(--s-vencida-bg)"}]:[])
                 ].map(s=>(
                   <button key={s.v} onClick={()=>changeStatus(s.v)}
                     style={{padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",fontFamily:"inherit",transition:".13s",
@@ -1354,7 +1620,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
                       background:task.status===s.v?s.bg:"transparent",
                       color:task.status===s.v?s.c:"var(--muted)",
                       fontWeight:task.status===s.v?700:400}}>
-                    {s.icon} {s.label}
+                    <><Icon n={s.icon} size={14} style={{marginRight:4}}/>{s.label}</>
                   </button>
                 ))}
               </div>
@@ -1366,7 +1632,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
               </div>
               <div style={{background:"var(--bg3)",borderRadius:10,padding:"10px 14px"}}>
                 <p style={{fontSize:11,color:"var(--muted)",marginBottom:4,textTransform:"uppercase",letterSpacing:".4px"}}>Fechas y horas</p>
-                <p style={{fontSize:13}}>📅 {(()=>{const dr=fmtDateRelative(task.due_date);return <span style={{color:dr.color,fontWeight:dr.urgent?700:400}}>{dr.label}</span>;})()}</p>
+                <p style={{fontSize:13}}><Icon n="tiempo" size={12} style={{marginRight:4}}/>{(()=>{const dr=fmtDateRelative(task.due_date);return <span style={{color:dr.color,fontWeight:dr.urgent?700:400}}>{dr.label}</span>;})()}</p>
                 <p style={{fontSize:12,color:"var(--muted)",marginTop:2}}>⏱ Est: {task.hours||0}h {task.hours_real>0&&<span style={{color:"var(--green)"}}>· Real: {task.hours_real}h</span>}</p>
               </div>
             </div>
@@ -1392,7 +1658,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
                 <div style={{marginBottom:12}}>
                   <p style={{fontSize:11,color:"var(--muted)",marginBottom:6}}>Agregar archivos</p>
                   <label className="file-drop" style={{minHeight:60}}>
-                    <span>📎 Arrastra o haz clic para agregar archivos</span>
+                    <><Icon n="adjunto" size={16} style={{marginBottom:4}}/><span>Arrastra o haz clic para agregar archivos</span></>
                     <input type="file" multiple onChange={async(e)=>{
                       const newFiles=[...e.target.files];
                       showToast("Subiendo archivos...","info");
@@ -1422,16 +1688,27 @@ const uploaded=[];
             {task.files&&task.files.length>0&&(
               <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
                 <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px",marginBottom:8}}>Archivos adjuntos</p>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-start"}}>
                   {task.files.map((f,idx)=>{
                     const fileName=typeof f==="object"?f.name:f;
                     const fileUrl=typeof f==="object"?f.url:null;
                     const fileExt=(fileName||"").split(".").pop().toLowerCase();
-                    const icon=["jpg","jpeg","png","gif","webp"].includes(fileExt)?"🖼️":["pdf"].includes(fileExt)?"📄":["mp4","mov","avi"].includes(fileExt)?"🎥":["ai","psd","eps"].includes(fileExt)?"🎨":"📎";
+                    const isImg=["jpg","jpeg","png","gif","webp","svg"].includes(fileExt);
+                    const iconN=isImg?"adjunto":["pdf"].includes(fileExt)?"detalles":["mp4","mov","avi"].includes(fileExt)?"progreso":["ai","psd","eps","fig"].includes(fileExt)?"editar":"adjunto";
+                    if(isImg&&fileUrl){
+                      return(
+                        <div key={idx} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                          <img src={fileUrl} alt={fileName} className="img-preview"
+                            onClick={()=>setImgPreview(fileUrl)}
+                            title={fileName}/>
+                          <span style={{fontSize:10,color:"var(--muted)",maxWidth:64,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fileName}</span>
+                        </div>
+                      );
+                    }
                     return fileUrl?(
                       <a key={idx} href={fileUrl} target="_blank" rel="noopener noreferrer"
                         style={{fontSize:12,padding:"6px 12px",background:"var(--bg4)",borderRadius:8,color:"var(--accent)",cursor:"pointer",border:"1px solid rgba(232,197,71,.2)",display:"flex",alignItems:"center",gap:6,textDecoration:"none"}}>
-                        {icon} {fileName} <span style={{fontSize:10,color:"var(--muted)"}}>↓</span>
+                        <><Icon n={iconN} size={12}/> {fileName}</> <span style={{fontSize:10,color:"var(--muted)"}}>↓</span>
                       </a>
                     ):(
                       <span key={idx} style={{fontSize:12,padding:"6px 12px",background:"var(--bg4)",borderRadius:8,color:"var(--muted2)",display:"flex",alignItems:"center",gap:6}}>
@@ -1445,15 +1722,15 @@ const uploaded=[];
             {/* TABS: Detalles vs Conversación */}
             <div style={{display:"flex",gap:0,borderBottom:"1px solid var(--border)",marginBottom:14,marginTop:6}}>
               {[
-                {v:"detalles",l:"📋 Detalles",c:(task.history||[]).length},
-                {v:"conversacion",l:"💬 Conversación",c:comments.length},
+                {v:"detalles",l:"detalles",icon:"detalles",c:(task.history||[]).length},
+                {v:"conversacion",l:"conversacion",icon:"comentar",c:comments.length},
               ].map(t=>(
                 <button key={t.v} onClick={()=>setActiveTab(t.v)}
                   style={{background:"none",border:"none",borderBottom:activeTab===t.v?"2px solid var(--accent)":"2px solid transparent",
                     padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:13,
                     color:activeTab===t.v?"var(--text)":"var(--muted)",
                     fontWeight:activeTab===t.v?700:500,marginBottom:-1,transition:".13s"}}>
-                  {t.l}
+                  {<Icon n={t.icon} size={13} style={{marginRight:5}}/>}{t.v==="detalles"?"Detalles":"Conversación"}
                   {t.c>0&&<span style={{marginLeft:6,fontSize:10,padding:"1px 6px",borderRadius:10,background:activeTab===t.v?"var(--accent)":"var(--bg4)",color:activeTab===t.v?"#0d0d0d":"var(--muted2)",fontWeight:700,fontFamily:"var(--font-mono)"}}>{t.c}</span>}
                 </button>
               ))}
@@ -1474,7 +1751,7 @@ const uploaded=[];
                 <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px",maxHeight:360,overflowY:"auto",marginBottom:12}}>
                   {comments.length===0
                     ?<div style={{textAlign:"center",padding:"24px 12px",color:"var(--muted)",fontSize:13}}>
-                      <div style={{fontSize:32,opacity:.4,marginBottom:6}}>💬</div>
+                      <div style={{fontSize:32,opacity:.4,marginBottom:6}}><Icon n="comentar" size={32} color="currentColor"/></div>
                       Aún no hay conversación.<br/>
                       <span style={{fontSize:11}}>Comenta cambios, dudas, decisiones o feedback del cliente.</span>
                     </div>
@@ -1557,10 +1834,25 @@ const uploaded=[];
                 </p>
               </div>
             )}
-            {(isDir||me.role==="cuentas")&&<div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}><button className="btn btn-ghost btn-sm" onClick={reassign}>Reasignar</button><button className="btn btn-ghost btn-sm" onClick={addChange}>+ Cambio</button><button className="btn btn-danger btn-sm" onClick={()=>{del();setModal(false);}}>Eliminar</button></div>}
+            {(isDir||me.role==="cuentas")&&(
+              <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setShowReassign(true)}><Icon n="equipo2" size={14}/> Reasignar</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setShowAddChange(true)}><Icon n="cambio" size={14}/> + Cambio</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>duplicateTask(task,token,()=>{onRefresh();})}><Icon n="duplicar" size={14}/> Duplicar</button>
+                <button className="btn btn-danger btn-sm" onClick={del}><Icon n="eliminar" size={14}/> Eliminar</button>
+              </div>
+            )}
           </div>
         </div>
         </ModalPortal>
+      )}
+      {showReassign&&<ReassignModal task={task} users={users} teams={teams} token={token} me={me} onClose={()=>setShowReassign(false)} onRefresh={onRefresh}/>}
+      {showAddChange&&<AddChangeModal task={task} token={token} me={me} onClose={()=>setShowAddChange(false)} onRefresh={onRefresh}/>}
+      {imgPreview&&ReactDOM.createPortal(
+        <div onClick={()=>setImgPreview(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.9)",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
+          <img src={imgPreview} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,boxShadow:"0 0 80px rgba(0,0,0,.8)"}}/>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -1573,11 +1865,29 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
   const [files,setFiles]=useState([]);
   const [loading,setLoading]=useState(false);
   const [showOtra,setShowOtra]=useState(false);
+  const [errors,setErrors]=useState({});
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+
+  function validate(){
+    const e={};
+    if(!form.title.trim())e.title="Nombre del proyecto requerido";
+    if(!form.marca)e.marca="Selecciona o escribe una marca";
+    if(!form.description.trim())e.description="El brief es requerido";
+    if(!form.assigned_to||form.assigned_to.length===0)e.assigned_to="Selecciona al menos un responsable";
+    if(!form.due_date)e.due_date="Fecha límite requerida";
+    setErrors(e);
+    return Object.keys(e).length===0;
+  }
   async function submit(){
-    if(!form.title||!form.description||!form.assigned_to||form.assigned_to.length===0||!form.due_date){alert("Completa los campos con *. Selecciona al menos un responsable.");return;}
-    // Auto-assign team from first selected user if not set
+    if(!validate())return;
+    // Team assignment priority:
+    // 1. Manually selected team (form.team_id)
+    // 2. Active team filter (form._teamFilter if it's a real team, not "todos")
+    // 3. Primary team of first assigned user
     let finalTeamId=form.team_id;
+    if(!finalTeamId&&form._teamFilter&&form._teamFilter!=="todos"){
+      finalTeamId=form._teamFilter;
+    }
     if(!finalTeamId&&form.assigned_to.length>0){
       const firstUser=users.find(u=>u.id===form.assigned_to[0]);
       finalTeamId=firstUser?.team_id||"";
@@ -1603,7 +1913,7 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
         }
       }
       await sb.insert("tareas",{...formData,hours:Number(formData.hours)||0,changes:0,materials:formData.materials||"",marca:formData.marca||"",order_number:orderNum,history:["Orden AC-"+String(orderNum).padStart(4,"0")+" creada — "+new Date().toLocaleDateString("es-GT")],files:fileData,created_by:me.id},token);
-      showToast("✅ Orden creada","success");setForm(blank);setFiles([]);onCreated();
+      showToast("Orden creada ✓","success");setForm(blank);setFiles([]);onCreated();
     }catch(e){alert("Error: "+e.message);}
     setLoading(false);
   }
@@ -1613,7 +1923,12 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
       <div className="section-header"><h2 className="section-title">Nueva orden de trabajo</h2></div>
       <div className="card fade-in" style={{maxWidth:680}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12}}>
-          <div style={{gridColumn:"1/-1"}}><label className="form-label">Nombre del proyecto *</label><input value={form.title} onChange={set("title")} placeholder="Ej: Campaña verano Claro"/></div>
+          <div style={{gridColumn:"1/-1"}}>
+            <label className="form-label">Nombre del proyecto *</label>
+            <input value={form.title} onChange={e=>{set("title")(e);if(errors.title)setErrors(v=>({...v,title:""}));}}
+              placeholder="Ej: Campaña verano Claro" className={errors.title?"field-error":""}/>
+            {errors.title&&<p className="field-hint">{errors.title}</p>}
+          </div>
           <div><label className="form-label">Marca / Cliente *</label>
             {(()=>{
               const existing=[...new Set(tasks.map(t=>t.marca).filter(Boolean))];
@@ -1641,7 +1956,7 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
           <div><label className="form-label">Equipo (manual)</label>
             <select value={form.team_id} onChange={e=>setForm(f=>({...f,team_id:e.target.value,_teamFilter:e.target.value||"todos"}))}>
               <option value="">Auto-detectar desde responsable</option>
-              {teams.map(t=><option key={t.id} value={t.id}>{t.icon||"👥"} {t.name}</option>)}
+              {teams.map(t=><option key={t.id} value={t.id}>{<Icon n={t.icon||"equipos"} size={16}/>} {t.name}</option>)}
             </select>
           </div>
           <div style={{gridColumn:"1/-1"}}><label className="form-label">Brief y especificaciones *</label><textarea value={form.description} onChange={set("description")} placeholder="Entregables, formatos, dimensiones..."/></div>
@@ -1664,7 +1979,10 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
                 {users.filter(u=>{
                   if(u.role!=="colaborador")return false;
                   if(!form._teamFilter||form._teamFilter==="todos")return true;
-                  return u.team_id===form._teamFilter;
+                  // Check both team_id (primary) AND team_ids[] (multi-team)
+                  const inPrimary=u.team_id===form._teamFilter;
+                  const inMulti=Array.isArray(u.team_ids)&&u.team_ids.includes(form._teamFilter);
+                  return inPrimary||inMulti;
                 }).map(u=>{
                   const sel=(form.assigned_to||[]).includes(u.id);
                   const taskCount=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada";}).length;
@@ -1702,20 +2020,22 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
                 </div>
               )}
               {(()=>{
-                // Show auto-detected team confirmation
                 if((form.assigned_to||[]).length===0)return null;
+                // Mirror the submit logic: manual > filter > user's primary team
                 let teamId=form.team_id;
+                if(!teamId&&form._teamFilter&&form._teamFilter!=="todos")teamId=form._teamFilter;
                 if(!teamId){const fu=users.find(u=>u.id===(form.assigned_to||[])[0]);teamId=fu?.team_id||"";}
                 const detectedTeam=teams.find(t=>t.id===teamId);
                 if(!detectedTeam)return null;
                 const isManual=!!form.team_id;
+                const tc=teamColor(detectedTeam);
                 return(
-                  <div style={{marginTop:8,padding:"8px 12px",background:`${detectedTeam.color}14`,border:`1px solid ${detectedTeam.color}44`,borderRadius:7,display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:detectedTeam.color,flexShrink:0}}/>
+                  <div style={{marginTop:8,padding:"8px 12px",background:tc+"14",border:`1px solid ${tc}44`,borderRadius:7,display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:tc,flexShrink:0}}/>
                     <span style={{fontSize:12,color:"var(--muted2)"}}>
-                      {isManual?"Equipo seleccionado:":"Equipo auto-detectado:"} <strong style={{color:detectedTeam.color}}>{detectedTeam.name}</strong>
+                      {isManual?"Equipo seleccionado:":form._teamFilter&&form._teamFilter!=="todos"?"Equipo del filtro:":"Equipo auto-detectado:"} <strong style={{color:tc}}>{detectedTeam.name}</strong>
                     </span>
-                    {!isManual&&<span style={{fontSize:11,color:"var(--muted)",marginLeft:"auto"}}>desde responsable</span>}
+                    {!isManual&&<span style={{fontSize:11,color:"var(--muted)",marginLeft:"auto"}}>{form._teamFilter&&form._teamFilter!=="todos"?"desde filtro activo":"desde responsable"}</span>}
                   </div>
                 );
               })()}
@@ -1736,11 +2056,11 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
           <div style={{gridColumn:"1/-1"}}>
             <label className="form-label">Referencias / archivos</label>
             <label className="file-drop">
-              <span style={{fontSize:24}}>📎</span><span>Arrastra archivos o haz clic</span>
+              <Icon n="adjunto" size={22} color="var(--muted)"/><span>Arrastra archivos o haz clic</span>
               <span style={{fontSize:12,color:"var(--muted)"}}>PDF, PNG, JPG, AI, MP4</span>
               <input type="file" multiple onChange={e=>setFiles([...e.target.files])}/>
             </label>
-            {files.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>{files.map((f,i)=><span key={i} style={{fontSize:12,padding:"3px 10px",background:"var(--bg3)",borderRadius:999,color:"var(--muted2)"}}>📎 {f.name}</span>)}</div>}
+            {files.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>{files.map((f,i)=><span key={i} style={{fontSize:12,padding:"3px 10px",background:"var(--bg3)",borderRadius:999,color:"var(--muted2)"}}><Icon n="adjunto" size={11} style={{marginRight:4}}/>{f.name}</span>)}</div>}
           </div>
         </div>
         <button className="btn btn-primary" style={{width:"100%",marginTop:20,padding:13,fontSize:15,fontWeight:700}} onClick={submit} disabled={loading}>{loading?"Creando...":"Crear orden de trabajo"}</button>
@@ -1761,7 +2081,7 @@ function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTask}){
       <div className="section-header"><h2 className="section-title">Equipos y carga de trabajo</h2></div>
       <div className="filter-bar" style={{marginBottom:16}}>
         <button className={`filter-chip${selectedTeam==="all"?" active":""}`} onClick={()=>setSelectedTeam("all")}>Todos</button>
-        {teams.map(t=>{const tc=teamColor(t);return <button key={t.id} className={`filter-chip${selectedTeam===t.id?" active":""}`} style={selectedTeam===t.id?{background:tc,borderColor:tc,color:"#fff"}:{}} onClick={()=>setSelectedTeam(t.id)}>{t.icon||"👥"} {t.name}</button>;})}
+        {teams.map(t=>{const tc=teamColor(t);return <button key={t.id} className={`filter-chip${selectedTeam===t.id?" active":""}`} style={selectedTeam===t.id?{background:tc,borderColor:tc,color:"#fff"}:{}} onClick={()=>setSelectedTeam(t.id)}>{<Icon n={t.icon||"equipos"} size={16}/>} {t.name}</button>;})}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:16}}>
         {filteredTeams.map(team=>{
@@ -1776,7 +2096,7 @@ function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTask}){
             <div key={team.id} className="card fade-in">
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <span style={{fontSize:20}}>{team.icon||"👥"}</span>
+                  <span style={{fontSize:20}}>{<Icon n={team.icon||"equipos"} size={18} style={{display:"inline-block"}}/>}</span>
                   <div>
                     <h3 style={{fontSize:15,fontWeight:700}}>{team.name}</h3>
                     <p style={{fontSize:11,color:"var(--muted)",marginTop:1,fontFamily:"var(--font-mono)"}}>{members.length} miembros · {teamTasks.length} activas</p>
@@ -1808,7 +2128,7 @@ function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTask}){
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                           <span style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</span>
-                          {mOverdue>0&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}>⚠{mOverdue}</span>}
+                          {mOverdue>0&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/>{mOverdue}</span>}
                         </div>
                       </div>
                       <span style={{fontSize:14,fontWeight:800,color:loadColor,fontFamily:"var(--font-display)",minWidth:24,textAlign:"right"}}>{mTasks.length}</span>
@@ -1907,7 +2227,7 @@ function PerformanceView({tasks,users,teams,onBack}){
           <>
             <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0 8px",opacity:.45}}>
               <div style={{flex:1,height:1,background:"var(--border)"}}/>
-              <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>✅ Completadas ({done.length})</span>
+              <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}><Icon n="completada" size={11} style={{marginRight:4}}/> Completadas ({done.length})</span>
               <div style={{flex:1,height:1,background:"var(--border)"}}/>
             </div>
             {done.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={{id:"system",role:"director",name:"Director"}} token={null} onRefresh={()=>{}}/>)}
@@ -1922,7 +2242,7 @@ function PerformanceView({tasks,users,teams,onBack}){
       <div className="section-header">
         <h2 className="section-title">Desempeño</h2>
         <div style={{display:"flex",gap:4,background:"var(--bg3)",borderRadius:8,padding:3}}>
-          {[{v:"individual",l:"👤 Individual"},{v:"equipo",l:"👥 Por equipo"}].map(m=>(
+          {[{v:"individual",l:"Individual",icon:"persona"},{v:"equipo",l:"Por equipo",icon:"equipo2"}].map(m=>(
             <button key={m.v} onClick={()=>setViewMode(m.v)}
               style={{padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",border:"none",
                 background:viewMode===m.v?"var(--bg2)":"transparent",
@@ -1966,7 +2286,7 @@ function PerformanceView({tasks,users,teams,onBack}){
                     </span>
                     <div style={{display:"flex",gap:10,fontSize:12,fontFamily:"var(--font-mono)"}}>
                       <span style={{color:"var(--s-completada)"}}>✓ {uc.length}</span>
-                      {uv.length>0&&<span style={{color:"var(--s-vencida)"}}>⚠ {uv.length}</span>}
+                      {uv.length>0&&<span style={{color:"var(--s-vencida)"}}><Icon n="alerta" size={10}/> {uv.length}</span>}
                       <span style={{color:"var(--muted)"}}>{tasks.reduce((s,t)=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)?s+Number(t.hours_real||0):s;},0).toFixed(1)}h</span>
                     </div>
                   </div>
@@ -1994,7 +2314,7 @@ function PerformanceView({tasks,users,teams,onBack}){
             return(
               <div key={team.id} className="card fade-in">
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-                  <span style={{fontSize:18}}>{team.icon||"👥"}</span>
+                  <span style={{fontSize:18}}>{<Icon n={team.icon||"equipos"} size={18} style={{display:"inline-block"}}/>}</span>
                   <div style={{flex:1}}>
                     <h3 style={{fontSize:15,fontWeight:700}}>{team.name}</h3>
                     <p style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{members.length} miembros</p>
@@ -2004,7 +2324,7 @@ function PerformanceView({tasks,users,teams,onBack}){
                       {teamActive} activas
                     </div>
                     <div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
-                      ✓{teamDone} {teamOverdue>0&&<span style={{color:"var(--red)"}}>⚠{teamOverdue}</span>}
+                      ✓{teamDone} {teamOverdue>0&&<span style={{color:"var(--red)"}}><Icon n="alerta" size={9}/>{teamOverdue}</span>}
                     </div>
                   </div>
                 </div>
@@ -2046,7 +2366,7 @@ function PerformanceView({tasks,users,teams,onBack}){
 
       <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
         <button className="btn btn-green" onClick={()=>exportExcel(tasks,users,teams)} style={{display:"flex",alignItems:"center",gap:8}}>
-          <span>📥</span> Exportar Excel
+          <><Icon n="exportar" size={14}/> Exportar Excel</>
         </button>
       </div>
     </div>
@@ -2220,7 +2540,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
             return(
               <div style={{background:"rgba(232,197,71,.06)",border:"1px solid rgba(232,197,71,.25)",borderRadius:14,padding:16,marginBottom:16}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                  <span style={{fontSize:14}}>💬</span>
+                  <Icon n="comentar" size={16} color="var(--accent)"/>
                   <p style={{fontSize:13,fontWeight:700,color:"var(--accent)"}}>Te mencionaron</p>
                   <span style={{fontSize:10,padding:"1px 6px",borderRadius:10,background:"var(--accent)",color:"#0d0d0d",fontWeight:700,fontFamily:"var(--font-mono)"}}>{myMentions.length}</span>
                 </div>
@@ -2248,7 +2568,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
           })()}
           {myUrgent.length>0&&(
             <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:14,padding:16,marginBottom:16}}>
-              <p style={{fontSize:13,fontWeight:700,color:"#fca5a5",marginBottom:10}}>⚠️ Requieren atención inmediata</p>
+              <p style={{fontSize:13,fontWeight:700,color:"#fca5a5",marginBottom:10}}><Icon n="vencida" size={13} style={{marginRight:4}}/> Requieren atención inmediata</p>
               {myUrgent.slice(0,3).map(t=>(
                 <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid rgba(239,68,68,.1)"}}>
                   {t.order_number&&<span style={{fontSize:11,color:"#fca5a5",fontWeight:700}}>#{String(t.order_number).padStart(4,"0")}</span>}
@@ -2284,7 +2604,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
       {(isDir||isCuentas)&&(
         <>
           <div style={{marginBottom:20}}>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:4}}>Panel de control 📊</h2>
+            <h2 style={{fontSize:20,fontWeight:700,marginBottom:4}}><Icon n="desempeno" size={20} style={{marginLeft:6}} color="var(--accent)"/></h2>
             <p style={{color:"var(--muted)",fontSize:14}}>{new Date().toLocaleDateString("es-GT",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
           </div>
 
@@ -2310,9 +2630,9 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
                       <span style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",fontFamily:"var(--font-mono)"}}>tareas activas</span>
                     </div>
                     <div style={{display:"flex",gap:10,fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
-                      <span style={{color:"var(--s-progreso)"}}>⚡ {inProgress.length}</span>
+                      <span style={{color:"var(--s-progreso)"}}><Icon n="progreso" size={11} style={{marginRight:3}}/>{inProgress.length}</span>
                       <span style={{color:"var(--s-revision)"}}>🔍 {forReview.length}</span>
-                      {onPause.length>0&&<span style={{color:"var(--s-pausa)"}}>⏸ {onPause.length}</span>}
+                      {onPause.length>0&&<span style={{color:"var(--s-pausa)"}}><Icon n="pausa" size={11} style={{marginRight:3}}/>{onPause.length}</span>}
                     </div>
                   </div>
                   <button onClick={()=>onNavigate("ordenes")}
@@ -2405,7 +2725,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
             return(
               <div className="card" style={{marginBottom:14,borderLeft:"3px solid var(--accent)"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                  <h3 style={{fontSize:15,fontWeight:700}}>💬 Te mencionaron</h3>
+                  <h3 style={{fontSize:15,fontWeight:700}}><Icon n="comentar" size={14} style={{marginRight:6}}/>Te mencionaron</h3>
                   <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"var(--accent)",color:"#0d0d0d",fontWeight:700,fontFamily:"var(--font-mono)"}}>{myMentions.length}</span>
                 </div>
                 {myMentions.slice(0,4).map(({task:t,comment:c},i)=>{
@@ -2460,7 +2780,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
             {/* OVERDUE */}
             <div className="card" style={{borderColor:overdue.length>0?"rgba(239,68,68,.3)":"var(--border)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                <h3 style={{fontSize:15,fontWeight:700,color:overdue.length>0?"#fca5a5":"var(--text)"}}>⚠️ Vencidas</h3>
+                <h3 style={{fontSize:15,fontWeight:700,color:overdue.length>0?"#fca5a5":"var(--text)"}}><Icon n="vencida" size={14} style={{marginRight:6}}/> Vencidas</h3>
                 <span style={{fontSize:12,color:"var(--muted)"}}>{overdue.length}</span>
               </div>
               {overdue.length===0
@@ -2579,9 +2899,9 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
 
 /* ── ORDENES ── */
 function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}){
-  const [viewMode,setViewMode]=useState("kanban"); // "kanban" | "lista" | "equipo"
-  const [sf,setSf]=useState(initialFilter||"todas");
-  const [tf,setTf]=useState("todas");
+  const [viewMode,setViewMode]=useSessionFilters("ordenes_view","kanban");
+  const [sf,setSf]=useSessionFilters("ordenes_status",initialFilter||"todas");
+  const [tf,setTf]=useSessionFilters("ordenes_team","todas");
   const [search,setSearch]=useState("");
   const [collapsed,setCollapsed]=useState({}); // for equipo view
   const isDir=me.role==="director";
@@ -2660,12 +2980,13 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           {/* View mode toggle */}
           <div style={{display:"flex",gap:2,background:"var(--bg3)",borderRadius:8,padding:3}}>
-            {[{v:"kanban",l:"⬛ Kanban"},{v:"lista",l:"☰ Lista"},{v:"equipo",l:"👥 Equipos"}].map(m=>(
+            {[{v:"kanban",l:"Kanban",icon:"kanban"},{v:"lista",l:"Lista",icon:"lista"},{v:"equipo",l:"Equipos",icon:"equipos"}].map(m=>(
               <button key={m.v} onClick={()=>setViewMode(m.v)}
                 style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",fontFamily:"inherit",border:"none",
+                  display:"flex",alignItems:"center",gap:5,
                   background:viewMode===m.v?"var(--bg2)":"transparent",
                   color:viewMode===m.v?"var(--text)":"var(--muted)",fontWeight:viewMode===m.v?600:400}}>
-                {m.l}
+                <Icon n={m.icon} size={13}/>{m.l}
               </button>
             ))}
           </div>
@@ -2676,7 +2997,7 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
       {/* Search + filters */}
       <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
         <input value={search} onChange={e=>setSearch(e.target.value)}
-          placeholder="🔍 Buscar nombre, AC-0001, marca..."
+          placeholder="Buscar nombre, AC-0001, marca..."
           style={{flex:1,minWidth:200,fontSize:13}}/>
         {(isDir||isCuentas)&&(
           <select value={tf} onChange={e=>setTf(e.target.value)} style={{width:"auto",fontSize:12}}>
@@ -2702,7 +3023,7 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
       <StatusLegend/>
 
       {visible.length===0&&(
-        <div className="empty"><div style={{fontSize:40,opacity:.4}}>📋</div><p>No hay órdenes con estos filtros.</p></div>
+        <div className="empty"><div style={{opacity:.3,marginBottom:8}}><Icon n="ordenes" size={40} color="currentColor"/></div><p>No hay órdenes con estos filtros.</p></div>
       )}
 
       {/* ── KANBAN VIEW ── */}
@@ -2743,7 +3064,7 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
               <>
                 <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0 8px",opacity:.45}}>
                   <div style={{flex:1,height:1,background:"var(--border)"}}/>
-                  <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>✅ Completadas ({done.length})</span>
+                  <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}><Icon n="completada" size={11} style={{marginRight:4}}/> Completadas ({done.length})</span>
                   <div style={{flex:1,height:1,background:"var(--border)"}}/>
                 </div>
                 {done.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
@@ -2770,13 +3091,13 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
                   <div onClick={()=>setCollapsed(c=>({...c,[team.id]:!c[team.id]}))}
                     style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",cursor:"pointer",
                       borderLeft:`4px solid ${teamColor(team)}`,background:isOpen?"var(--bg3)":"var(--bg2)"}}>
-                    <span style={{fontSize:16}}>{team.icon||"👥"}</span>
+                    <span style={{fontSize:16}}>{<Icon n={team.icon||"equipos"} size={18} style={{display:"inline-block"}}/>}</span>
                     <span style={{fontWeight:700,fontSize:14,flex:1}}>{team.name}</span>
                     {/* Status mini-badges */}
                     <div style={{display:"flex",gap:4}}>
-                      {overdue>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}>⚠{overdue}</span>}
+                      {overdue>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/>{overdue}</span>}
                       {inRev>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-revision-bg)",color:"var(--s-revision)",fontWeight:700,fontFamily:"var(--font-mono)"}}>🔍{inRev}</span>}
-                      {inProg>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-progreso-bg)",color:"var(--s-progreso)",fontWeight:700,fontFamily:"var(--font-mono)"}}>⚡{inProg}</span>}
+                      {inProg>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-progreso-bg)",color:"var(--s-progreso)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="progreso" size={9}/>{inProg}</span>}
                       <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",marginLeft:4}}>{tTasks.length}</span>
                     </div>
                     <span style={{color:"var(--muted)",transition:"transform .2s",transform:isOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block"}}>▼</span>
@@ -2830,7 +3151,7 @@ function TeamDetailView({team,teamTasks,teamUsers,allUsers,allTeams,me,token,onR
       <div className="section-header">
         <h2 className="section-title" style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{width:12,height:12,borderRadius:"50%",background:teamColor(team),boxShadow:`0 0 8px ${teamColor(team)}66`,display:"inline-block"}}/>
-          {team.icon||"👥"} {team.name}
+          {<Icon n={team.icon||"equipos"} size={18} style={{display:"inline-block"}}/>} {team.name}
         </h2>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span style={{fontSize:12,color:"var(--muted)"}}>{displayTasks.filter(t=>t.status!=="completada").length} activas</span>
@@ -2851,7 +3172,7 @@ function TeamDetailView({team,teamTasks,teamUsers,allUsers,allTeams,me,token,onR
       </div>
 
       {displayTasks.length===0
-        ?<div className="empty"><div style={{fontSize:40,opacity:.4}}>📋</div><p>No hay órdenes {sfilt==="activas"?"activas":"en este equipo"}.</p></div>
+        ?<div className="empty"><div style={{opacity:.3,marginBottom:8}}><Icon n="ordenes" size={40} color="currentColor"/></div><p>No hay órdenes {sfilt==="activas"?"activas":"en este equipo"}.</p></div>
         :(
           <>
             {grouped.map(({userId,tasks:uTasks})=>{
@@ -2871,7 +3192,7 @@ function TeamDetailView({team,teamTasks,teamUsers,allUsers,allTeams,me,token,onR
                     <div style={{flex:1}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <span style={{fontSize:13,fontWeight:700}}>{u.name}</span>
-                        {urgentes>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}>⚠ {urgentes} urgente{urgentes>1?"s":""}</span>}
+                        {urgentes>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/> {urgentes} urgente{urgentes>1?"s":""}</span>}
                       </div>
                     </div>
                     {/* Task status mini-summary */}
@@ -2924,6 +3245,17 @@ function Dashboard({session,onLogout}){
   const [showSpotlight,setShowSpotlight]=useState(false);
   const isDir=user.role==="director";
 
+  // Theme — persisted in localStorage
+  const [isDark,setIsDark]=useState(()=>{
+    const saved=localStorage.getItem("lc_theme");
+    return saved?saved==="dark":true; // default dark
+  });
+  useEffect(()=>{
+    document.body.classList.toggle("light",!isDark);
+    localStorage.setItem("lc_theme",isDark?"dark":"light");
+  },[isDark]);
+  function toggleTheme(){setIsDark(d=>!d);}
+
   // Cmd+K / Ctrl+K to open spotlight
   useEffect(()=>{
     function onKey(e){
@@ -2969,9 +3301,10 @@ function Dashboard({session,onLogout}){
   return(
     <div className="app-shell">
       {showSpotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigateTo} onClose={()=>setShowSpotlight(false)}/>}
+      <ConfirmDialog/>
       {/* Mobile topbar */}
       <div className="mobile-topbar">
-        <button className="hamburger" onClick={()=>setMobileMenuOpen(true)}>☰</button>
+        <button className="hamburger" onClick={()=>setMobileMenuOpen(true)}><Icon n="lista" size={20} color="currentColor"/></button>
         <img src="data:image/png;base64,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w1qCuXdvcGOBmysUCl9f37S0tObmZn19/eTkZD6fb2pqmpSUpKmp6ezsbGRkdPToUR6P19HR0adPn/r6+osXL2pqaspkskWLFq1fv76ysnL27Nkk4h1pBtXV1TRNs9nsyspKsViMqMFX4x49teKRG7J69ep79+7B/6JQKL766qu2trbq6moulwtkb9++bWBgcPDgwfPnz9fW1vJ4PLlczmaznz179uDBAxKLxOFwGhsb7e3tjYyMWltbAwICrl+/npubK5fLOzo6eDwen88fNWoUm81ubW19+PDhrVu3Ll++fOHChYsXL16/fj01NfXJkyft7e3a2to6OjrYWETVsbOzu3LlCpvNtrCwyM/PHzZs2JUrV3JycrApBw4cWFtbm5SUxOVyOzs7FyxYcOjQoSdPnkyaNKmwsBAgYqNMnTpVLBbLZDIul0vTtJGRkb+/f2xsLKB4gxo0l8u9f/++g4MDYVXR0dEtLS1Q7PANsc6bm5sHDx7MPKVl7gyIUG1t7djY2L/85S80TcN9A0GqpaW1e/fus2fPhoSEQM36taavrz9+/Pjo6GgSHRkWFjZkyBBNTU0PD4+YmJjNmzf379+fDCw4OHjcuHFkPJs2baJp+urVq1ZWVkwRoqWldfHiRZqmjx49Su51cHC4f/++ynTeiL4xZMiQGzduEGUZXx4/fry1tfWDDz4gmGJYixYtamhomD17NkEEop+MW1NT097efsaMGf7+/mKxGBoLOW/U1dUlvbu6us6YMWPNmjU7duzYu3fv7t27169fP2/evMGDB0MxwPOXLFmSn5/f2Nioo6ODQdbU1Jw7d44It8WLF0MmUxRlbm5++/ZtpVL5xRdfkC2LgZmbm6elpclksm+++UYul4Nc8FNCQsKQIUPeoO6Bbr788ks4EoljF/3t379fqVROnjyZePdxweDBgx8+fLh//35EOG7fvj0xMdHf358YC//6179gLJw4cQKKKpNe/P39o6KiCgoK1BiKFRUVp06dCg4OBpR8Pn/btm0LFizA55aWFhgaHA5n165df/3rX/HkGTNmlJaWXrp0yd7eHv4Awnnc3d3Lyspomka43v79+0EB8M/s2LHjyy+/fIOWC6Zx7ty5SZMmMf2zZK+tXr0aCizZAdCZeDzerl270tLS4NwZM2ZMXl7exo0bsSSenp6JiYlwREgkEi0tLdw+derU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" style={{width:28,height:28,borderRadius:6,objectFit:"cover"}}/>
         <span style={{fontWeight:800,fontSize:15}}>La Cata</span>
       </div>
@@ -2989,7 +3322,7 @@ function Dashboard({session,onLogout}){
         <nav style={{flex:1,overflowY:"auto",marginBottom:8}}>
           {/* Search shortcut */}
           <button onClick={()=>setShowSpotlight(true)} className="nav-item" style={{width:"100%",marginBottom:4,opacity:.7}}>
-            <span style={{fontSize:14,width:20,textAlign:"center"}}>🔍</span>
+            <span style={{width:20,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon n="buscar" size={16}/></span>
             <span style={{flex:1,textAlign:"left"}}>Buscar</span>
             <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",background:"var(--bg3)",padding:"2px 5px",borderRadius:4}}>⌘K</span>
           </button>
@@ -3012,9 +3345,9 @@ function Dashboard({session,onLogout}){
                 }
                 return(
                   <button key={n.id} className={`nav-item${tab===n.id?" active":""}`} onClick={()=>{setTab(n.id);setMobileMenuOpen(false);}}>
-                    <span style={{fontSize:16,width:20,textAlign:"center"}}>{n.icon}</span>
+                    <span style={{width:20,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon n={n.icon} size={16}/></span>
                     <span style={{flex:1,textAlign:"left"}}>{n.label}</span>
-                    {badge>0&&<span style={{fontSize:10,fontWeight:700,background:badgeColor,color:badgeColor==="var(--accent)"?"#0d0d0d":"#fff",borderRadius:"10px",padding:"1px 6px",fontFamily:"var(--font-mono)"}}>{n.id==="home"?"💬 "+badge:badge}</span>}
+                    {badge>0&&<span style={{fontSize:10,fontWeight:700,background:badgeColor,color:badgeColor==="var(--accent)"?"#0d0d0d":"#fff",borderRadius:"10px",padding:"1px 6px",fontFamily:"var(--font-mono)"}}>{n.id==="home"?badge:badge}</span>}
                   </button>
                 );
               })}
@@ -3052,10 +3385,17 @@ function Dashboard({session,onLogout}){
         <div style={{borderTop:"1px solid var(--border)",paddingTop:16}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
             <Av u={user} size={32}/>
-            <div style={{minWidth:0}}>
+            <div style={{minWidth:0,flex:1}}>
               <p style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</p>
               <p style={{fontSize:11,color:user.role==="director"?"var(--accent)":user.role==="cuentas"?"var(--yellow)":"var(--green)"}}>{user.role==="director"?"Director":user.role==="cuentas"?"Cuentas":"Colaborador"}</p>
             </div>
+            {/* Theme toggle */}
+            <button onClick={toggleTheme} title={isDark?"Modo día":"Modo noche"}
+              style={{background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 8px",cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0,transition:".2s"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor="var(--accent)"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
+              {isDark?<Icon n="sol" size={16}/>:<Icon n="luna" size={16}/>}
+            </button>
           </div>
           <button className="btn btn-ghost btn-sm" style={{width:"100%"}} onClick={onLogout}>Cerrar sesión</button>
         </div>
@@ -3082,7 +3422,7 @@ function Dashboard({session,onLogout}){
                   {isDir&&overdue.length>0&&(
                     <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:14,padding:16,marginBottom:20}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                        <span style={{fontSize:16}}>⚠️</span>
+                        <Icon n="vencida" size={16} color="var(--s-vencida)"/>
                         <h3 style={{fontFamily:"var(--font-display)",fontSize:15,fontWeight:700,color:"#fca5a5"}}>Tareas vencidas ({overdue.length})</h3>
                       </div>
                       {overdue.map(t=>{
@@ -3171,7 +3511,7 @@ function ForgotPassword({onBack}){
               <label className="form-label">Correo</label>
               <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="tu@correo.com"/>
             </div>
-            {err&&<div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:14}}>⚠ {err}</div>}
+            {err&&<div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:14}}><Icon n="alerta" size={13} style={{marginRight:4}}/>{err}</div>}
             <button className="btn btn-primary" style={{width:"100%",padding:13,fontSize:15,fontWeight:700,marginBottom:12}} onClick={send} disabled={loading}>
               {loading?"Enviando...":"Enviar link de recuperacion"}
             </button>
@@ -3209,7 +3549,7 @@ function Login({onLogin}){
         </div>
         <div className="form-group"><label className="form-label">Correo</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com"/></div>
         <div className="form-group"><label className="form-label">Contraseña</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="••••••••"/></div>
-        {err&&<div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:14}}>⚠ {err}</div>}
+        {err&&<div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:14}}><Icon n="alerta" size={12} style={{marginRight:4}}/>{err}</div>}
         <button className="btn btn-primary" style={{width:"100%",padding:13,fontSize:15,fontWeight:700}} onClick={go} disabled={loading}>{loading?"Ingresando...":"Ingresar"}</button>
         <div style={{textAlign:"center",marginTop:14}}>
           <button onClick={()=>setShowForgot(true)} style={{background:"none",border:"none",color:"var(--accent)",fontSize:13,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
@@ -3259,7 +3599,7 @@ function SetPassword(){
   if(done) return(
     <div className="login-wrap">
       <div className="login-card fade-in" style={{textAlign:"center"}}>
-        <div style={{fontSize:48,marginBottom:16}}>✅</div>
+        <div style={{marginBottom:16}}><Icon n="completada" size={48} color="var(--s-completada)"/></div>
         <h2 style={{fontFamily:"var(--font-display)",fontSize:22,marginBottom:8}}>Contrasena creada</h2>
         <p style={{color:"var(--muted)",fontSize:14}}>Redirigiendo al dashboard...</p>
       </div>
@@ -3287,7 +3627,7 @@ function SetPassword(){
           <label className="form-label">Confirmar contrasena</label>
           <input type="password" value={pw2} onChange={e=>setPw2(e.target.value)} onKeyDown={e=>e.key==="Enter"&&savePassword()} placeholder="Repite tu contrasena"/>
         </div>
-        {err&&<div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:14}}>⚠ {err}</div>}
+        {err&&<div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:14}}><Icon n="alerta" size={12} style={{marginRight:4}}/>{err}</div>}
         <button className="btn btn-primary" style={{width:"100%",padding:13,fontSize:15,fontWeight:700}} onClick={savePassword} disabled={loading}>
           {loading?"Guardando...":"Crear contrasena e ingresar"}
         </button>
