@@ -696,11 +696,7 @@ function UserTeamRow({u,teams,tasks,token,onRefresh,onViewUser,changeUserRole,de
     setLocalIds(next); // instant visual feedback
     const primaryId=next[0]||null;
     try{
-      await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${u.id}`,{
-        method:"PATCH",
-        headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+token,"Prefer":"return=minimal"},
-        body:JSON.stringify({team_ids:next,team_id:primaryId})
-      });
+      await sb.update("usuarios",u.id,{team_ids:next,team_id:primaryId},token);
       showToast(`${next.length||"Sin"} equipo${next.length!==1?"s":""}${next.length>0?" asignado"+( next.length>1?"s":""):""}` ,"success");
       onRefresh();
     }catch(e){setLocalIds(localIds);showToast("Error: "+e.message,"error");}
