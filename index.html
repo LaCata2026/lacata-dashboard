@@ -475,6 +475,7 @@ function getAvatarColor(email){let h=0;for(let c of email)h=(h*31+c.charCodeAt(0
 function autoColor(email){return getAvatarColor(email||String(Date.now()))}
 
 const hdr=(t)=>({"apikey":SB_ANON,"Authorization":`Bearer ${t||SB_ANON}`,"Content-Type":"application/json","Prefer":"return=representation"});
+const hdrWrite=(t)=>({"apikey":SB_ANON,"Authorization":`Bearer ${t||SB_ANON}`,"Content-Type":"application/json","Prefer":"return=minimal"});
 
 const sb={
   async signIn(email,pw){
@@ -514,11 +515,17 @@ const sb={
     return r.json();
   },
   async insert(table,data,token){
-    const r=await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:hdr(token),body:JSON.stringify(data)});
-    return r.json();
+    const r=await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:hdrWrite(token),body:JSON.stringify(data)});
+    if(!r.ok){
+      const j=await r.json().catch(()=>({}));
+      const msg=Array.isArray(j)?j[0]?.message:j?.message||j?.error||`Error ${r.status} al crear registro`;
+      throw new Error(msg);
+    }
+    return {};
   },
   async update(table,id,data,token){
-    await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:hdr(token),body:JSON.stringify(data)});
+    const r=await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:hdrWrite(token),body:JSON.stringify(data)});
+    if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j?.message||j?.error||`Error ${r.status} al actualizar`);}
   },
   async del(table,id,token){
     await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"DELETE",headers:hdr(token)});
@@ -532,7 +539,7 @@ const sb={
       body:file,
     });
     if(!r.ok)throw new Error("Error al subir archivo");
-    return {path, url:`${SB_URL}/storage/v1/object/public/archivos-tareas/${path}`, name:file.name};
+    return {path, url:`${SB_URL}/storage/v1/object/public/archivos-tareas/${path}`, name:file.name, uploaded_at:new Date().toISOString()};
   },
   async deleteFile(path){
     await fetch(`${SB_URL}/storage/v1/object/archivos-tareas/${path}`,{
@@ -950,17 +957,25 @@ async function duplicateTask(task,token,onRefresh){
     const existing=await sb.get("tareas","select=order_number&order=order_number.desc&limit=1",token);
     const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
     const orderNum=lastNum+1;
-    const {id,created_at,started_at,hours_real,comments,history,...rest}=task;
+    const assigned=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
     await sb.insert("tareas",{
-      ...rest,
+      title:       task.title,
+      description: task.description||"",
+      marca:       task.marca||"",
+      materials:   task.materials||"",
+      priority:    task.priority||"Normal",
+      status:      "pendiente",
+      hours:       Number(task.hours)||0,
+      due_date:    task.due_date||null,
+      team_id:     task.team_id||null,
+      assigned_to: assigned,
       order_number:orderNum,
-      status:"pendiente",
-      hours_real:0,
-      changes:0,
-      comments:[],
+      changes:     0,
+      files:       [],
+      comments:    [],
       history:[`Orden AC-${String(orderNum).padStart(4,"0")} creada (copia de AC-${String(task.order_number||0).padStart(4,"0")}) — ${new Date().toLocaleDateString("es-GT")}`],
     },token);
-    showToast(`Orden duplicada como AC-${String(orderNum).padStart(4,"0")}","success`);
+    showToast(`Orden duplicada como AC-${String(orderNum).padStart(4,"0")}` ,"success");
     onRefresh();
   }catch(e){showToast("Error al duplicar: "+e.message,"error");}
 }
@@ -1458,6 +1473,13 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
       title:"Eliminar orden",confirmLabel:"Sí, eliminar",confirmColor:"var(--s-vencida)",
       detail:`Esta acción no se puede deshacer. AC-${String(task.order_number||0).padStart(4,"0")}`});
     if(!ok)return;
+    // Delete files from storage first
+    const files=Array.isArray(task.files)?task.files:[];
+    for(const f of files){
+      if(typeof f==="object"&&f.path){
+        try{await sb.deleteFile(f.path);}catch(e){console.warn("No se pudo borrar archivo:",f.path);}
+      }
+    }
     await sb.del("tareas",task.id,token);
     showToast("Orden eliminada","success");setModal(false);onRefresh();
   }
@@ -1687,36 +1709,76 @@ const uploaded=[];
             )}
             {task.files&&task.files.length>0&&(
               <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-                <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px",marginBottom:8}}>Archivos adjuntos</p>
+                {/* Header with warning */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:6}}>
+                  <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px"}}>Archivos adjuntos</p>
+                  <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,background:"rgba(232,140,46,.1)",border:"1px solid rgba(232,140,46,.25)"}}>
+                    <Icon n="alerta" size={12} color="var(--p-alta)"/>
+                    <span style={{fontSize:11,color:"var(--p-alta)",fontWeight:600}}>Se eliminan automáticamente a las 48h</span>
+                  </div>
+                </div>
+                {/* Per-file expiry badge */}
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-start"}}>
                   {task.files.map((f,idx)=>{
                     const fileName=typeof f==="object"?f.name:f;
                     const fileUrl=typeof f==="object"?f.url:null;
+                    const uploadedAt=typeof f==="object"&&f.uploaded_at?new Date(f.uploaded_at):null;
                     const fileExt=(fileName||"").split(".").pop().toLowerCase();
                     const isImg=["jpg","jpeg","png","gif","webp","svg"].includes(fileExt);
                     const iconN=isImg?"adjunto":["pdf"].includes(fileExt)?"detalles":["mp4","mov","avi"].includes(fileExt)?"progreso":["ai","psd","eps","fig"].includes(fileExt)?"editar":"adjunto";
+
+                    // Calculate time remaining
+                    const expiryInfo=(()=>{
+                      if(!uploadedAt)return null;
+                      const expiry=new Date(uploadedAt.getTime()+48*3600000);
+                      const remaining=expiry-Date.now();
+                      if(remaining<=0)return{label:"Expirado",color:"var(--s-vencida)",urgent:true};
+                      const h=Math.floor(remaining/3600000);
+                      const m=Math.floor((remaining%3600000)/60000);
+                      if(h<6)return{label:`${h}h ${m}m restantes`,color:"var(--s-vencida)",urgent:true};
+                      if(h<24)return{label:`${h}h restantes`,color:"var(--p-alta)",urgent:false};
+                      return{label:`${h}h restantes`,color:"var(--muted)",urgent:false};
+                    })();
+
                     if(isImg&&fileUrl){
                       return(
                         <div key={idx} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                          <img src={fileUrl} alt={fileName} className="img-preview"
-                            onClick={()=>setImgPreview(fileUrl)}
-                            title={fileName}/>
+                          <div style={{position:"relative"}}>
+                            <img src={fileUrl} alt={fileName} className="img-preview"
+                              onClick={()=>setImgPreview(fileUrl)} title={fileName}/>
+                            {expiryInfo?.urgent&&(
+                              <div style={{position:"absolute",top:2,right:2,background:"var(--s-vencida)",borderRadius:3,padding:"1px 4px",fontSize:9,color:"#fff",fontWeight:700,fontFamily:"var(--font-mono)",lineHeight:1.4}}>
+                                {expiryInfo.label.replace(" restantes","")}
+                              </div>
+                            )}
+                          </div>
                           <span style={{fontSize:10,color:"var(--muted)",maxWidth:64,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fileName}</span>
+                          {expiryInfo&&<span style={{fontSize:9,color:expiryInfo.color,fontFamily:"var(--font-mono)",fontWeight:600}}>{expiryInfo.label}</span>}
                         </div>
                       );
                     }
                     return fileUrl?(
-                      <a key={idx} href={fileUrl} target="_blank" rel="noopener noreferrer"
-                        style={{fontSize:12,padding:"6px 12px",background:"var(--bg4)",borderRadius:8,color:"var(--accent)",cursor:"pointer",border:"1px solid rgba(232,197,71,.2)",display:"flex",alignItems:"center",gap:6,textDecoration:"none"}}>
-                        <><Icon n={iconN} size={12}/> {fileName}</> <span style={{fontSize:10,color:"var(--muted)"}}>↓</span>
-                      </a>
+                      <div key={idx} style={{display:"flex",flexDirection:"column",gap:3}}>
+                        <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                          style={{fontSize:12,padding:"6px 12px",background:"var(--bg4)",borderRadius:8,color:"var(--accent)",cursor:"pointer",border:`1px solid ${expiryInfo?.urgent?"rgba(232,93,93,.3)":"rgba(232,197,71,.2)"}`,display:"flex",alignItems:"center",gap:6,textDecoration:"none"}}>
+                          <Icon n={iconN} size={12}/> {fileName} <span style={{fontSize:10,color:"var(--muted)"}}>↓</span>
+                        </a>
+                        {expiryInfo&&<span style={{fontSize:10,color:expiryInfo.color,fontFamily:"var(--font-mono)",fontWeight:600,paddingLeft:4}}>{expiryInfo.label}</span>}
+                      </div>
                     ):(
                       <span key={idx} style={{fontSize:12,padding:"6px 12px",background:"var(--bg4)",borderRadius:8,color:"var(--muted2)",display:"flex",alignItems:"center",gap:6}}>
-                        {icon} {fileName}
+                        <Icon n={iconN} size={12}/> {fileName}
                       </span>
                     );
                   })}
                 </div>
+                {/* Urgent download reminder */}
+                {task.files.some(f=>typeof f==="object"&&f.uploaded_at&&(new Date(f.uploaded_at).getTime()+48*3600000-Date.now())<6*3600000&&(new Date(f.uploaded_at).getTime()+48*3600000-Date.now())>0)&&(
+                  <div style={{marginTop:10,padding:"8px 12px",background:"rgba(232,93,93,.08)",border:"1px solid rgba(232,93,93,.3)",borderRadius:7,display:"flex",alignItems:"center",gap:8}}>
+                    <Icon n="alerta" size={14} color="var(--s-vencida)"/>
+                    <p style={{fontSize:12,color:"var(--s-vencida)",fontWeight:600}}>⚠️ Algunos archivos expiran pronto — <strong>descárgalos ahora</strong> antes de que se eliminen.</p>
+                  </div>
+                )}
               </div>
             )}
             {/* TABS: Detalles vs Conversación */}
@@ -1900,21 +1962,48 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
       const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
       const orderNum=lastNum+1;
       const {_teamFilter,...formData}=formWithTeam;
+
       // Upload files to storage
       let fileData=[];
       for(const file of files){
         if(file.size>MAX_SIZE){showToast("Archivo muy grande (max 50MB): "+file.name,"error");continue;}
         try{
           const uploaded=await sb.uploadFile(file,"task-"+orderNum);
-          fileData.push({name:file.name,url:uploaded.url,path:uploaded.path});
+          fileData.push({name:file.name,url:uploaded.url,path:uploaded.path,uploaded_at:uploaded.uploaded_at});
         }catch(e){
-          fileData.push({name:file.name,url:null,path:null});
-          console.warn("File upload failed:",file.name);
+          console.warn("File upload failed:",file.name,e);
         }
       }
-      await sb.insert("tareas",{...formData,hours:Number(formData.hours)||0,changes:0,materials:formData.materials||"",marca:formData.marca||"",order_number:orderNum,history:["Orden AC-"+String(orderNum).padStart(4,"0")+" creada — "+new Date().toLocaleDateString("es-GT")],files:fileData,created_by:me.id},token);
-      showToast("Orden creada ✓","success");setForm(blank);setFiles([]);onCreated();
-    }catch(e){alert("Error: "+e.message);}
+
+      // Build clean task object — ensure types match Supabase schema
+      const taskData={
+        title:       formData.title.trim(),
+        description: formData.description.trim(),
+        marca:       formData.marca||"",
+        materials:   formData.materials||"",
+        priority:    formData.priority||"Normal",
+        status:      formData.status||"pendiente",
+        hours:       Number(formData.hours)||0,
+        due_date:    formData.due_date||null,
+        team_id:     finalTeamId||null,
+        assigned_to: Array.isArray(formData.assigned_to)?formData.assigned_to:
+                     formData.assigned_to?[formData.assigned_to]:[],
+        order_number: orderNum,
+        changes:     0,
+        files:       fileData,
+        comments:    [],
+        history:     [`Orden AC-${String(orderNum).padStart(4,"0")} creada — ${new Date().toLocaleDateString("es-GT")}`],
+        created_by:  me.id,
+      };
+
+      await sb.insert("tareas",taskData,token);
+      showToast("Orden AC-"+String(orderNum).padStart(4,"0")+" creada ✓","success");
+      setForm(blank);setFiles([]);setErrors({});
+      onCreated();
+    }catch(e){
+      console.error("Error creando orden:",e);
+      showToast("Error al crear: "+e.message,"error");
+    }
     setLoading(false);
   }
   return(
@@ -3272,9 +3361,13 @@ function Dashboard({session,onLogout,isDark,toggleTheme}){
         LS.del("lc_session");
         onLogout();
         showToast("Tu sesion expiro. Por favor ingresa de nuevo.","error");
-      }else{console.error(e);}
+      }else{
+        console.error("Error cargando datos:",e);
+        showToast("Error al cargar datos","error");
+      }
+    }finally{
+      setLoading(false);
     }
-    setLoading(false);
   },[token]);
 
   useEffect(()=>{load();},[load]);
@@ -3435,7 +3528,7 @@ function Dashboard({session,onLogout,isDark,toggleTheme}){
                   <OrdenesView tasks={tasks} users={users} teams={teams} me={user} token={token} onRefresh={load} onBack={()=>setTab("home")} initialFilter={tabFilter}/>
                 </>
               )}
-              {tab==="crear"    &&(isDir||user.role==="cuentas")&&<CreateTask users={users} teams={teams} tasks={tasks} me={user} token={token} onCreated={()=>{load();setTab("ordenes");}} onBack={()=>setTab("home")}/>}
+              {tab==="crear"    &&(isDir||user.role==="cuentas")&&<CreateTask users={users} teams={teams} tasks={tasks} me={user} token={token} onCreated={async()=>{await load();setTab("ordenes");}} onBack={()=>setTab("home")}/>}
               {tab==="equipos"  &&(isDir||user.role==="cuentas")&&<TeamsView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}} onOpenTask={t=>{setTab("ordenes");setTimeout(()=>window._openTask&&window._openTask(t),50);}}/>}
               {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")}/>}
               {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} tasks={tasks} token={token} onRefresh={load} setUsers={setUsers} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}}/>}
