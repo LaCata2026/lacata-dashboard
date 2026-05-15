@@ -775,15 +775,10 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
     const next=ids.includes(teamId)?ids.filter(x=>x!==teamId):[...ids,teamId];
     const primaryId=next.length>0?next[0]:null;
     try{
-      if(role==="cuentas"){
-        // cuentas: save array of teams
-        await sb.update("usuarios",userId,{team_ids:next,team_id:primaryId},token);
-      } else {
-        // colaborador: single team via tag (toggle — clicking active tag removes it)
-        const newTeamId=ids.includes(teamId)?null:teamId;
-        await sb.update("usuarios",userId,{team_id:newTeamId},token);
-      }
-      showToast("Equipo actualizado","success");
+      // Both cuentas and colaborador now support multiple teams via team_ids[]
+      // team_id (singular) kept as primary for backward compat
+      await sb.update("usuarios",userId,{team_ids:next,team_id:primaryId},token);
+      showToast("Equipos actualizados","success");
       onRefresh();
     }catch(e){showToast("Error al guardar: "+e.message,"error");}
   }
@@ -807,7 +802,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
           <>
             {teams.length===0&&<p style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:20}}>No hay equipos aun.</p>}
             {teams.map(t=>{
-              const members=users.filter(u=>u.team_id===t.id&&u.role==="colaborador");
+              const members=users.filter(u=>(u.team_id===t.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(t.id)))&&u.role==="colaborador");
               const activeCount=tasks.filter(x=>x.team_id===t.id&&x.status!=="completada").length;
               const avg=members.length>0?activeCount/members.length:0;
               const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
@@ -861,7 +856,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
               </div>
               {/* Users list */}
               {isOpen&&group.map(u=>{
-                const teamIds=Array.isArray(u.team_ids)?u.team_ids:(u.team_id?[u.team_id]:[]);
+                const teamIds=Array.isArray(u.team_ids)&&u.team_ids.length>0?u.team_ids:(u.team_id?[u.team_id]:[]);
                 const isCuentas=u.role==="cuentas";
                 const isCollab=u.role==="colaborador";
                 const showTeamTags=isCuentas||isCollab;
@@ -902,7 +897,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
                     {showTeamTags&&(
                       <div style={{marginTop:7,paddingLeft:44,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
                         <span style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontFamily:"var(--font-mono)",flexShrink:0}}>
-                          {isCuentas?"Gestiona:":"Equipo:"}
+                          {isCuentas?"Gestiona:":"Equipos:"}
                         </span>
                         {teams.map(t=>{
                           const sel=isCuentas?teamIds.includes(t.id):u.team_id===t.id;
@@ -920,7 +915,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
                           );
                         })}
                         {isCuentas&&teamIds.length===0&&<span style={{fontSize:11,color:"var(--muted)",fontStyle:"italic"}}>Sin restricción</span>}
-                        {isCollab&&!u.team_id&&<span style={{fontSize:11,color:"var(--muted)",fontStyle:"italic"}}>Sin equipo</span>}
+                        {isCollab&&teamIds.length===0&&<span style={{fontSize:11,color:"var(--muted)",fontStyle:"italic"}}>Sin equipos — click para asignar</span>}
                       </div>
                     )}
                   </div>
@@ -1738,7 +1733,7 @@ function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTask}){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:16}}>
         {filteredTeams.map(team=>{
-          const members=users.filter(u=>u.team_id===team.id&&u.role==="colaborador");
+          const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador");
           const teamTasks=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada");
           // Health for color dot
           const overdueCount=tasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length;
@@ -1956,7 +1951,7 @@ function PerformanceView({tasks,users,teams,onBack}){
       {viewMode==="equipo"&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:12}}>
           {teams.map(team=>{
-            const members=users.filter(u=>u.team_id===team.id&&u.role==="colaborador");
+            const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador");
             const teamActive=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada").length;
             const teamDone=tasks.filter(t=>t.team_id===team.id&&t.status==="completada").length;
             const teamOverdue=tasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length;
@@ -2128,8 +2123,14 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
   const isCuentas=me.role==="cuentas";
   const isCollab=me.role==="colaborador";
 
-  // My tasks (for collaborators)
-  const myTasks=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(me.id);});
+  // My tasks (for collaborators) — includes assigned + team tasks
+  const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:(me.team_id?[me.team_id]:[]);
+  const myTasks=tasks.filter(t=>{
+    const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
+    const assignedToMe=a.includes(me.id);
+    const inMyTeam=myTeamIds.length>0&&myTeamIds.includes(t.team_id);
+    return assignedToMe||inMyTeam;
+  });
   const myActive=myTasks.filter(t=>!["completada"].includes(t.status));
   const myUrgent=myActive.filter(t=>t.priority==="Urgente"||t.status==="vencida");
 
@@ -2471,7 +2472,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
                 {teams.map(team=>{
-                  const members=users.filter(u=>u.team_id===team.id&&u.role==="colaborador");
+                  const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador");
                   const teamTasks=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada");
                   const teamOverdue=tasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length;
                   const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
@@ -2563,8 +2564,12 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
       const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:null;
       canSee=myTeamIds?myTeamIds.includes(t.team_id):true;
     } else {
+      // Colaborador: sees tasks assigned to them OR from any of their teams
       const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
-      canSee=a.includes(me.id);
+      const assignedToMe=a.includes(me.id);
+      const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:(me.team_id?[me.team_id]:[]);
+      const inMyTeam=myTeamIds.length>0&&myTeamIds.includes(t.team_id);
+      canSee=assignedToMe||inMyTeam;
     }
     const sm=!search||t.title?.toLowerCase().includes(search.toLowerCase())||(t.order_number&&("AC-"+String(t.order_number).padStart(4,"0")).toLowerCase().includes(search.toLowerCase()))||(t.marca||"").toLowerCase().includes(search.toLowerCase());
     return canSee&&(sf==="todas"||t.status===sf)&&(tf==="todas"||t.team_id===tf)&&sm;
@@ -2998,7 +3003,9 @@ function Dashboard({session,onLogout}){
                   const myIds=Array.isArray(user.team_ids)&&user.team_ids.length>0?user.team_ids:null;
                   return myIds?myIds.includes(t.id):true;
                 }
-                return t.id===user.team_id;
+                // Colaborador: show all their teams (team_ids[] or fallback to team_id)
+                const myIds=Array.isArray(user.team_ids)&&user.team_ids.length>0?user.team_ids:(user.team_id?[user.team_id]:[]);
+                return myIds.includes(t.id);
               }).map(t=>{
                 const active=tasks.filter(x=>x.team_id===t.id&&x.status!=="completada").length;
                 const overdue=tasks.filter(x=>x.team_id===t.id&&x.status==="vencida").length;
@@ -3082,7 +3089,7 @@ function Dashboard({session,onLogout}){
                   const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
                   return t.team_id===teamId&&a.includes(user.id);
                 });
-                const teamUsers=users.filter(u=>u.team_id===teamId);
+                const teamUsers=users.filter(u=>u.team_id===teamId||(Array.isArray(u.team_ids)&&u.team_ids.includes(teamId)));
                 if(!team)return null;
                 return <TeamDetailView key={teamId} team={team} teamTasks={teamTasks} teamUsers={teamUsers} allUsers={users} allTeams={teams} me={user} token={token} onRefresh={load} onBack={()=>setTab("home")}/>;
               })()}
