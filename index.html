@@ -392,6 +392,28 @@ const COLLAB_COLORS=["#e85d4a","#f0924a","#e8c547","#4ade80","#3ecf8e","#5b9cf6"
 /* Marcas predefinidas — edita este listado para agregar o quitar */
 const MARCAS_PREDEFINIDAS=["Novex","Painsa","Sombrela Y Rabinal","Purina","Seguros GyT","CIAM","Digital"];
 
+/* Brand/team color palette — stable colors per team name regardless of DB value */
+const BRAND_COLORS={
+  "novex":         "#f0924a",  // orange
+  "painsa":        "#3ecf8e",  // green
+  "sombrela y rabinal": "#a78bfa", // violet
+  "purina":        "#e85d4a",  // red
+  "seguros gyt":   "#5b9cf6",  // blue
+  "ciam":          "#38bdf8",  // cyan
+  "digital":       "#e8c547",  // amber
+};
+const FALLBACK_BRAND_COLORS=["#f0924a","#3ecf8e","#a78bfa","#e85d4a","#5b9cf6","#38bdf8","#e8c547","#f472b6","#34d399","#c084fc","#fb923c","#818cf8"];
+/* Returns a stable color for a team — uses BRAND_COLORS if name matches, else hashes name to FALLBACK */
+function teamColor(team){
+  if(!team)return "var(--muted)";
+  const key=(team.name||"").toLowerCase().trim();
+  if(BRAND_COLORS[key])return BRAND_COLORS[key];
+  // Hash name to fallback color for consistency
+  let h=0;
+  for(let c of key)h=(h*31+c.charCodeAt(0))%FALLBACK_BRAND_COLORS.length;
+  return FALLBACK_BRAND_COLORS[Math.abs(h)];
+}
+
 function getRole(e){const em=e.toLowerCase();if(DIRECTOR_EMAILS.includes(em))return "director";if(CUENTAS_EMAILS.includes(em))return "cuentas";return "colaborador"}
 function getInitials(name){return name.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase()}
 function getAvatarColor(email){let h=0;for(let c of email)h=(h*31+c.charCodeAt(0))%COLLAB_COLORS.length;return COLLAB_COLORS[Math.abs(h)]}
@@ -795,7 +817,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
               return(
                 <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderBottom:"1px solid var(--border)",flexWrap:"wrap"}}>
                   <span style={{fontSize:16,flexShrink:0}}>{t.icon||"👥"}</span>
-                  <div style={{width:9,height:9,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+                  <div style={{width:9,height:9,borderRadius:"50%",background:teamColor(t),flexShrink:0}}/>
                   <span style={{flex:1,fontSize:14,fontWeight:600,minWidth:80}}>{t.name}</span>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <div style={{width:7,height:7,borderRadius:"50%",background:sColor,boxShadow:`0 0 5px ${sColor}`}}/>
@@ -889,7 +911,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
                               onClick={()=>toggleUserTeam(u.id,t.id,teamIds,u.role)}
                               style={{padding:"2px 8px",borderRadius:4,fontSize:11,cursor:"pointer",
                                 fontFamily:"var(--font-body)",transition:".13s",
-                                background:sel?t.color:"var(--bg4)",
+                                background:sel?teamColor(t):"var(--bg4)",
                                 color:sel?"#fff":"var(--muted2)",
                                 border:sel?"none":"1px solid var(--border)",
                                 fontWeight:sel?700:400}}>
@@ -932,7 +954,7 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser}){
                     const sel=(uForm.team_ids||[]).includes(t.id);
                     return(
                       <button key={t.id} type="button" onClick={()=>setUForm(f=>({...f,team_ids:sel?(f.team_ids||[]).filter(x=>x!==t.id):[...(f.team_ids||[]),t.id]}))}
-                        style={{padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",background:sel?t.color:"var(--bg4)",color:sel?"#fff":"var(--muted2)",border:sel?"none":"1px solid var(--border)",fontWeight:sel?700:400,transition:".13s"}}>
+                        style={{padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",background:sel?teamColor(t):"var(--bg4)",color:sel?"#fff":"var(--muted2)",border:sel?"none":"1px solid var(--border)",fontWeight:sel?700:400,transition:".13s"}}>
                         {t.icon||"👥"} {t.name}
                       </button>
                     );
@@ -1240,7 +1262,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
             <span className={`pill ${statusPill[task.status]||"pill-gray"}`}>{statusLabel[task.status]||task.status}</span>
             {task.changes>0&&<span className="pill pill-purple">🔄 {task.changes}</span>}
             {comments.length>0&&<span className="pill" style={{background:"rgba(155,127,232,.12)",color:"var(--s-revision)"}}>💬 {comments.length}</span>}
-            {team&&<span className="pill" style={{background:team.color+"22",color:team.color}}>{team.name}</span>}
+            {team&&(()=>{const tc=teamColor(team);return <span className="pill" style={{background:tc+"22",color:tc}}>{team.name}</span>;})()}
           </div>
           <h3 style={{fontSize:15,fontWeight:700,marginBottom:6}}>{task.title}</h3>
           <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:12,color:"var(--muted)",alignItems:"center"}}>
@@ -1602,7 +1624,7 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
               <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
                 {teams.map(t=>(
                   <button key={t.id} type="button" onClick={()=>setForm(f=>({...f,_teamFilter:t.id,team_id:t.id}))}
-                    style={{padding:"4px 12px",borderRadius:999,fontSize:12,cursor:"pointer",fontFamily:"inherit",background:form._teamFilter===t.id?t.color:"var(--bg4)",color:form._teamFilter===t.id?"#fff":"var(--muted2)",border:"none"}}>
+                    style={{padding:"4px 12px",borderRadius:999,fontSize:12,cursor:"pointer",fontFamily:"inherit",background:form._teamFilter===t.id?teamColor(t):"var(--bg4)",color:form._teamFilter===t.id?"#fff":"var(--muted2)",border:"none"}}>
                     {t.name}
                   </button>
                 ))}
@@ -1701,21 +1723,28 @@ function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
 }
 
 /* ── TEAMS ── */
-function TeamsView({tasks,users,teams,onBack}){
+function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTask}){
   const [selectedTeam,setSelectedTeam]=useState("all");
+  const [openMembers,setOpenMembers]=useState({}); // {userId: true}
   const filteredTeams=selectedTeam==="all"?teams:teams.filter(t=>t.id===selectedTeam);
+  const toggleMember=(id)=>setOpenMembers(o=>({...o,[id]:!o[id]}));
   return(
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
       <div className="section-header"><h2 className="section-title">Equipos y carga de trabajo</h2></div>
       <div className="filter-bar" style={{marginBottom:16}}>
         <button className={`filter-chip${selectedTeam==="all"?" active":""}`} onClick={()=>setSelectedTeam("all")}>Todos</button>
-        {teams.map(t=><button key={t.id} className={`filter-chip${selectedTeam===t.id?" active":""}`} style={selectedTeam===t.id?{background:t.color,borderColor:t.color,color:"#fff"}:{}} onClick={()=>setSelectedTeam(t.id)}>{t.icon||"👥"} {t.name}</button>)}
+        {teams.map(t=>{const tc=teamColor(t);return <button key={t.id} className={`filter-chip${selectedTeam===t.id?" active":""}`} style={selectedTeam===t.id?{background:tc,borderColor:tc,color:"#fff"}:{}} onClick={()=>setSelectedTeam(t.id)}>{t.icon||"👥"} {t.name}</button>;})}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:16}}>
         {filteredTeams.map(team=>{
           const members=users.filter(u=>u.team_id===team.id&&u.role==="colaborador");
           const teamTasks=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada");
+          // Health for color dot
+          const overdueCount=tasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length;
+          const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
+          const avgLoad=members.length>0?teamTasks.length/members.length:0;
+          const health=overdueCount>0||overloaded>0?"var(--s-vencida)":avgLoad>=4?"var(--load-warn)":"var(--load-ok)";
           return(
             <div key={team.id} className="card fade-in">
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
@@ -1726,43 +1755,67 @@ function TeamsView({tasks,users,teams,onBack}){
                     <p style={{fontSize:11,color:"var(--muted)",marginTop:1,fontFamily:"var(--font-mono)"}}>{members.length} miembros · {teamTasks.length} activas</p>
                   </div>
                 </div>
-                <div style={{width:10,height:10,borderRadius:"50%",background:team.color,boxShadow:`0 0 8px ${team.color}66`}}/>
+                <div style={{width:10,height:10,borderRadius:"50%",background:health,boxShadow:`0 0 8px ${health}66`}}/>
               </div>
               {members.length===0&&<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:20}}>Sin miembros asignados</p>}
               {members.map(m=>{
                 const mTasks=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(m.id)&&t.status!=="completada";});
+                const mOverdue=mTasks.filter(t=>t.status==="vencida").length;
                 const pct=Math.min(100,Math.round(mTasks.length/8*100));
-                const loadColor=mTasks.length>=7?"var(--red)":mTasks.length>=5?"var(--yellow)":m.avatar_color;
+                const loadColor=mTasks.length>=7?"var(--s-vencida)":mTasks.length>=4?"var(--load-warn)":m.avatar_color;
+                const isOpen=!!openMembers[m.id];
                 return(
-                  <div key={m.id} style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid var(--border)"}}>
-                    {/* Collaborator header */}
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <div style={{width:4,height:32,borderRadius:2,background:m.avatar_color,flexShrink:0}}/>
-                      <Av u={m} size={28}/>
-                      <div style={{flex:1}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                          <span style={{fontSize:13,fontWeight:600}}>{m.name}</span>
-                          <span style={{fontSize:12,color:loadColor,fontWeight:700,fontFamily:"var(--font-mono)"}}>{mTasks.length} tareas</span>
-                        </div>
-                        <div className="progress-bar" style={{marginTop:4,height:2}}><div className="progress-fill" style={{width:`${pct}%`,background:loadColor}}/></div>
+                  <div key={m.id} style={{marginBottom:8,background:"var(--bg3)",borderRadius:8,overflow:"hidden",border:"1px solid var(--border)"}}>
+                    {/* Collaborator header — clickable to expand */}
+                    <div onClick={()=>toggleMember(m.id)}
+                      style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",cursor:"pointer",userSelect:"none",
+                        borderLeft:`3px solid ${m.avatar_color}`,transition:".13s",
+                        background:isOpen?"var(--bg4)":"transparent"}}>
+                      <span style={{color:"var(--muted)",fontSize:11,transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(0)":"rotate(-90deg)",flexShrink:0}}>▼</span>
+                      {/* Avatar — click goes to user's tasks */}
+                      <div onClick={e=>{e.stopPropagation();onViewUser&&onViewUser(m);}}
+                        style={{cursor:onViewUser?"pointer":"default"}}
+                        title={onViewUser?"Ver perfil y todas sus tareas":""}>
+                        <Av u={m} size={28}/>
                       </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                          <span style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</span>
+                          {mOverdue>0&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}>⚠{mOverdue}</span>}
+                        </div>
+                      </div>
+                      <span style={{fontSize:14,fontWeight:800,color:loadColor,fontFamily:"var(--font-display)",minWidth:24,textAlign:"right"}}>{mTasks.length}</span>
+                      <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{mTasks.length===1?"tarea":"tareas"}</span>
                     </div>
-                    {/* Tasks list grouped by this collaborator */}
-                    {mTasks.length===0
-                      ?<p style={{fontSize:11,color:"var(--muted)",paddingLeft:12}}>Sin tareas activas 🎉</p>
-                      :mTasks.slice(0,4).map(t=>{
-                        const dr=fmtDateRelative(t.due_date);
-                        return(
-                          <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,marginBottom:3,background:"var(--bg3)",borderLeft:`3px solid ${m.avatar_color}`}}>
-                            {t.order_number&&<span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",flexShrink:0,minWidth:38}}>{"AC-"+String(t.order_number).padStart(4,"0")}</span>}
-                            <span style={{fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</span>
-                            <span className={`pill ${statusPill[t.status]||"pill-gray"}`} style={{fontSize:9,padding:"1px 5px"}}>{statusLabel[t.status]}</span>
-                            <span style={{fontSize:10,color:dr.color,fontWeight:dr.urgent?700:400,flexShrink:0}}>{dr.label}</span>
-                          </div>
-                        );
-                      })
-                    }
-                    {mTasks.length>4&&<p style={{fontSize:11,color:"var(--muted)",paddingLeft:12,marginTop:4}}>+{mTasks.length-4} más</p>}
+                    {/* Load progress bar — always visible */}
+                    <div style={{height:2,background:"var(--bg2)",overflow:"hidden"}}>
+                      <div style={{width:`${pct}%`,height:"100%",background:loadColor,transition:"width .6s cubic-bezier(.4,0,.2,1)"}}/>
+                    </div>
+                    {/* Collapsed expansion — tasks list */}
+                    {isOpen&&(
+                      <div style={{padding:"8px 10px",background:"var(--bg3)"}}>
+                        {mTasks.length===0
+                          ?<p style={{fontSize:11,color:"var(--muted)",padding:6,textAlign:"center"}}>Sin tareas activas 🎉</p>
+                          :mTasks.map(t=>{
+                            const dr=fmtDateRelative(t.due_date);
+                            return(
+                              <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)}
+                                style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,marginBottom:3,
+                                  background:"var(--bg2)",borderLeft:`3px solid ${statusColor[t.status]||"var(--border)"}`,
+                                  cursor:onOpenTask?"pointer":"default",transition:".13s"}}
+                                onMouseEnter={e=>e.currentTarget.style.background="var(--bg4)"}
+                                onMouseLeave={e=>e.currentTarget.style.background="var(--bg2)"}>
+                                {t.order_number&&<span style={{fontSize:10,color:"var(--accent)",fontFamily:"var(--font-mono)",flexShrink:0,minWidth:40,fontWeight:700}}>AC-{String(t.order_number).padStart(4,"0")}</span>}
+                                <span style={{fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</span>
+                                {t.priority!=="Normal"&&<span className={`pill pill-prio-${t.priority.toLowerCase()}`} style={{fontSize:9,padding:"1px 5px"}}>{t.priority}</span>}
+                                <span className={`pill ${statusPill[t.status]||"pill-gray"}`} style={{fontSize:9,padding:"1px 5px"}}>{statusLabel[t.status]}</span>
+                                <span style={{fontSize:10,color:dr.color,fontWeight:dr.urgent?700:400,flexShrink:0,fontFamily:"var(--font-mono)"}}>{dr.label}</span>
+                              </div>
+                            );
+                          })
+                        }
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1870,7 +1923,7 @@ function PerformanceView({tasks,users,teams,onBack}){
             const uv=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status==="vencida";});
             const team=teams.find(t=>t.id===u.team_id);
             const pct=Math.min(100,Math.round(ut.length/8*100));
-            const loadColor=ut.length>=7?"var(--s-vencida)":ut.length>=4?"var(--load-warn)":team?.color||"var(--load-ok)";
+            const loadColor=ut.length>=7?"var(--s-vencida)":ut.length>=4?"var(--load-warn)":(team?teamColor(team):"var(--load-ok)");
             return(
               <div key={u.id} onClick={()=>setSelectedUser(u)}
                 style={{display:"flex",alignItems:"center",gap:14,padding:"12px 10px",borderBottom:"1px solid var(--border)",
@@ -2204,26 +2257,102 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
             <p style={{color:"var(--muted)",fontSize:14}}>{new Date().toLocaleDateString("es-GT",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
           </div>
 
-          {/* PULSE METRICS */}
-          <div className="stat-grid" style={{marginBottom:20}}>
-            <div className="stat-card" style={{"--ac":"var(--blue)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes")}>
-              <div className="stat-label">Activas</div>
-              <div className="stat-value" style={{color:"var(--blue)"}}>{allActive.length}</div>
-              <div className="stat-sub">{inProgress.length} en progreso · {onPause.length} pausadas</div>
-            </div>
-            <div className="stat-card" style={{"--ac":"var(--accent)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes")}>
+          {/* HERO: Tareas activas — stacked bar por marca, click navega, hover muestra info */}
+          {(()=>{
+            const teamData=teams.map(t=>({
+              ...t,
+              color:teamColor(t), // override DB color with stable brand color
+              count:allActive.filter(x=>x.team_id===t.id).length,
+            })).filter(t=>t.count>0).sort((a,b)=>b.count-a.count);
+            const noTeam=allActive.filter(x=>!x.team_id).length;
+            if(noTeam>0)teamData.push({id:"none",name:"Sin equipo",color:"#555",count:noTeam});
+            const total=allActive.length;
+            const totalForPct=Math.max(total,1);
+
+            return(
+              <div className="card" style={{marginBottom:16,padding:"18px 22px"}}>
+                {/* Header row: total + status + action */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,gap:12,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"baseline",gap:14}}>
+                    <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                      <span style={{fontSize:42,fontWeight:800,lineHeight:1,fontFamily:"var(--font-display)",letterSpacing:"-.04em",color:"var(--text)"}}>{total}</span>
+                      <span style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",fontFamily:"var(--font-mono)"}}>tareas activas</span>
+                    </div>
+                    <div style={{display:"flex",gap:10,fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
+                      <span style={{color:"var(--s-progreso)"}}>⚡ {inProgress.length}</span>
+                      <span style={{color:"var(--s-revision)"}}>🔍 {forReview.length}</span>
+                      {onPause.length>0&&<span style={{color:"var(--s-pausa)"}}>⏸ {onPause.length}</span>}
+                    </div>
+                  </div>
+                  <button onClick={()=>onNavigate("ordenes")}
+                    style={{fontSize:11,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"5px 12px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:700}}>
+                    Ver todas →
+                  </button>
+                </div>
+
+                {/* Stacked horizontal bar — segments are clickable, tooltip on hover */}
+                {teamData.length===0
+                  ?<div style={{padding:20,textAlign:"center",color:"var(--muted)",fontSize:13}}>Sin tareas activas 🎉</div>
+                  :(
+                    <>
+                      <div style={{display:"flex",height:38,borderRadius:6,overflow:"hidden",background:"var(--bg3)",marginBottom:10,position:"relative"}}>
+                        {teamData.map((s,i)=>{
+                          const w=(s.count/totalForPct)*100;
+                          return(
+                            <div key={s.id} onClick={()=>s.id!=="none"&&onNavigate("equipo_"+s.id)}
+                              title={`${s.name} · ${s.count} ${s.count===1?"tarea":"tareas"} · ${Math.round(s.count/totalForPct*100)}%`}
+                              style={{width:`${w}%`,background:s.color,cursor:s.id!=="none"?"pointer":"default",
+                                display:"flex",alignItems:"center",justifyContent:"center",
+                                position:"relative",transition:"all .2s",
+                                borderRight:i<teamData.length-1?"2px solid var(--bg2)":"none"}}
+                              onMouseEnter={e=>{e.currentTarget.style.filter="brightness(1.15)";}}
+                              onMouseLeave={e=>{e.currentTarget.style.filter="brightness(1)";}}>
+                              {w>=8&&(
+                                <span style={{fontSize:13,fontWeight:800,color:"#0d0d0d",fontFamily:"var(--font-display)",textShadow:"0 1px 2px rgba(0,0,0,.15)"}}>{s.count}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Compact legend grid — color dot + name + count, click navigates */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:6}}>
+                        {teamData.map(s=>(
+                          <div key={s.id} onClick={()=>s.id!=="none"&&onNavigate("equipo_"+s.id)}
+                            title={`${s.name}: ${s.count} ${s.count===1?"tarea":"tareas"}`}
+                            style={{display:"flex",alignItems:"center",gap:7,padding:"5px 8px",borderRadius:5,
+                              cursor:s.id!=="none"?"pointer":"default",transition:".13s",background:"transparent"}}
+                            onMouseEnter={e=>{if(s.id!=="none")e.currentTarget.style.background="var(--bg3)";}}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            <div style={{width:8,height:8,borderRadius:2,background:s.color,flexShrink:0}}/>
+                            <span style={{fontSize:11.5,color:"var(--muted2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.name}</span>
+                            <span style={{fontSize:11,fontWeight:700,color:s.color,fontFamily:"var(--font-mono)"}}>{s.count}</span>
+                            <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",minWidth:28,textAlign:"right"}}>{Math.round(s.count/totalForPct*100)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )
+                }
+              </div>
+            );
+          })()}
+
+          {/* SECONDARY METRICS — smaller cards now */}
+          <div className="stat-grid" style={{marginBottom:20,gridTemplateColumns:"repeat(3,1fr)"}}>
+            <div className="stat-card" style={{"--ac":"var(--s-revision)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","en_revision")}>
               <div className="stat-label">En revisión</div>
-              <div className="stat-value" style={{color:"var(--accent)"}}>{forReview.length}</div>
+              <div className="stat-value" style={{color:"var(--s-revision)"}}>{forReview.length}</div>
               <div className="stat-sub">Esperando aprobación</div>
             </div>
-            <div className="stat-card" style={{"--ac":overdue.length>0?"var(--red)":"var(--green)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","vencida")}>
+            <div className="stat-card" style={{"--ac":overdue.length>0?"var(--s-vencida)":"var(--s-completada)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","vencida")}>
               <div className="stat-label">Vencidas</div>
-              <div className="stat-value" style={{color:overdue.length>0?"var(--red)":"var(--green)"}}>{overdue.length}</div>
+              <div className="stat-value" style={{color:overdue.length>0?"var(--s-vencida)":"var(--s-completada)"}}>{overdue.length}</div>
               <div className="stat-sub">{overdue.length===0?"Todo al día":"Requieren atención"}</div>
             </div>
-            <div className="stat-card" style={{"--ac":"var(--green)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","completada")}>
+            <div className="stat-card" style={{"--ac":"var(--s-completada)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","completada")}>
               <div className="stat-label">Completadas</div>
-              <div className="stat-value" style={{color:"var(--green)"}}>{tasks.filter(t=>t.status==="completada").length}</div>
+              <div className="stat-value" style={{color:"var(--s-completada)"}}>{tasks.filter(t=>t.status==="completada").length}</div>
               <div className="stat-sub">Este período →</div>
             </div>
           </div>
@@ -2390,7 +2519,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
               :workload.map(w=>{
                 const team=teams.find(t=>t.id===w.team_id);
                 const pct=Math.round((w.active/maxLoad)*100);
-                const color=w.active>=7?"var(--s-vencida)":w.active>=4?"var(--load-warn)":team?.color||"var(--green)";
+                const color=w.active>=7?"var(--s-vencida)":w.active>=4?"var(--load-warn)":(team?teamColor(team):"var(--s-completada)");
                 return(
                   <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
                     <div className="avatar" style={{width:30,height:30,background:w.avatar_color,fontSize:11,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{w.initials}</div>
@@ -2608,7 +2737,7 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
                 <div key={team.id} style={{marginBottom:8,background:"var(--bg2)",borderRadius:10,border:"1px solid var(--border)",overflow:"hidden"}}>
                   <div onClick={()=>setCollapsed(c=>({...c,[team.id]:!c[team.id]}))}
                     style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",cursor:"pointer",
-                      borderLeft:`4px solid ${team.color}`,background:isOpen?"var(--bg3)":"var(--bg2)"}}>
+                      borderLeft:`4px solid ${teamColor(team)}`,background:isOpen?"var(--bg3)":"var(--bg2)"}}>
                     <span style={{fontSize:16}}>{team.icon||"👥"}</span>
                     <span style={{fontWeight:700,fontSize:14,flex:1}}>{team.name}</span>
                     {/* Status mini-badges */}
@@ -2668,7 +2797,7 @@ function TeamDetailView({team,teamTasks,teamUsers,allUsers,allTeams,me,token,onR
       <BackBtn onClick={onBack} label="← Equipos"/>
       <div className="section-header">
         <h2 className="section-title" style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{width:12,height:12,borderRadius:"50%",background:team.color,boxShadow:`0 0 8px ${team.color}66`,display:"inline-block"}}/>
+          <span style={{width:12,height:12,borderRadius:"50%",background:teamColor(team),boxShadow:`0 0 8px ${teamColor(team)}66`,display:"inline-block"}}/>
           {team.icon||"👥"} {team.name}
         </h2>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -2877,7 +3006,7 @@ function Dashboard({session,onLogout}){
                   <button key={t.id} className={`nav-item${tab==="equipo_"+t.id?" active":""}`}
                     onClick={()=>setTab("equipo_"+t.id)}
                     style={{paddingLeft:12}}>
-                    <span style={{width:8,height:8,borderRadius:"50%",background:t.color,flexShrink:0,display:"inline-block"}}/>
+                    <span style={{width:8,height:8,borderRadius:"50%",background:teamColor(t),flexShrink:0,display:"inline-block"}}/>
                     <span style={{flex:1,textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13}}>{t.name}</span>
                     <span style={{fontSize:11,fontWeight:600,color:overdue>0?"var(--red)":"var(--muted)",marginLeft:4}}>{active}</span>
                   </button>
@@ -2942,7 +3071,7 @@ function Dashboard({session,onLogout}){
                 </>
               )}
               {tab==="crear"    &&(isDir||user.role==="cuentas")&&<CreateTask users={users} teams={teams} tasks={tasks} me={user} token={token} onCreated={()=>{load();setTab("ordenes");}} onBack={()=>setTab("home")}/>}
-              {tab==="equipos"  &&(isDir||user.role==="cuentas")&&<TeamsView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")}/>}
+              {tab==="equipos"  &&(isDir||user.role==="cuentas")&&<TeamsView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}} onOpenTask={t=>{setTab("ordenes");setTimeout(()=>window._openTask&&window._openTask(t),50);}}/>}
               {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")}/>}
               {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} tasks={tasks} token={token} onRefresh={load} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}}/>}
               {tab.startsWith("equipo_")&&(()=>{
