@@ -425,6 +425,134 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
 /* ── FIELD VALIDATION ── */
 .field-error{border-color:var(--s-vencida)!important;box-shadow:0 0 0 3px rgba(232,93,93,.15)!important}
 .field-hint{font-size:11px;color:var(--s-vencida);margin-top:4px;fontFamily:var(--font-mono)}
+
+/* ── CLICKABLE ROWS ── */
+.clickable-row{cursor:pointer;transition:background .12s,transform .1s;border-radius:8px}
+.clickable-row:hover{background:var(--bg3)!important;transform:translateX(2px)}
+.clickable-row:active{transform:translateX(1px) scale(.995)}
+
+/* ── PROFILE CARD ── */
+.profile-card{cursor:pointer;transition:.15s}
+.profile-card:hover{border-color:var(--border2)!important;transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.12)!important}
+.profile-card:active{transform:translateY(0) scale(.98)}
+
+/* ── STAT CARD CLICK ── */
+.stat-card.clickable{cursor:pointer}
+.stat-card.clickable:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.stat-card.clickable:active{transform:translateY(0)}
+
+/* ── QUICK ACTION BUTTONS ── */
+.quick-action{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:14px 10px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;cursor:pointer;transition:.15s;flex:1;min-width:0;
+  font-family:var(--font-body);color:var(--muted2);
+}
+.quick-action:hover{background:var(--bg4);border-color:var(--border2);color:var(--text);transform:translateY(-2px)}
+.quick-action:active{transform:translateY(0)}
+.quick-action-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:2px}
+
+/* ── TASK CARD IMPROVED ── */
+.task-card{position:relative}
+.task-card::after{content:'';position:absolute;right:0;top:0;bottom:0;width:3px;background:transparent;border-radius:0 10px 10px 0;transition:.15s}
+.task-card:hover::after{background:var(--accent);opacity:.4}
+
+/* ── NAV ITEM IMPROVED ── */
+.nav-item{position:relative}
+.nav-item.active::before{content:'';position:absolute;left:-16px;top:50%;transform:translateY(-50%);width:3px;height:18px;background:var(--accent);border-radius:0 3px 3px 0}
+
+/* ── TEAM CARD ── */
+.team-semaph{cursor:pointer;transition:.15s}
+.team-semaph:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.15)!important}
+.team-semaph:active{transform:translateY(0)}
+
+/* ── MENTION ROW ── */
+.mention-row{cursor:pointer;transition:.12s;border-radius:6px;padding:6px 8px;margin:-6px -8px}
+.mention-row:hover{background:rgba(232,197,71,.08)}
+
+/* ── AVATAR HOVER ── */
+.av-clickable{cursor:pointer;transition:.13s}
+.av-clickable:hover{transform:scale(1.1);box-shadow:0 0 0 2px var(--accent)}
+
+/* ── PAGE TRANSITIONS ── */
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+.page-enter{animation:slideInLeft .2s cubic-bezier(.4,0,.2,1)}
+.modal-enter{animation:scaleIn .18s cubic-bezier(.4,0,.2,1)}
+
+/* ── TASK DETAIL OPEN HINT ── */
+.task-open-hint{
+  display:flex;align-items:center;gap:4px;
+  font-size:11px;color:var(--accent);
+  padding:3px 8px;border-radius:6px;
+  background:var(--accent-dim);
+  border:1px solid rgba(232,197,71,.2);
+  white-space:nowrap;transition:.13s;flex-shrink:0;
+}
+.task-card:hover .task-open-hint{background:var(--accent);color:#0d0d0d}
+
+/* ── BADGE PULSE ── */
+@keyframes badgePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.badge-urgent{animation:badgePulse 2s ease-in-out infinite}
+
+/* ── MOBILE NAV ── */
+@media(max-width:768px){
+  .quick-action{padding:10px 6px}
+  .quick-action-icon{width:30px;height:30px}
+}
+
+/* ── COLLAB PROFILE MINI ── */
+.collab-profile-btn{
+  display:flex;align-items:center;gap:8px;
+  background:transparent;border:none;cursor:pointer;
+  padding:4px 8px;border-radius:7px;transition:.13s;
+  font-family:var(--font-body);width:100%;text-align:left;
+}
+.collab-profile-btn:hover{background:var(--bg3)}
+
+/* ── HOVER TASK OPEN ── */
+.task-card-wrap{position:relative;cursor:pointer}
+
+/* ── IMPROVED KANBAN ── */
+.kanban-card{position:relative}
+.kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.15)}
+
+/* ── RIBBON on urgent tasks ── */
+.urgent-ribbon{
+  position:absolute;top:0;left:0;right:0;height:2px;
+  border-radius:10px 10px 0 0;
+}
+
+/* ── BUTTON LOADING STATE ── */
+.btn-loading{opacity:.7;pointer-events:none}
+.btn-loading::after{content:' ⟳';animation:spin .8s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── IMPROVED EMPTY STATE ── */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:48px 24px;text-align:center;
+}
+.empty-state-icon{font-size:40px;opacity:.2;margin-bottom:12px}
+.empty-state-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px}
+.empty-state-desc{font-size:13px;color:var(--muted);line-height:1.5}
+
+/* ── TOOLTIP ── */
+[data-tip]{position:relative}
+[data-tip]:hover::before{
+  content:attr(data-tip);
+  position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--bg4);border:1px solid var(--border2);border-radius:5px;
+  padding:4px 8px;font-size:11px;color:var(--text);white-space:nowrap;
+  pointer-events:none;z-index:100;font-family:var(--font-mono);
+}
+
+/* ── SCROLLABLE FILTERS ── */
+@media(max-width:600px){
+  .filter-bar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .filter-bar::-webkit-scrollbar{display:none}
+}
 </style>
 </head>
 <body>
@@ -706,10 +834,9 @@ function Spotlight({tasks,users,teams,onNavigate,onClose}){
 
   function go(r){
     if(r.type==="task"){
-      // Open the task directly via global handler
-      onNavigate("ordenes");
+      // Use global floating task modal — no navigation needed
       onClose();
-      setTimeout(()=>{window._openTask&&window._openTask(r.t);},80);
+      setTimeout(()=>{window._openTask&&window._openTask(r.t);},50);
     }
   }
   function onKey(e){
@@ -1407,8 +1534,8 @@ function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers
 
 
 /* ── TASK CARD ── */
-function TaskCard({task,users,teams,me,token,onRefresh}){
-  const [modal,setModal]=useState(false);
+function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=false,onForceClose=null}){
+  const [modal,setModal]=useState(forceOpen);
   const [editing,setEditing]=useState(false);
   const [editForm,setEditForm]=useState({});
   const [activeTab,setActiveTab]=useState("detalles");
@@ -1594,12 +1721,12 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
             {lastActivity&&<span style={{color:"var(--muted)",fontSize:11}}>{lastActivity}</span>}
           </div>
         </div>
-        <span style={{fontSize:12,color:"var(--accent)",flexShrink:0,padding:"4px 10px",background:"rgba(139,92,246,.1)",borderRadius:8}}>Ver detalle ↗</span>
+        <span className="task-open-hint">Ver detalle <Icon n="flecha_der" size={11}/></span>
       </div>
       {/* TASK DETAIL MODAL */}
       {modal&&(
         <ModalPortal>
-        <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)setModal(false);}}>
+        <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget){setModal(false);if(onForceClose)onForceClose();}}}>
           <div className="modal fade-in" onClick={e=>e.stopPropagation()}>
              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,gap:12}}>
                <div style={{flex:1}}>
@@ -1623,7 +1750,7 @@ function TaskCard({task,users,teams,me,token,onRefresh}){
                  {(isDir||me.role==="cuentas")&&!editing&&<button onClick={()=>{setEditing(true);setEditForm({title:task.title,description:task.description||"",materials:task.materials||"",hours:task.hours,due_date:task.due_date,priority:task.priority});}} style={{background:"var(--accent-dim)",border:"none",cursor:"pointer",color:"var(--accent)",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit"}}><Icon n="editar" size={14}/> Editar</button>}
                  {editing&&<button onClick={saveEdit} style={{background:"var(--green)",border:"none",cursor:"pointer",color:"#fff",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit",fontWeight:600}}>Guardar</button>}
                  {editing&&<button onClick={()=>setEditing(false)} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:13,padding:"5px 12px",borderRadius:8,fontFamily:"inherit"}}>Cancelar</button>}
-                 <button onClick={(e)=>{e.stopPropagation();setModal(false);setEditing(false);}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"4px 10px",borderRadius:8,zIndex:999,position:"relative"}}>✕</button>
+                 <button onClick={(e)=>{e.stopPropagation();setModal(false);setEditing(false);if(onForceClose)onForceClose();}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"4px 10px",borderRadius:8,zIndex:999,position:"relative"}}>✕</button>
                </div>
              </div>
             {(isDir||me.role==="cuentas"||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id))&&(
@@ -2599,18 +2726,42 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
             <h2 style={{fontSize:20,fontWeight:700,marginBottom:4}}>{(()=>{const h=new Date().getHours();const g=h<12?"Buenos días":h<18?"Buenas tardes":"Buenas noches";return g+", "+me.name.split(" ")[0]+" 👋";})()}</h2>
             <p style={{color:"var(--muted)",fontSize:14}}>Tienes {myActive.length} tarea{myActive.length!==1?"s":""} activa{myActive.length!==1?"s":""}</p>
           </div>
+          {/* QUICK ACTIONS for Collab */}
+          <div style={{display:"flex",gap:8,marginBottom:20}}>
+            <button className="quick-action" onClick={()=>onNavigate("ordenes")}>
+              <div className="quick-action-icon" style={{background:"rgba(77,157,224,.12)"}}>
+                <Icon n="ordenes" size={18} color="var(--s-progreso)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>Mis órdenes</span>
+            </button>
+            <button className="quick-action" onClick={()=>onNavigate("ordenes","en_revision")}>
+              <div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}>
+                <Icon n="revision" size={18} color="var(--s-revision)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>En revisión</span>
+            </button>
+            {myTeamIds.length>0&&<button className="quick-action" onClick={()=>onNavigate("equipo_"+myTeamIds[0])}>
+              <div className="quick-action-icon" style={{background:"rgba(46,196,160,.12)"}}>
+                <Icon n="equipos" size={18} color="var(--s-completada)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>Mi equipo</span>
+            </button>}
+          </div>
           <div className="stat-grid" style={{marginBottom:20}}>
-            <div className="stat-card" style={{"--ac":"var(--blue)"}}>
+            <div className="stat-card clickable" style={{"--ac":"var(--blue)"}} onClick={()=>onNavigate("ordenes")}>
               <div className="stat-label">Mis tareas activas</div>
               <div className="stat-value" style={{color:"var(--blue)"}}>{myActive.length}</div>
+              <div className="stat-sub">Ver todas →</div>
             </div>
-            <div className="stat-card" style={{"--ac":"var(--red)"}}>
+            <div className="stat-card clickable" style={{"--ac":"var(--red)"}} onClick={()=>onNavigate("ordenes","vencida")}>
               <div className="stat-label">Urgentes / Vencidas</div>
               <div className="stat-value" style={{color:myUrgent.length>0?"var(--red)":"var(--green)"}}>{myUrgent.length}</div>
+              <div className="stat-sub">{myUrgent.length>0?"Atención requerida →":"Todo al día ✓"}</div>
             </div>
-            <div className="stat-card" style={{"--ac":"var(--green)"}}>
+            <div className="stat-card clickable" style={{"--ac":"var(--green)"}} onClick={()=>onNavigate("ordenes","completada")}>
               <div className="stat-label">Completadas</div>
               <div className="stat-value" style={{color:"var(--green)"}}>{myTasks.filter(t=>t.status==="completada").length}</div>
+              <div className="stat-sub">Ver historial →</div>
             </div>
           </div>
           {/* MENTIONS for colaborador */}
@@ -2659,7 +2810,10 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
             <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:14,padding:16,marginBottom:16}}>
               <p style={{fontSize:13,fontWeight:700,color:"#fca5a5",marginBottom:10}}><Icon n="vencida" size={13} style={{marginRight:4}}/> Requieren atención inmediata</p>
               {myUrgent.slice(0,3).map(t=>(
-                <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid rgba(239,68,68,.1)"}}>
+                <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderBottom:"1px solid rgba(239,68,68,.1)",cursor:"pointer",borderRadius:6,transition:".12s"}}
+                  onClick={()=>{window._openTask&&window._openTask(t);}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.06)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                   {t.order_number&&<span style={{fontSize:11,color:"#fca5a5",fontWeight:700}}>#{String(t.order_number).padStart(4,"0")}</span>}
                   <span style={{flex:1,fontSize:13}}>{t.title}</span>
                   <span style={{fontSize:11,color:"var(--muted)"}}>{(()=>{const dr=fmtDateRelative(t.due_date);return <span style={{color:dr.color,fontWeight:700}}>{dr.label}</span>;})()}</span>
@@ -2673,14 +2827,19 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
               ?<div className="empty"><div style={{fontSize:36,opacity:.4}}>🎉</div><p>Sin tareas pendientes</p></div>
               :myActive.map(t=>{
                 const team=teams.find(x=>x.id===t.team_id);
+                const dr=fmtDateRelative(t.due_date);
                 return(
-                  <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:12,marginBottom:8,cursor:"pointer"}} onClick={()=>onNavigate("ordenes")}>
-                    {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",minWidth:45}}>#{String(t.order_number).padStart(4,"0")}</span>}
-                    <div style={{flex:1}}>
-                      <p style={{fontSize:13,fontWeight:600}}>{t.title}</p>
-                      <p style={{fontSize:11,color:"var(--muted)"}}>{team?.name} · <span style={{color:fmtDateRelative(t.due_date).color,fontWeight:fmtDateRelative(t.due_date).urgent?700:400}}>{fmtDateRelative(t.due_date).label}</span></p>
+                  <div key={t.id} className="task-card fade-in" style={{cursor:"pointer",borderLeft:`3px solid ${statusColor[t.status]||"var(--border2)"}`,marginBottom:8}}
+                    onClick={()=>{window._openTask&&window._openTask(t);}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",minWidth:45,fontFamily:"var(--font-mono)"}}>AC-{String(t.order_number).padStart(4,"0")}</span>}
+                      <div style={{flex:1}}>
+                        <p style={{fontSize:13,fontWeight:600,marginBottom:2}}>{t.title}</p>
+                        <p style={{fontSize:11,color:"var(--muted)"}}>{team?.name} · <span style={{color:dr.color,fontWeight:dr.urgent?700:400}}>{dr.label}</span></p>
+                      </div>
+                      <span className={`pill ${statusPill[t.status]||"pill-gray"}`}>{statusLabel[t.status]}</span>
+                      <span className="task-open-hint">Abrir <Icon n="flecha_der" size={10}/></span>
                     </div>
-                    <span className={`pill ${statusPill[t.status]||"pill-gray"}`}>{statusLabel[t.status]}</span>
                   </div>
                 );
               })
@@ -2692,9 +2851,45 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
       {/* DIRECTOR/CUENTAS VIEW */}
       {(isDir||isCuentas)&&(
         <>
-          <div style={{marginBottom:20}}>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:4}}><Icon n="desempeno" size={20} style={{marginLeft:6}} color="var(--accent)"/></h2>
-            <p style={{color:"var(--muted)",fontSize:14}}>{new Date().toLocaleDateString("es-GT",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
+          <div style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
+              <h2 style={{fontSize:20,fontWeight:700}}>{(()=>{const h=new Date().getHours();return(h<12?"Buenos días":h<18?"Buenas tardes":"Buenas noches")+", "+me.name.split(" ")[0];})()}</h2>
+              <p style={{color:"var(--muted)",fontSize:12,fontFamily:"var(--font-mono)"}}>{new Date().toLocaleDateString("es-GT",{weekday:"long",day:"numeric",month:"long"})}</p>
+            </div>
+          </div>
+          {/* QUICK ACTIONS for Director/Cuentas */}
+          <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+            {isDir&&<button className="quick-action" onClick={()=>onNavigate("crear")}>
+              <div className="quick-action-icon" style={{background:"var(--accent-dim)"}}>
+                <Icon n="nueva" size={18} color="var(--accent)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>Nueva orden</span>
+            </button>}
+            <button className="quick-action" onClick={()=>onNavigate("ordenes")}>
+              <div className="quick-action-icon" style={{background:"rgba(77,157,224,.12)"}}>
+                <Icon n="ordenes" size={18} color="var(--s-progreso)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>Todas las órdenes</span>
+            </button>
+            <button className="quick-action" onClick={()=>onNavigate("ordenes","vencida")} style={{borderColor:overdue.length>0?"rgba(232,93,93,.3)":"var(--border)"}}>
+              <div className="quick-action-icon" style={{background:"rgba(232,93,93,.1)"}}>
+                <Icon n="vencida" size={18} color="var(--s-vencida)"/>
+                {overdue.length>0&&<span style={{position:"absolute",top:-4,right:-4,background:"var(--s-vencida)",color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>{overdue.length}</span>}
+              </div>
+              <span style={{fontSize:11,fontWeight:600,color:overdue.length>0?"var(--s-vencida)":"inherit"}}>Vencidas{overdue.length>0?` (${overdue.length})`:""}</span>
+            </button>
+            <button className="quick-action" onClick={()=>onNavigate("equipos")}>
+              <div className="quick-action-icon" style={{background:"rgba(46,196,160,.12)"}}>
+                <Icon n="equipos" size={18} color="var(--s-completada)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>Equipos</span>
+            </button>
+            {isDir&&<button className="quick-action" onClick={()=>onNavigate("desempeno")}>
+              <div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}>
+                <Icon n="desempeno" size={18} color="var(--s-revision)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>Desempeño</span>
+            </button>}
           </div>
 
           {/* HERO: Tareas activas — stacked bar por marca, click navega, hover muestra info */}
@@ -2780,17 +2975,17 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
 
           {/* SECONDARY METRICS — smaller cards now */}
           <div className="stat-grid" style={{marginBottom:20,gridTemplateColumns:"repeat(3,1fr)"}}>
-            <div className="stat-card" style={{"--ac":"var(--s-revision)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","en_revision")}>
+            <div className="stat-card clickable" style={{"--ac":"var(--s-revision)"}} onClick={()=>onNavigate("ordenes","en_revision")}>
               <div className="stat-label">En revisión</div>
               <div className="stat-value" style={{color:"var(--s-revision)"}}>{forReview.length}</div>
-              <div className="stat-sub">Esperando aprobación</div>
+              <div className="stat-sub">Esperando aprobación →</div>
             </div>
-            <div className="stat-card" style={{"--ac":overdue.length>0?"var(--s-vencida)":"var(--s-completada)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","vencida")}>
+            <div className="stat-card clickable" style={{"--ac":overdue.length>0?"var(--s-vencida)":"var(--s-completada)"}} onClick={()=>onNavigate("ordenes","vencida")}>
               <div className="stat-label">Vencidas</div>
               <div className="stat-value" style={{color:overdue.length>0?"var(--s-vencida)":"var(--s-completada)"}}>{overdue.length}</div>
-              <div className="stat-sub">{overdue.length===0?"Todo al día":"Requieren atención"}</div>
+              <div className="stat-sub">{overdue.length===0?"Todo al día ✓":"Requieren atención →"}</div>
             </div>
-            <div className="stat-card" style={{"--ac":"var(--s-completada)",cursor:"pointer"}} onClick={()=>onNavigate("ordenes","completada")}>
+            <div className="stat-card clickable" style={{"--ac":"var(--s-completada)"}} onClick={()=>onNavigate("ordenes","completada")}>
               <div className="stat-label">Completadas</div>
               <div className="stat-value" style={{color:"var(--s-completada)"}}>{tasks.filter(t=>t.status==="completada").length}</div>
               <div className="stat-sub">Este período →</div>
@@ -2822,8 +3017,10 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
                   const tm=new Date(c.created_at);
                   const ago=(()=>{const diff=Date.now()-tm;const h=Math.floor(diff/3600000);if(h<1)return"Hace un momento";if(h<24)return`Hace ${h}h`;return`Hace ${Math.floor(h/24)}d`;})();
                   return(
-                    <div key={c.id} onClick={()=>onNavigate("ordenes")}
-                      style={{display:"flex",gap:10,padding:"9px 0",borderBottom:i<Math.min(3,myMentions.length-1)?"1px solid var(--border)":"none",cursor:"pointer"}}>
+                    <div key={c.id} onClick={()=>{window._openTask&&window._openTask(t);}}
+                      style={{display:"flex",gap:10,padding:"9px 0",borderBottom:i<Math.min(3,myMentions.length-1)?"1px solid var(--border)":"none",cursor:"pointer",borderRadius:5,transition:".12s",margin:"-2px -6px",padding:"9px 6px"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       <Av u={author||{initials:"?",avatar_color:"#888"}} size={26}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2,flexWrap:"wrap"}}>
@@ -2852,13 +3049,16 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
                 :forReview.slice(0,5).map(t=>{
                   const u=users.find(x=>x.id===t.assigned_to);
                   return(
-                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer",borderRadius:5,transition:".12s"}}
+                      onClick={()=>{window._openTask&&window._openTask(t);}}
+                      onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",minWidth:40,fontFamily:"var(--font-mono)"}}>#{"AC-"+String(t.order_number).padStart(4,"0")}</span>}
                       <div style={{flex:1,minWidth:0}}>
                         <p style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p>
                         <p style={{fontSize:11,color:"var(--muted)"}}>{u?.name||"—"}</p>
                       </div>
-                      <button onClick={e=>{e.stopPropagation();onNavigate("ordenes");}} style={{background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",color:"var(--accent)",fontSize:11,padding:"3px 8px",borderRadius:5,cursor:"pointer",fontFamily:"var(--font-body)",whiteSpace:"nowrap",fontWeight:600}}>Ver →</button>
+                      <span style={{fontSize:11,color:"var(--accent)",opacity:.6}}>→</span>
                     </div>
                   );
                 })
@@ -2878,7 +3078,10 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
                   const u=users.find(x=>x.id===t.assigned_to);
                   const days=Math.ceil((new Date()-new Date(t.due_date+"T00:00:00"))/(1000*60*60*24));
                   return(
-                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(240,107,107,.1)"}}>
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(240,107,107,.1)",cursor:"pointer",borderRadius:5,transition:".12s"}}
+                      onClick={()=>{window._openTask&&window._openTask(t);}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(240,107,107,.04)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--red)",minWidth:40,fontFamily:"var(--font-mono)"}}>#{"AC-"+String(t.order_number).padStart(4,"0")}</span>}
                       <div style={{flex:1,minWidth:0}}>
                         <p style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p>
@@ -2929,9 +3132,10 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
                   }[health];
                   return(
                     <div key={team.id} onClick={()=>onNavigate("equipo_"+team.id)}
+                      className="team-semaph"
                       style={{padding:"12px 14px",background:"var(--bg3)",borderRadius:10,
                         border:`1px solid ${healthColor}55`,cursor:"pointer",
-                        transition:".15s",position:"relative",overflow:"hidden"}}>
+                        position:"relative",overflow:"hidden"}}>
                       {/* Color strip top */}
                       <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:healthColor,opacity:.8}}/>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,marginTop:2}}>
@@ -2961,7 +3165,10 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
                 const pct=Math.round((w.active/maxLoad)*100);
                 const color=w.active>=7?"var(--s-vencida)":w.active>=4?"var(--load-warn)":(team?teamColor(team):"var(--s-completada)");
                 return(
-                  <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                  <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,padding:"6px 8px",borderRadius:8,cursor:isDir?"pointer":"default",transition:".13s"}}
+                    onClick={()=>{if(isDir){onNavigate("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(w),80);}}}
+                    onMouseEnter={e=>{if(isDir)e.currentTarget.style.background="var(--bg3)";}}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <div className="avatar" style={{width:30,height:30,background:w.avatar_color,fontSize:11,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{w.initials}</div>
                     <div style={{minWidth:110,flexShrink:0}}>
                       <p style={{fontSize:12,fontWeight:600}}>{w.name}</p>
@@ -2975,6 +3182,7 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
                       <span style={{fontSize:11,color:"var(--muted)"}}> activas</span>
                     </div>
                     {w.overdue>0&&<span style={{fontSize:11,padding:"2px 6px",background:"rgba(239,68,68,.15)",color:"#fca5a5",borderRadius:999,flexShrink:0}}>{w.overdue} venc.</span>}
+                    {isDir&&<span style={{fontSize:11,color:"var(--muted)",flexShrink:0,opacity:.5}}>→</span>}
                   </div>
                 );
               })
@@ -3023,41 +3231,23 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
 
   // Mini kanban card
   function KanbanCard({t}){
-    const [modal,setModal]=useState(false);
     const assigned=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
     const dr=fmtDateRelative(t.due_date);
     return(
-      <>
-        <div className="kanban-card" onClick={()=>setModal(true)}
-          style={{borderLeft:`3px solid ${statusColor[t.status]||"var(--border)"}`}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
-            {t.order_number&&<span style={{fontSize:10,color:"var(--accent)",fontFamily:"var(--font-mono)",fontWeight:700}}>AC-{String(t.order_number).padStart(4,"0")}</span>}
-            {t.priority!=="Normal"&&<span className={`pill pill-prio-${t.priority.toLowerCase()}`}>{t.priority}</span>}
-          </div>
-          <p style={{fontSize:12,fontWeight:600,lineHeight:1.4,marginBottom:6}}>{t.title}</p>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{display:"flex",gap:-4}}>
-              {assigned.slice(0,3).map(id=>{const u=users.find(x=>x.id===id);return u?<div key={id} style={{width:18,height:18,borderRadius:4,background:u.avatar_color,fontSize:7,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,marginRight:2}}>{u.initials}</div>:null;})}
-            </div>
-            <span style={{fontSize:10,color:dr.color,fontWeight:dr.urgent?700:400,fontFamily:"var(--font-mono)"}}>{dr.label}</span>
-          </div>
+      <div className="kanban-card" onClick={()=>{window._openTask&&window._openTask(t);}}
+        style={{borderLeft:`3px solid ${statusColor[t.status]||"var(--border)"}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+          {t.order_number&&<span style={{fontSize:10,color:"var(--accent)",fontFamily:"var(--font-mono)",fontWeight:700}}>AC-{String(t.order_number).padStart(4,"0")}</span>}
+          {t.priority!=="Normal"&&<span className={`pill pill-prio-${t.priority.toLowerCase()}`}>{t.priority}</span>}
         </div>
-        {modal&&(
-          <ModalPortal>
-            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:400,backdropFilter:"blur(6px)"}}
-              onClick={e=>e.target===e.currentTarget&&setModal(false)}>
-              <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:14,padding:24,width:"100%",maxWidth:640,maxHeight:"90vh",overflowY:"auto"}}
-                onClick={e=>e.stopPropagation()}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-                  <span style={{fontSize:12,fontWeight:700,color:"var(--accent)",fontFamily:"var(--font-mono)"}}>AC-{String(t.order_number||0).padStart(4,"0")}</span>
-                  <button onClick={()=>setModal(false)} style={{background:"none",border:"none",color:"var(--muted)",fontSize:18,cursor:"pointer"}}>✕</button>
-                </div>
-                <TaskCard task={t} users={users} teams={teams} me={me} token={token} onRefresh={()=>{onRefresh();setModal(false);}}/>
-              </div>
-            </div>
-          </ModalPortal>
-        )}
-      </>
+        <p style={{fontSize:12,fontWeight:600,lineHeight:1.4,marginBottom:6}}>{t.title}</p>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",gap:-4}}>
+            {assigned.slice(0,3).map(id=>{const u=users.find(x=>x.id===id);return u?<div key={id} style={{width:18,height:18,borderRadius:4,background:u.avatar_color,fontSize:7,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,marginRight:2}}>{u.initials}</div>:null;})}
+          </div>
+          <span style={{fontSize:10,color:dr.color,fontWeight:dr.urgent?700:400,fontFamily:"var(--font-mono)"}}>{dr.label}</span>
+        </div>
+      </div>
     );
   }
 
@@ -3332,7 +3522,25 @@ function Dashboard({session,onLogout,isDark,toggleTheme}){
   const [teams,setTeams]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showSpotlight,setShowSpotlight]=useState(false);
+  // Global floating task modal — works from ANY tab
+  const [floatingTask,setFloatingTask]=useState(null);
   const isDir=user.role==="director";
+
+  // Register global _openTask that works from any view without navigating
+  useEffect(()=>{
+    window._openTask=(taskOrId)=>{
+      // Accept either a task object or an ID string
+      if(typeof taskOrId==="string"){
+        const found=tasks.find(t=>t.id===taskOrId);
+        if(found)setFloatingTask(found);
+      } else {
+        // Find fresh version from state if possible
+        const fresh=tasks.find(t=>t.id===taskOrId?.id);
+        setFloatingTask(fresh||taskOrId);
+      }
+    };
+    return()=>{window._openTask=null;};
+  },[tasks]);
 
   // Cmd+K / Ctrl+K to open spotlight
   useEffect(()=>{
@@ -3384,6 +3592,16 @@ function Dashboard({session,onLogout,isDark,toggleTheme}){
     <div className="app-shell">
       {showSpotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigateTo} onClose={()=>setShowSpotlight(false)}/>}
       <ConfirmDialog/>
+      {/* Global floating task modal — works from any tab */}
+      {floatingTask&&(
+        <ModalPortal>
+          <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setFloatingTask(null)}>
+            <div className="modal modal-enter" onClick={e=>e.stopPropagation()}>
+              <TaskCard task={floatingTask} users={users} teams={teams} me={user} token={token} onRefresh={async()=>{await load();}} forceOpen={true} onForceClose={()=>setFloatingTask(null)}/>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
       {/* Mobile topbar */}
       <div className="mobile-topbar">
         <button className="hamburger" onClick={()=>setMobileMenuOpen(true)}><Icon n="lista" size={20} color="currentColor"/></button>
@@ -3513,15 +3731,18 @@ function Dashboard({session,onLogout,isDark,toggleTheme}){
                         const u=users.find(x=>x.id===t.assigned_to);
                         const team=teams.find(x=>x.id===t.team_id);
                         return(
-                          <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(239,68,68,.15)"}}>
-                            {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"#fca5a5",minWidth:45}}>#{String(t.order_number).padStart(4,"0")}</span>}
-                            <div style={{flex:1}}>
-                              <p style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{t.title}</p>
-                              <p style={{fontSize:11,color:"var(--muted)"}}>{u?.name||"Sin asignar"} · {team?.name||"Sin equipo"} · Venció: {t.due_date}</p>
-                            </div>
-                            <span style={{fontSize:11,padding:"2px 8px",borderRadius:999,background:"rgba(239,68,68,.15)",color:"#fca5a5"}}>{Math.ceil((new Date()-new Date(t.due_date))/(1000*60*60*24))}d tarde</span>
-                          </div>
-                        );
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(239,68,68,.15)",cursor:"pointer",borderRadius:6,transition:".12s"}}
+                      onClick={()=>{window._openTask&&window._openTask(t);}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.05)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"#fca5a5",minWidth:45}}>#{String(t.order_number).padStart(4,"0")}</span>}
+                      <div style={{flex:1}}>
+                        <p style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{t.title}</p>
+                        <p style={{fontSize:11,color:"var(--muted)"}}>{u?.name||"Sin asignar"} · {team?.name||"Sin equipo"} · Venció: {t.due_date}</p>
+                      </div>
+                      <span style={{fontSize:11,padding:"2px 8px",borderRadius:999,background:"rgba(239,68,68,.15)",color:"#fca5a5"}}>{Math.ceil((new Date()-new Date(t.due_date))/(1000*60*60*24))}d tarde</span>
+                    </div>
+                  );
                       })}
                     </div>
                   )}
