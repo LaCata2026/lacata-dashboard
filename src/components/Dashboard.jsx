@@ -26,8 +26,7 @@ import TeamsView from'../views/TeamsView'
 
 import CalendarView from'../views/CalendarView'
 
-import PerformanceView from'../views/PerformanceView'
-import ReportesView from'../views/ReportesView'
+import IntelView from'../views/IntelView'
 
 import AdminView from'../views/AdminView'
 
@@ -121,9 +120,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
     calendario:<CalendarView {...shared}/>,
 
-    desempeno:<PerformanceView {...shared}/>,
-
-    reportes:<ReportesView {...shared}/>,
+    desempeno:<IntelView {...shared}/>,
 
     admin:<AdminView {...shared}/>,
 
