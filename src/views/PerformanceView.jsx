@@ -6,12 +6,71 @@ import{showConfirm}from'../components/ConfirmDialog'
 import Icon from'../components/Icon'
 import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
 import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
+import TaskCard from'./TaskCard'
+
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
+
+/* ── EXCEL EXPORT ── */
+function exportExcel(tasks, users, teams) {
+  try {
+    const statusMap = {
+      pendiente: "Pendiente",
+      en_progreso: "En progreso",
+      en_pausa: "En pausa",
+      en_revision: "En revisión",
+      completada: "Completada",
+      vencida: "Vencida",
+    };
+
+    // Build rows
+    const header = ["No. Orden","Proyecto","Responsable","Marca","Equipo","Estado","Prioridad","Hrs Est.","Hrs Reales","Fecha Límite","Cambios"];
+    const rows = tasks.map(t => {
+      const assigned = Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean);
+      const names = assigned.map(id => users.find(u => u.id === id)?.name || "?").join(", ");
+      const team = teams.find(x => x.id === t.team_id);
+      const orderNum = t.order_number ? "AC-" + String(t.order_number).padStart(4, "0") : "-";
+      return [
+        orderNum,
+        t.title || "",
+        names || "Sin asignar",
+        t.marca || "—",
+        team?.name || "Sin equipo",
+        statusMap[t.status] || t.status || "",
+        t.priority || "Normal",
+        Number(t.hours) || 0,
+        Number(t.hours_real) || 0,
+        t.due_date || "",
+        t.changes || 0,
+      ];
+    });
+
+    // Build CSV with BOM for Excel UTF-8
+    const escape = v => `"${String(v).replace(/"/g, '""')}"`;
+    const lines = [header, ...rows].map(r => r.map(escape).join(","));
+    const csvContent = "\uFEFF" + lines.join("\r\n");
+
+    // Download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "LaCata_Reporte_" + new Date().toISOString().split("T")[0] + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast("Excel descargado correctamente", "success");
+  } catch(err) {
+    console.error("exportExcel error:", err);
+    showToast("Error al exportar: " + err.message, "error");
+  }
+}
+
 export default function PerformanceView({tasks,users,teams,onBack}){
   const [viewMode,setViewMode]=useState("individual");
   const [selectedUser,setSelectedUser]=useState(null);
-  // Expose setter so other components (Admin) can navigate to a user directly
-  useEffect(()=>{window._perfSelectUser=setSelectedUser;return()=>{window._perfSelectUser=null;};},[]); // drill-down
+  useEffect(()=>{window._perfSelectUser=setSelectedUser;return()=>{window._perfSelectUser=null;};},[]); 
   const colabs=users.filter(u=>u.role==="colaborador");
   const sorted=[...colabs].sort((a,b)=>{
     const at=tasks.filter(t=>{const x=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return x.includes(a.id)&&t.status!=="completada";}).length;
@@ -19,7 +78,6 @@ export default function PerformanceView({tasks,users,teams,onBack}){
     return bt-at;
   });
 
-  // Drill-down: show selected collaborator's tasks
   if(selectedUser){
     const u=selectedUser;
     const team=teams.find(t=>t.id===u.team_id);
@@ -29,7 +87,6 @@ export default function PerformanceView({tasks,users,teams,onBack}){
     const active=sorted.filter(t=>t.status!=="completada");
     const done=sorted.filter(t=>t.status==="completada");
     const hrs=uTasks.reduce((s,t)=>s+Number(t.hours_real||0),0);
-    const hrsEst=uTasks.reduce((s,t)=>s+Number(t.hours||0),0);
     return(
       <div>
         <BackBtn onClick={()=>setSelectedUser(null)} label="← Desempeño"/>
@@ -68,13 +125,14 @@ export default function PerformanceView({tasks,users,teams,onBack}){
       </div>
     );
   }
+
   return(
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
       <div className="section-header">
         <h2 className="section-title">Desempeño</h2>
         <div style={{display:"flex",gap:4,background:"var(--bg3)",borderRadius:8,padding:3}}>
-          {[{v:"individual",l:"Individual",icon:"persona"},{v:"equipo",l:"Por equipo",icon:"equipo2"}].map(m=>(
+          {[{v:"individual",l:"Individual"},{v:"equipo",l:"Por equipo"}].map(m=>(
             <button key={m.v} onClick={()=>setViewMode(m.v)}
               style={{padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",border:"none",
                 background:viewMode===m.v?"var(--bg2)":"transparent",
@@ -85,6 +143,7 @@ export default function PerformanceView({tasks,users,teams,onBack}){
           ))}
         </div>
       </div>
+
       <div className="stat-grid" style={{marginBottom:24}}>
         <SC label="Tareas activas" value={tasks.filter(t=>t.status!=="completada").length} color="var(--blue)"/>
         <SC label="Completadas" value={tasks.filter(t=>t.status==="completada").length} color="var(--green)"/>
@@ -152,15 +211,10 @@ export default function PerformanceView({tasks,users,teams,onBack}){
                     <p style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{members.length} miembros</p>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:11,color:healthColor,fontWeight:700,fontFamily:"var(--font-mono)"}}>
-                      {teamActive} activas
-                    </div>
-                    <div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
-                      ✓{teamDone} {teamOverdue>0&&<span style={{color:"var(--red)"}}><Icon n="alerta" size={9}/>{teamOverdue}</span>}
-                    </div>
+                    <div style={{fontSize:11,color:healthColor,fontWeight:700,fontFamily:"var(--font-mono)"}}>{teamActive} activas</div>
+                    <div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>✓{teamDone} {teamOverdue>0&&<span style={{color:"var(--red)"}}><Icon n="alerta" size={9}/>{teamOverdue}</span>}</div>
                   </div>
                 </div>
-                {/* Team progress bar */}
                 <div style={{height:4,background:"var(--bg3)",borderRadius:2,marginBottom:14,overflow:"hidden"}}>
                   <div style={{width:Math.min(100,avgLoad/8*100)+"%",height:"100%",background:healthColor,borderRadius:2,transition:"width .6s"}}/>
                 </div>
@@ -198,11 +252,9 @@ export default function PerformanceView({tasks,users,teams,onBack}){
 
       <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
         <button className="btn btn-green" onClick={()=>exportExcel(tasks,users,teams)} style={{display:"flex",alignItems:"center",gap:8}}>
-          <><Icon n="exportar" size={14}/> Exportar Excel</>
+          <Icon n="exportar" size={14}/> Exportar Excel
         </button>
       </div>
     </div>
   );
 }
-
-/* ── EXCEL EXPORT ── */
