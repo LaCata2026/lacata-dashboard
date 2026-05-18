@@ -410,6 +410,37 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
 .status-legend{display:flex;gap:12px;flex-wrap:wrap;padding:8px 0 14px;border-bottom:1px solid var(--border);margin-bottom:14px}
 .status-dot{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted2);font-family:var(--font-mono)}
 
+/* ── CALENDAR ── */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-header{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
+.cal-day-name{text-align:center;font-size:10px;font-weight:700;color:var(--muted);font-family:var(--font-mono);padding:6px 0;text-transform:uppercase;letter-spacing:.08em}
+.cal-cell{min-height:90px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px;position:relative;overflow:hidden;transition:.13s}
+.cal-cell:hover{border-color:var(--border2);background:var(--bg3)}
+.cal-cell.today{border-color:var(--accent);background:var(--accent-dim)}
+.cal-cell.other-month{opacity:.35}
+.cal-date{font-size:11px;font-weight:700;color:var(--muted2);margin-bottom:3px;font-family:var(--font-mono)}
+.cal-cell.today .cal-date{color:var(--accent)}
+.cal-event{font-size:10px;font-weight:600;padding:2px 5px;border-radius:3px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:.1s;line-height:1.4}
+.cal-event:hover{filter:brightness(1.2);transform:translateX(1px)}
+.cal-more{font-size:10px;color:var(--muted);font-family:var(--font-mono);padding:1px 0;cursor:pointer}
+.cal-more:hover{color:var(--accent)}
+@media(max-width:768px){
+  .cal-cell{min-height:60px;padding:3px}
+  .cal-event{display:none}
+  .cal-cell.has-events::after{content:'●';position:absolute;bottom:3px;right:3px;font-size:8px;color:var(--accent)}
+}
+
+/* ── DRAG & DROP KANBAN ── */
+.kanban-card.dragging{opacity:.4;transform:scale(.97);cursor:grabbing}
+.kanban-card[draggable=true]{cursor:grab}
+.kanban-card[draggable=true]:active{cursor:grabbing}
+.kanban-col.drag-over{background:var(--accent-dim);border:1px dashed var(--accent);border-radius:10px}
+.kanban-col.drag-over .kanban-col-head{background:var(--accent-dim)}
+.drag-ghost{opacity:0!important}
+.kanban-card[draggable=true]:hover .drag-handle{opacity:1!important}
+@keyframes dropIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.kanban-card.drop-anim{animation:dropIn .2s ease}
+
 /* ── CONFIRM DIALOG ── */
 .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
 .confirm-box{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:24px;max-width:400px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.6)}
@@ -625,7 +656,7 @@ const sb={
       // Fallback if not in usuarios table yet
       profile={id:d.user.id,email:d.user.email,name:d.user.user_metadata?.full_name||d.user.email.split("@")[0],role:getRole(d.user.email),avatar_color:getAvatarColor(d.user.email),initials:getInitials(d.user.user_metadata?.full_name||d.user.email.split("@")[0])};
     }
-    return{profile,access_token:d.access_token};
+    return{profile,access_token:d.access_token,refresh_token:d.refresh_token};
   },
   async inviteUser(email,name){
     const r=await fetch(`${SB_URL}/auth/v1/invite`,{
@@ -683,9 +714,178 @@ const sb={
     });
     return r.json();
   },
+  async refreshSession(refreshToken){
+    const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_ANON},
+      body:JSON.stringify({refresh_token:refreshToken}),
+    });
+    const d=await r.json();
+    if(d.error||d.error_description)throw new Error("No se pudo renovar la sesion");
+    return d;
+  },
 };
 
 const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),del:(k)=>localStorage.removeItem(k)};
+
+/* ─────────────────────────────────────────────────────────────────
+   REALTIME MANAGER — Supabase WebSocket subscriptions
+───────────────────────────────────────────────────────────────── */
+const Realtime={
+  ws:null,
+  callbacks:{},
+  _heartbeat:null,
+  _token:null,
+  _reconnectDelay:2000,
+  _reconnectTimer:null,
+  _manualClose:false,
+
+  subscribe(table,fn){
+    if(!this.callbacks[table])this.callbacks[table]=[];
+    this.callbacks[table].push(fn);
+    return()=>{this.callbacks[table]=this.callbacks[table].filter(f=>f!==fn)};
+  },
+
+  connect(token){
+    this._manualClose=false;
+    this._token=token;
+    if(this.ws&&(this.ws.readyState===WebSocket.OPEN||this.ws.readyState===WebSocket.CONNECTING))return;
+    const wsUrl=SB_URL.replace("https://","wss://").replace("http://","ws://")+"/realtime/v1/websocket?apikey="+SB_ANON+"&vsn=1.0.0";
+    try{this.ws=new WebSocket(wsUrl);}catch(e){console.warn("Realtime WS:",e);return;}
+
+    this.ws.onopen=()=>{
+      this._reconnectDelay=2000;
+      ["tareas","usuarios","equipos"].forEach(table=>{
+        this.ws.send(JSON.stringify({
+          topic:"realtime:public:"+table,
+          event:"phx_join",
+          payload:{config:{broadcast:{self:false},presence:{key:""},postgres_changes:[{event:"*",schema:"public",table}]}},
+          ref:"join_"+table,
+        }));
+      });
+      this._heartbeat=setInterval(()=>{
+        if(this.ws.readyState===WebSocket.OPEN)
+          this.ws.send(JSON.stringify({topic:"phoenix",event:"heartbeat",payload:{},ref:"hb"}));
+      },20000);
+    };
+
+    this.ws.onmessage=(e)=>{
+      try{
+        const msg=JSON.parse(e.data);
+        // Supabase realtime v2 format
+        if(msg.payload&&msg.payload.data&&msg.payload.data.table){
+          const ev=msg.payload.data;
+          if(this.callbacks[ev.table])this.callbacks[ev.table].forEach(fn=>fn(ev));
+        }
+        // v1 format fallback
+        if(msg.event==="postgres_changes"&&msg.payload){
+          const table=msg.payload.data&&msg.payload.data.table;
+          if(table&&this.callbacks[table])this.callbacks[table].forEach(fn=>fn(msg.payload.data||msg.payload));
+        }
+      }catch{}
+    };
+
+    this.ws.onerror=()=>{};
+    this.ws.onclose=()=>{
+      clearInterval(this._heartbeat);
+      if(!this._manualClose){
+        this._reconnectTimer=setTimeout(()=>{
+          this._reconnectDelay=Math.min(this._reconnectDelay*1.5,30000);
+          this.connect(this._token);
+        },this._reconnectDelay);
+      }
+    };
+  },
+
+  disconnect(){
+    this._manualClose=true;
+    clearInterval(this._heartbeat);
+    clearTimeout(this._reconnectTimer);
+    if(this.ws)try{this.ws.close();}catch{}
+    this.ws=null;
+  },
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   PUSH NOTIFICATIONS — browser Notification API
+───────────────────────────────────────────────────────────────── */
+const PushNotif={
+  _granted:false,
+  async requestPermission(){
+    if(!("Notification" in window))return;
+    if(Notification.permission==="granted"){this._granted=true;return;}
+    if(Notification.permission!=="denied"){
+      const p=await Notification.requestPermission();
+      this._granted=(p==="granted");
+    }
+  },
+  send(title,body,onClick){
+    if(!this._granted)return;
+    try{
+      const n=new Notification(title,{body,tag:title});
+      if(onClick)n.onclick=()=>{window.focus();onClick();n.close();};
+      setTimeout(()=>n.close(),8000);
+    }catch{}
+  },
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   SESSION REFRESH HOOK — auto-renews session every ~45 min
+───────────────────────────────────────────────────────────────── */
+function useSessionRefresh(session,onLogout,onTokenUpdate){
+  const refreshTokenRef=useRef(LS.get("lc_refresh_token",null));
+  const refreshingRef=useRef(false);
+  const warnedRef=useRef(false);
+
+  useEffect(()=>{
+    if(!session)return;
+
+    function getExpiry(token){
+      try{const p=JSON.parse(atob(token.split(".")[1]));return p.exp?p.exp*1000:null;}
+      catch{return null;}
+    }
+
+    async function doRefresh(){
+      if(refreshingRef.current)return;
+      const rt=refreshTokenRef.current;
+      if(!rt)return;
+      refreshingRef.current=true;
+      try{
+        const d=await sb.refreshSession(rt);
+        if(d.access_token){
+          refreshTokenRef.current=d.refresh_token||rt;
+          LS.set("lc_refresh_token",d.refresh_token||rt);
+          onTokenUpdate&&onTokenUpdate(d.access_token);
+          warnedRef.current=false;
+        }
+      }catch(e){
+        showToast("No se pudo renovar la sesion. Por favor recarga.","error");
+      }finally{refreshingRef.current=false;}
+    }
+
+    const id=setInterval(()=>{
+      const expiry=getExpiry(session.token);
+      if(!expiry)return;
+      const rem=expiry-Date.now();
+      if(rem<120000&&rem>0&&!warnedRef.current){
+        warnedRef.current=true;
+        showToast("Renovando tu sesion automaticamente...","info");
+      }
+      if(rem<300000&&rem>60000)doRefresh();
+      if(rem<=0){
+        LS.del("lc_session");LS.del("lc_refresh_token");
+        onLogout();
+        showToast("Tu sesion expiro. Por favor inicia sesion de nuevo.","error");
+      }
+    },30000);
+
+    // Refresh on load if less than 10 min remain
+    const expiry=getExpiry(session.token);
+    if(expiry&&(expiry-Date.now())<600000)doRefresh();
+
+    return()=>clearInterval(id);
+  },[session&&session.token]);
+}
 const fmtDate=d=>{if(!d)return"—";const[y,m,dd]=d.split("-");return`${dd}/${m}/${y}`};
 const fmtDateRelative=d=>{
   if(!d)return{label:"—",color:"var(--muted)",urgent:false};
@@ -708,6 +908,7 @@ const NAV=[
   {id:"ordenes",  icon:"ordenes",label:"Órdenes",       section:"trabajo", roles:["director","colaborador","cuentas"]},
   {id:"crear",    icon:"nueva",label:"Nueva orden",   section:"trabajo", roles:["director","cuentas"]},
   {id:"equipos",  icon:"equipos",label:"Equipos",       section:"trabajo", roles:["director","cuentas"]},
+  {id:"calendario",icon:"calendario",label:"Calendario",  section:"trabajo", roles:["director","cuentas"]},
   {id:"desempeno",icon:"desempeno",label:"Desempeño",     section:"trabajo", roles:["director"]},
   {id:"admin",    icon:"admin",label:"Administración",section:"admin",   roles:["director"]},
 ];
@@ -802,6 +1003,8 @@ const ICONS={
   equipo2:  `<circle cx="6" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><path d="M2 13a4 4 0 0 1 8 0"/><path d="M10 11a4 4 0 0 1 4 2"/>`,
   marca:    `<path d="M3 3h6l4 4-7 7-4-4V3z"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/>`,
   semaforo: `<rect x="5" y="2" width="6" height="12" rx="3"/><circle cx="8" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="11" r="1" fill="currentColor"/>`,
+  calendario:`<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 7h12"/><path d="M5 1v4M11 1v4"/><path d="M5 10h1M8 10h1M11 10h1"/>`,
+  drag:      `<path d="M8 3v10M5 6l3-3 3 3M5 10l3 3 3-3"/>`,
 };
 
 function Icon({n,size=16,color="currentColor",style={},className=""}){
@@ -2890,6 +3093,12 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
               </div>
               <span style={{fontSize:11,fontWeight:600}}>Desempeño</span>
             </button>}
+            <button className="quick-action" onClick={()=>{onNavigate("ordenes");setTimeout(()=>{try{const btn=document.querySelector('[data-view="calendario"]');if(btn)btn.click();}catch{}},120);}}>
+              <div className="quick-action-icon" style={{background:"rgba(46,196,160,.12)"}}>
+                <Icon n="calendario" size={18} color="var(--s-completada)"/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600}}>Calendario</span>
+            </button>
           </div>
 
           {/* HERO: Tareas activas — stacked bar por marca, click navega, hover muestra info */}
@@ -3194,13 +3403,160 @@ function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
   );
 }
 
+/* ── CALENDAR VIEW COMPONENT ── */
+function CalendarView({tasks,users,teams,me}){
+  const today=new Date();
+  const [calYear,setCalYear]=useState(today.getFullYear());
+  const [calMonth,setCalMonth]=useState(today.getMonth());
+  const [hoveredDay,setHoveredDay]=useState(null);
+
+  const isDir=me.role==="director";
+  const isCuentas=me.role==="cuentas";
+
+  // Filter tasks user can see
+  const visibleTasks=tasks.filter(t=>{
+    if(isDir)return true;
+    if(isCuentas){
+      const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:null;
+      return myTeamIds?myTeamIds.includes(t.team_id):true;
+    }
+    const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
+    return a.includes(me.id);
+  }).filter(t=>t.due_date);
+
+  const monthNames=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const dayNames=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+  // Build calendar grid
+  const firstDay=new Date(calYear,calMonth,1);
+  const lastDay=new Date(calYear,calMonth+1,0);
+  const startDow=firstDay.getDay(); // 0=Sunday
+  const daysInMonth=lastDay.getDate();
+
+  // Tasks indexed by date string YYYY-MM-DD
+  const tasksByDate={};
+  visibleTasks.forEach(t=>{
+    const d=t.due_date;
+    if(!tasksByDate[d])tasksByDate[d]=[];
+    tasksByDate[d].push(t);
+  });
+
+  // Stats for this month
+  const monthStr=`${calYear}-${String(calMonth+1).padStart(2,"0")}`;
+  const monthTasks=visibleTasks.filter(t=>t.due_date&&t.due_date.startsWith(monthStr));
+  const overdueMonth=monthTasks.filter(t=>t.status==="vencida").length;
+  const doneMonth=monthTasks.filter(t=>t.status==="completada").length;
+
+  function prevMonth(){
+    if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}
+    else setCalMonth(m=>m-1);
+  }
+  function nextMonth(){
+    if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}
+    else setCalMonth(m=>m+1);
+  }
+
+  // Build cells: padding + days + padding
+  const cells=[];
+  for(let i=0;i<startDow;i++)cells.push({type:"pad",key:"pad-s-"+i});
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const dayTasks=tasksByDate[dateStr]||[];
+    const isToday=d===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();
+    cells.push({type:"day",key:dateStr,d,dateStr,dayTasks,isToday});
+  }
+  const remaining=(7-cells.length%7)%7;
+  for(let i=0;i<remaining;i++)cells.push({type:"pad",key:"pad-e-"+i});
+
+  return(
+    <div className="fade-in">
+      {/* Month navigation */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={prevMonth} style={{background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:7,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"var(--muted2)",transition:".13s"}}
+            onMouseEnter={e=>e.currentTarget.style.color="var(--text)"} onMouseLeave={e=>e.currentTarget.style.color="var(--muted2)"}>
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 4L6 8l4 4"/></svg>
+          </button>
+          <h3 style={{fontSize:17,fontWeight:800,fontFamily:"var(--font-display)",letterSpacing:"-.02em",minWidth:160,textAlign:"center"}}>{monthNames[calMonth]} {calYear}</h3>
+          <button onClick={nextMonth} style={{background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:7,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"var(--muted2)",transition:".13s"}}
+            onMouseEnter={e=>e.currentTarget.style.color="var(--text)"} onMouseLeave={e=>e.currentTarget.style.color="var(--muted2)"}>
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 4l4 4-4 4"/></svg>
+          </button>
+          <button onClick={()=>{setCalMonth(today.getMonth());setCalYear(today.getFullYear());}}
+            style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:"var(--accent-dim)",color:"var(--accent)",border:"1px solid rgba(232,197,71,.25)",cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:700}}>
+            Hoy
+          </button>
+        </div>
+        {/* Month summary pills */}
+        <div style={{display:"flex",gap:8}}>
+          <span style={{fontSize:11,padding:"3px 10px",borderRadius:999,background:"var(--bg3)",color:"var(--muted2)",fontFamily:"var(--font-mono)"}}>
+            <span style={{color:"var(--accent)",fontWeight:700}}>{monthTasks.length}</span> entrega{monthTasks.length!==1?"s":""}
+          </span>
+          {overdueMonth>0&&<span style={{fontSize:11,padding:"3px 10px",borderRadius:999,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontFamily:"var(--font-mono)",fontWeight:700}}>⚠ {overdueMonth} vencida{overdueMonth!==1?"s":""}</span>}
+          {doneMonth>0&&<span style={{fontSize:11,padding:"3px 10px",borderRadius:999,background:"var(--s-completada-bg)",color:"var(--s-completada)",fontFamily:"var(--font-mono)"}}>✓ {doneMonth} completada{doneMonth!==1?"s":""}</span>}
+        </div>
+      </div>
+
+      {/* Day names header */}
+      <div className="cal-header">
+        {dayNames.map(d=><div key={d} className="cal-day-name">{d}</div>)}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="cal-grid">
+        {cells.map(cell=>{
+          if(cell.type==="pad") return <div key={cell.key} className="cal-cell other-month"/>;
+          const {d,dateStr,dayTasks,isToday}=cell;
+          const MAX_SHOW=3;
+          const visible2=dayTasks.slice(0,MAX_SHOW);
+          const extra=dayTasks.length-MAX_SHOW;
+          return(
+            <div key={dateStr} className={`cal-cell${isToday?" today":""}${dayTasks.length>0?" has-events":""}`}
+              onMouseEnter={()=>setHoveredDay(dateStr)}
+              onMouseLeave={()=>setHoveredDay(null)}>
+              <div className="cal-date">{d}</div>
+              {visible2.map(t=>{
+                const col=statusColor[t.status]||"var(--muted)";
+                return(
+                  <div key={t.id} className="cal-event"
+                    style={{background:col+"22",color:col,border:`1px solid ${col}44`}}
+                    onClick={e=>{e.stopPropagation();window._openTask&&window._openTask(t);}}>
+                    {t.title}
+                  </div>
+                );
+              })}
+              {extra>0&&<div className="cal-more">+{extra} más</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div style={{display:"flex",gap:16,marginTop:16,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Estado de fecha límite:</span>
+        {[
+          {s:"en_progreso",l:"En progreso"},{s:"en_revision",l:"En revisión"},
+          {s:"pendiente",l:"Pendiente"},{s:"vencida",l:"Vencida"},{s:"completada",l:"Completada"},
+        ].map(({s,l})=>(
+          <span key={s} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--muted2)"}}>
+            <div style={{width:10,height:10,borderRadius:2,background:statusColor[s]}}/>
+            {l}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── ORDENES ── */
-function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}){
-  const [viewMode,setViewMode]=useSessionFilters("ordenes_view","kanban");
+function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter,initialView}){
+  const [viewMode,setViewMode]=useSessionFilters("ordenes_view",initialView||"kanban");
   const [sf,setSf]=useSessionFilters("ordenes_status",initialFilter||"todas");
   const [tf,setTf]=useSessionFilters("ordenes_team","todas");
   const [search,setSearch]=useState("");
   const [collapsed,setCollapsed]=useState({}); // for equipo view
+  const [dragOverCol,setDragOverCol]=useState(null);
+  const dragTaskRef=useRef(null);
   const isDir=me.role==="director";
   const isCuentas=me.role==="cuentas";
 
@@ -3229,13 +3585,65 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
     {s:"completada",  label:"Completada",  color:"var(--s-completada)"},
   ];
 
-  // Mini kanban card
+  // ── DRAG & DROP HANDLERS ──
+  async function handleDrop(newStatus){
+    const t=dragTaskRef.current;
+    if(!t||t.status===newStatus)return;
+    setDragOverCol(null);
+    dragTaskRef.current=null;
+    // Optimistic update hint
+    showToast(`Moviendo a ${statusLabel[newStatus]}...`,"info");
+    try{
+      const history=Array.isArray(t.history)?[...t.history]:[];
+      history.push(`Estado cambiado a "${statusLabel[newStatus]}" — ${new Date().toLocaleDateString("es-GT")}`);
+      await sb.update("tareas",t.id,{status:newStatus,history},token);
+      showToast(`✓ Movido a ${statusLabel[newStatus]}`,"success");
+      onRefresh();
+    }catch(e){
+      showToast("Error al mover tarea: "+e.message,"error");
+    }
+  }
+
+  // Mini kanban card with drag support
   function KanbanCard({t}){
     const assigned=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
     const dr=fmtDateRelative(t.due_date);
+    const canDrag=(isDir||isCuentas||assigned.includes(me.id));
     return(
-      <div className="kanban-card" onClick={()=>{window._openTask&&window._openTask(t);}}
+      <div className="kanban-card"
+        draggable={canDrag}
+        onDragStart={e=>{
+          if(!canDrag)return;
+          dragTaskRef.current=t;
+          e.dataTransfer.effectAllowed="move";
+          // Create ghost element
+          const ghost=e.currentTarget.cloneNode(true);
+          ghost.style.opacity="0.01";
+          ghost.style.position="absolute";
+          ghost.style.top="-1000px";
+          document.body.appendChild(ghost);
+          e.dataTransfer.setDragImage(ghost,0,0);
+          setTimeout(()=>document.body.removeChild(ghost),0);
+          e.currentTarget.classList.add("dragging");
+        }}
+        onDragEnd={e=>{
+          e.currentTarget.classList.remove("dragging");
+          dragTaskRef.current=null;
+          setDragOverCol(null);
+        }}
+        onClick={()=>{window._openTask&&window._openTask(t);}}
         style={{borderLeft:`3px solid ${statusColor[t.status]||"var(--border)"}`}}>
+        {/* Drag handle hint — only for eligible users */}
+        {canDrag&&(
+          <div style={{position:"absolute",top:6,right:6,opacity:.2,transition:".13s",pointerEvents:"none"}}
+            className="drag-handle">
+            <svg width={10} height={10} viewBox="0 0 10 10" fill="currentColor" opacity={.5}>
+              <circle cx="3" cy="2" r="1"/><circle cx="7" cy="2" r="1"/>
+              <circle cx="3" cy="5" r="1"/><circle cx="7" cy="5" r="1"/>
+              <circle cx="3" cy="8" r="1"/><circle cx="7" cy="8" r="1"/>
+            </svg>
+          </div>
+        )}
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
           {t.order_number&&<span style={{fontSize:10,color:"var(--accent)",fontFamily:"var(--font-mono)",fontWeight:700}}>AC-{String(t.order_number).padStart(4,"0")}</span>}
           {t.priority!=="Normal"&&<span className={`pill pill-prio-${t.priority.toLowerCase()}`}>{t.priority}</span>}
@@ -3259,8 +3667,9 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           {/* View mode toggle */}
           <div style={{display:"flex",gap:2,background:"var(--bg3)",borderRadius:8,padding:3}}>
-            {[{v:"kanban",l:"Kanban",icon:"kanban"},{v:"lista",l:"Lista",icon:"lista"},{v:"equipo",l:"Equipos",icon:"equipos"}].map(m=>(
+            {[{v:"kanban",l:"Kanban",icon:"kanban"},{v:"lista",l:"Lista",icon:"lista"},{v:"equipo",l:"Equipos",icon:"equipos"},{v:"calendario",l:"Calendario",icon:"calendario"}].map(m=>(
               <button key={m.v} onClick={()=>setViewMode(m.v)}
+                data-view={m.v}
                 style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",fontFamily:"inherit",border:"none",
                   display:"flex",alignItems:"center",gap:5,
                   background:viewMode===m.v?"var(--bg2)":"transparent",
@@ -3273,21 +3682,23 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
         </div>
       </div>
 
-      {/* Search + filters */}
-      <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)}
-          placeholder="Buscar nombre, AC-0001, marca..."
-          style={{flex:1,minWidth:200,fontSize:13}}/>
-        {(isDir||isCuentas)&&(
-          <select value={tf} onChange={e=>setTf(e.target.value)} style={{width:"auto",fontSize:12}}>
-            <option value="todas">Todos los equipos</option>
-            {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        )}
-      </div>
+      {/* Search + filters — hidden in calendar mode */}
+      {viewMode!=="calendario"&&(
+        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="Buscar nombre, AC-0001, marca..."
+            style={{flex:1,minWidth:200,fontSize:13}}/>
+          {(isDir||isCuentas)&&(
+            <select value={tf} onChange={e=>setTf(e.target.value)} style={{width:"auto",fontSize:12}}>
+              <option value="todas">Todos los equipos</option>
+              {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          )}
+        </div>
+      )}
 
       {/* Status filter chips — shown in lista/equipo mode */}
-      {viewMode!=="kanban"&&(
+      {(viewMode==="lista"||viewMode==="equipo")&&(
         <div className="filter-bar" style={{marginBottom:12}}>
           {["todas","vencida","en_progreso","en_revision","pendiente","en_pausa","completada"].map(s=>(
             <button key={s} className={`filter-chip${sf===s?" active":""}`}
@@ -3299,20 +3710,41 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
         </div>
       )}
 
-      <StatusLegend/>
+      {/* Kanban drag hint */}
+      {viewMode==="kanban"&&(isDir||isCuentas)&&(
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 12px",background:"var(--bg3)",borderRadius:7,border:"1px solid var(--border)",width:"fit-content"}}>
+          <Icon n="drag" size={13} color="var(--muted)"/>
+          <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Arrastra las tarjetas entre columnas para cambiar el estado</span>
+        </div>
+      )}
 
-      {visible.length===0&&(
+      {viewMode!=="calendario"&&<StatusLegend/>}
+
+      {/* ── CALENDARIO VIEW ── */}
+      {viewMode==="calendario"&&(
+        <CalendarView tasks={tasks} users={users} teams={teams} me={me}/>
+      )}
+
+      {visible.length===0&&viewMode!=="calendario"&&(
         <div className="empty"><div style={{opacity:.3,marginBottom:8}}><Icon n="ordenes" size={40} color="currentColor"/></div><p>No hay órdenes con estos filtros.</p></div>
       )}
 
-      {/* ── KANBAN VIEW ── */}
+      {/* ── KANBAN VIEW with Drag & Drop ── */}
       {viewMode==="kanban"&&visible.length>0&&(
         <div className="kanban-wrap">
           {COLS.map(col=>{
             const colTasks=visible.filter(t=>t.status===col.s);
             if(colTasks.length===0&&col.s!=="en_progreso"&&col.s!=="pendiente")return null;
+            const isOver=dragOverCol===col.s;
             return(
-              <div key={col.s} className="kanban-col">
+              <div key={col.s} className={`kanban-col${isOver?" drag-over":""}`}
+                onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setDragOverCol(col.s);}}
+                onDragEnter={e=>{e.preventDefault();setDragOverCol(col.s);}}
+                onDragLeave={e=>{
+                  // Only clear if leaving the column entirely
+                  if(!e.currentTarget.contains(e.relatedTarget))setDragOverCol(null);
+                }}
+                onDrop={e=>{e.preventDefault();handleDrop(col.s);}}>
                 <div className="kanban-col-head">
                   <div style={{width:8,height:8,borderRadius:"50%",background:col.color,flexShrink:0}}/>
                   <span style={{fontSize:12,fontWeight:700,flex:1}}>{col.label}</span>
@@ -3320,9 +3752,19 @@ function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter}
                 </div>
                 <div className="kanban-col-body">
                   {colTasks.length===0
-                    ?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"16px 8px",opacity:.5}}>Sin tareas</p>
+                    ?<div style={{border:"2px dashed var(--border)",borderRadius:8,padding:"20px 12px",textAlign:"center",margin:"4px 0",transition:".2s",borderColor:isOver?"var(--accent)":"var(--border)"}}>
+                       <p style={{fontSize:11,color:isOver?"var(--accent)":"var(--muted)",opacity:isOver?1:.5,transition:".2s"}}>
+                         {isOver?"Soltar aquí":"Sin tareas"}
+                       </p>
+                     </div>
                     :colTasks.map(t=><KanbanCard key={t.id} t={t}/>)
                   }
+                  {/* Drop target at bottom of populated columns */}
+                  {colTasks.length>0&&isOver&&(
+                    <div style={{height:36,border:"2px dashed var(--accent)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",margin:"4px 0"}}>
+                      <span style={{fontSize:11,color:"var(--accent)"}}>Soltar aquí</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -3580,6 +4022,77 @@ function Dashboard({session,onLogout,isDark,toggleTheme}){
 
   useEffect(()=>{load();},[load]);
 
+  // ── REALTIME — live updates from Supabase ──
+  useEffect(()=>{
+    const _debounceTimers={};
+    function debouncedLoad(table){
+      clearTimeout(_debounceTimers[table]);
+      _debounceTimers[table]=setTimeout(()=>load(),800);
+    }
+
+    function handleTareaChange(ev){
+      const tipo=ev.type;
+      const rec=ev.record||ev.new||{};
+      const old=ev.old_record||ev.old||{};
+
+      // Push notification: mention in comment (@username)
+      if((tipo==="INSERT"||tipo==="UPDATE")&&rec.comments){
+        const prevComments=old.comments||[];
+        const newComments=Array.isArray(rec.comments)?rec.comments:[];
+        const added=newComments.slice(prevComments.length);
+        added.forEach(c=>{
+          if(c&&c.text&&c.user_id!==user.id&&c.text.toLowerCase().includes("@"+user.name.split(" ")[0].toLowerCase())){
+            const author=c.user_id;
+            showToast("💬 Te mencionaron en: "+rec.title,"info");
+            PushNotif.send("La Cata — Mención en comentario","En: "+rec.title,()=>{window._openTask&&window._openTask(rec);});
+          }
+        });
+      }
+
+      // Push notification: assigned to a task
+      if(tipo==="INSERT"||tipo==="UPDATE"){
+        const assigned=Array.isArray(rec.assigned_to)?rec.assigned_to:[rec.assigned_to].filter(Boolean);
+        const wasAssigned=Array.isArray(old.assigned_to)?old.assigned_to:[old.assigned_to].filter(Boolean);
+        if(assigned.includes(user.id)&&!wasAssigned.includes(user.id)){
+          showToast("📋 Te asignaron: "+rec.title,"info");
+          PushNotif.send("La Cata — Nueva tarea asignada",rec.title,()=>{window._openTask&&window._openTask(rec);});
+        }
+        // Status changed to vencida for my task
+        if(rec.status==="vencida"&&old.status!=="vencida"&&assigned.includes(user.id)){
+          showToast("⚠️ Tarea vencida: "+rec.title,"error");
+          PushNotif.send("La Cata — Tarea vencida",rec.title,()=>{window._openTask&&window._openTask(rec);});
+        }
+      }
+
+      debouncedLoad("tareas");
+    }
+
+    const unsubTareas=Realtime.subscribe("tareas",handleTareaChange);
+    const unsubUsuarios=Realtime.subscribe("usuarios",()=>debouncedLoad("usuarios"));
+    const unsubEquipos=Realtime.subscribe("equipos",()=>debouncedLoad("equipos"));
+
+    return()=>{
+      unsubTareas();unsubUsuarios();unsubEquipos();
+      Object.values(_debounceTimers).forEach(clearTimeout);
+    };
+  },[user.id,user.name,load]);
+
+  // ── OVERDUE CHECK — notify once per session about overdue tasks ──
+  useEffect(()=>{
+    if(!tasks.length)return;
+    const myOverdue=tasks.filter(t=>{
+      const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
+      return t.status==="vencida"&&a.includes(user.id);
+    });
+    if(myOverdue.length>0&&!sessionStorage.getItem("lc_notif_overdue_"+user.id)){
+      sessionStorage.setItem("lc_notif_overdue_"+user.id,"1");
+      PushNotif.send(
+        "La Cata — "+myOverdue.length+" tarea"+(myOverdue.length>1?"s vencidas":" vencida"),
+        myOverdue.map(t=>t.title).slice(0,3).join(", ")+(myOverdue.length>3?"...":"")
+      );
+    }
+  },[tasks.length>0,user.id]);
+
   const myT=isDir?tasks:tasks.filter(t=>t.assigned_to===user.id);
   const active=myT.filter(t=>t.status!=="completada");
   const done=myT.filter(t=>t.status==="completada");
@@ -3750,6 +4263,7 @@ function Dashboard({session,onLogout,isDark,toggleTheme}){
                 </>
               )}
               {tab==="crear"    &&(isDir||user.role==="cuentas")&&<CreateTask users={users} teams={teams} tasks={tasks} me={user} token={token} onCreated={async()=>{await load();setTab("ordenes");}} onBack={()=>setTab("home")}/>}
+              {tab==="calendario"&&(isDir||user.role==="cuentas")&&<OrdenesView tasks={tasks} users={users} teams={teams} me={user} token={token} onRefresh={load} onBack={()=>setTab("home")} initialFilter="todas" initialView="calendario"/>}
               {tab==="equipos"  &&(isDir||user.role==="cuentas")&&<TeamsView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}} onOpenTask={t=>{setTab("ordenes");setTimeout(()=>window._openTask&&window._openTask(t),50);}}/>}
               {tab==="desempeno"&&isDir&&<PerformanceView tasks={tasks} users={users} teams={teams} onBack={()=>setTab("home")}/>}
               {tab==="admin"    &&isDir&&<AdminView users={users} teams={teams} tasks={tasks} token={token} onRefresh={load} setUsers={setUsers} onBack={()=>setTab("home")} onViewUser={u=>{setTab("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(u),50);}}/>}
@@ -3839,9 +4353,11 @@ function Login({onLogin}){
     if(!email||!pw){setErr("Completa correo y contraseña.");return;}
     setLoading(true);setErr("");
     try{
-      const {profile,access_token}=await sb.signIn(email,pw);
+      const {profile,access_token,refresh_token}=await sb.signIn(email,pw);
       const session={user:profile,token:access_token};
-      LS.set("lc_session",session);onLogin(session);
+      LS.set("lc_session",session);
+      if(refresh_token)LS.set("lc_refresh_token",refresh_token);
+      onLogin(session);
     }catch(e){setErr(e.message);}
     setLoading(false);
   }
@@ -3955,6 +4471,31 @@ function App(){
   },[isDark]);
   function toggleTheme(){setIsDark(d=>!d);}
 
+  // ── SESSION REFRESH — auto-renews token ──
+  function handleTokenUpdate(newToken){
+    const updated={...session,token:newToken};
+    LS.set("lc_session",updated);
+    setSession(updated);
+  }
+  function handleLogout(){
+    Realtime.disconnect();
+    LS.del("lc_session");
+    LS.del("lc_refresh_token");
+    setSession(null);
+  }
+  useSessionRefresh(session,handleLogout,handleTokenUpdate);
+
+  // ── REALTIME — connect/disconnect with session ──
+  useEffect(()=>{
+    if(session&&session.token){
+      Realtime.connect(session.token);
+      PushNotif.requestPermission();
+    } else {
+      Realtime.disconnect();
+    }
+    return()=>{if(!session)Realtime.disconnect();};
+  },[session&&session.token]);
+
   // Detect invite/recovery link
   const hash=window.location.hash;
   const params=new URLSearchParams(hash.replace("#",""));
@@ -3966,8 +4507,8 @@ function App(){
 
   return(
     <><Toast/>{session
-      ?<Dashboard session={session} isDark={isDark} toggleTheme={toggleTheme} onLogout={()=>{LS.del("lc_session");setSession(null);}}/>
-      :<Login onLogin={s=>setSession(s)}/>
+      ?<Dashboard session={session} isDark={isDark} toggleTheme={toggleTheme} onLogout={handleLogout}/>
+      :<Login onLogin={s=>{setSession(s);}}/>
     }</>
   );
 }
