@@ -60,7 +60,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       <aside className={`sidebar${sidebarOpen?" open":""}`}>
         <div className="sidebar-inner">
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24,paddingBottom:16,borderBottom:"1px solid var(--border)"}}>
-            <div className="logo-mark" style={{background:"#e8c547"}}><span style={{fontSize:16,fontWeight:900,color:"#0d0d0d",fontFamily:"var(--font-display)"}}>C</span></div>
+            <div className="logo-mark" style={{background:"#0d0d0d",padding:2}}><img src="/logo.png" alt="La Cata" style={{width:"100%",height:"100%",objectFit:"contain",borderRadius:6}}/></div>
             <div><div style={{fontWeight:800,fontSize:15,fontFamily:"var(--font-display)",letterSpacing:"-.02em"}}>La Cata</div><div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".08em"}}>Creative Ops</div></div>
           </div>
           <button onClick={()=>setSpotlight(true)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 10px",color:"var(--muted)",fontSize:12,cursor:"pointer",marginBottom:16,fontFamily:"var(--font-body)",transition:".13s"}}>
