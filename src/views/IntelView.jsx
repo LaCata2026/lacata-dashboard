@@ -851,7 +851,6 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
   const myProfile=me||profile
   const isCuentas=myProfile?.role==="cuentas"
   const myTeamIds=isCuentas?(Array.isArray(myProfile?.team_ids)&&myProfile.team_ids.length>0?myProfile.team_ids:[myProfile?.team_id].filter(Boolean)):null
-  const myProfile=me||profile
   const visibleTasks=isCuentas&&myTeamIds
     ?tasks.filter(t=>myTeamIds.includes(t.team_id))
     :tasks
