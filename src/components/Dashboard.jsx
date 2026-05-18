@@ -62,6 +62,25 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     calendario:<CalendarView {...shared}/>,
     desempeno:<PerformanceView {...shared}/>,
     admin:<AdminView {...shared}/>,
+    perfil:(
+      <div style={{padding:20}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24,padding:16,background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
+          <div className="avatar" style={{width:48,height:48,background:profile.avatar_color||"#7c3aed",fontSize:16,color:"#fff"}}>{profile.initials||"?"}</div>
+          <div><p style={{fontSize:16,fontWeight:700}}>{profile.name}</p><p style={{fontSize:12,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</p></div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <button onClick={toggleTheme} className="btn btn-ghost" style={{justifyContent:"flex-start",gap:10}}>
+            {isDark?"Modo claro":"Modo oscuro"}
+          </button>
+          <button onClick={()=>navigate("admin")} className="btn btn-ghost" style={{justifyContent:"flex-start",gap:10}}>
+            Administracion
+          </button>
+          <button onClick={onLogout} className="btn btn-danger" style={{justifyContent:"flex-start",gap:10,marginTop:8}}>
+            Cerrar sesion
+          </button>
+        </div>
+      </div>
+    ),
   }
   return(
     <div className="app-shell">
