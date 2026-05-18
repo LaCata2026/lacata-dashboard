@@ -123,7 +123,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
     calendario:<CalendarView {...shared}/>,
 
-    desempeno:<IntelView {...shared} me={profile} profile={profile}/>,
+    desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load}/>,
 
     admin:<AdminView {...shared}/>,
 
@@ -217,7 +217,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
             {teams.length>0&&(<div><div className="nav-section">Equipos</div>
 
-              {visibleTeams.map(t=>(<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)"}}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</div>))}
+              {visibleTeams.map(t=>(<button key={t.id} onClick={()=>navigate("equipos")} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)",background:"transparent",border:"none",cursor:"pointer",width:"100%",borderRadius:6,transition:".13s",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</button>))}
 
             </div>)}
 
