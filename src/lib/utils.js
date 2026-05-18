@@ -25,11 +25,10 @@ export const fmtDateRelative=d=>{
   if(diff<=7)return{label:`${diff} días`,color:"var(--muted2)",urgent:false}
   return{label:fmtDate(d),color:"var(--muted)",urgent:false}
 }
-const _sessionFilters={}
 export function useSessionFilters(key,defaults){
-  const stored=_sessionFilters[key]||defaults
+  const stored=(()=>{try{const v=sessionStorage.getItem("sf_"+key);return v?JSON.parse(v):defaults}catch{return defaults}})()
   const[state,setState]=useState(stored)
-  function set(val){_sessionFilters[key]=val;setState(val)}
+  function set(val){try{sessionStorage.setItem("sf_"+key,JSON.stringify(val))}catch{};setState(val)}
   return[state,set]
 }
 
