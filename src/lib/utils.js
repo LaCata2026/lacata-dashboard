@@ -10,6 +10,7 @@ export const NAV=[
   {id:"equipos",icon:"equipos",label:"Equipos",section:"trabajo",roles:["director","cuentas"]},
   {id:"calendario",icon:"calendario",label:"Calendario",section:"trabajo",roles:["director","cuentas"]},
   {id:"desempeno",icon:"desempeno",label:"Desempeño",section:"trabajo",roles:["director"]},
+  {id:"reportes",icon:"desempeno",label:"Reportes",section:"trabajo",roles:["director","cuentas"]},
   {id:"admin",icon:"admin",label:"Administración",section:"admin",roles:["director"]},
 ]
 export const fmtDate=d=>{if(!d)return"—";const[y,m,dd]=d.split("-");return`${dd}/${m}/${y}`}
