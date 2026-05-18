@@ -1,4 +1,5 @@
 import{useState,useEffect,useRef,useCallback}from'react'
+import * as XLSX from'xlsx'
 import ReactDOM from'react-dom'
 import{sb,teamColor,COLLAB_COLORS,COLORS,MARCAS_PREDEFINIDAS,getInitials,autoColor}from'../lib/supabase'
 import{showToast}from'../components/Toast'
@@ -32,7 +33,7 @@ export function exportExcel(tasks,users,teams){
     });
   }
 
-  if(typeof XLSX==="undefined"){
+  if(!XLSX){
     // Fallback to CSV if SheetJS not loaded
     const header=["No. Orden","Proyecto","Responsable","Marca","Horas Est.","Horas Reales"];
     const lines=[header.join(",")];
