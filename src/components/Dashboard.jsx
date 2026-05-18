@@ -1,5 +1,6 @@
 import{useState,useEffect,useCallback}from'react'
 import{sb}from'../lib/supabase'
+import{autoMarkVencidas}from'../lib/utils'
 import{Realtime}from'../lib/realtime'
 import{NAV}from'../lib/utils'
 import Icon from'./Icon'
@@ -29,7 +30,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
         sb.get("equipos","select=*&order=name.asc",token),
       ])
       if(!Array.isArray(t)||t[0]?.code==="PGRST301")throw new Error("SESSION_EXPIRED")
-      setTasks(t);setUsers(u);setTeams(tm)
+      setTasks(t);setUsers(u);setTeams(tm);
+      await autoMarkVencidas(t,token,sb);
     }catch(e){if(e.message==="SESSION_EXPIRED")onLogout()}
     finally{setLoading(false)}
   },[token])

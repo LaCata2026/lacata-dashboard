@@ -32,3 +32,21 @@ export function useSessionFilters(key,defaults){
   function set(val){_sessionFilters[key]=val;setState(val)}
   return[state,set]
 }
+
+export async function autoMarkVencidas(tasks, token, sb) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const toMark = tasks.filter(t =>
+    t.due_date &&
+    t.status !== "completada" &&
+    t.status !== "vencida" &&
+    new Date(t.due_date + "T00:00:00") < today
+  );
+  if (toMark.length === 0) return false;
+  await Promise.all(toMark.map(t =>
+    sb.update("tareas", t.id, {
+      status: "vencida",
+      history: [...(t.history||[]), `⚠️ Marcada como vencida automáticamente — ${new Date().toLocaleString("es-GT")}`]
+    }, token)
+  ));
+  return true;
+}
