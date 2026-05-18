@@ -1,6 +1,5 @@
 import{useState,useEffect,useCallback}from'react'
 import{sb}from'../lib/supabase'
-import{autoMarkVencidas}from'../lib/utils'
 import{Realtime}from'../lib/realtime'
 import{NAV}from'../lib/utils'
 import{useNotifications}from'../lib/notifications'
@@ -18,9 +17,14 @@ import AdminView from'../views/AdminView'
 
 export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const{profile,token}=session
-  const[page,setPage]=useState("home");const[pageArg,setPageArg]=useState(null)
-  const[tasks,setTasks]=useState([]);const[users,setUsers]=useState([]);const[teams,setTeams]=useState([])
-  const[loading,setLoading]=useState(true);const[sidebarOpen,setSidebarOpen]=useState(false);const[spotlight,setSpotlight]=useState(false)
+  const[page,setPage]=useState("home")
+  const[pageArg,setPageArg]=useState(null)
+  const[tasks,setTasks]=useState([])
+  const[users,setUsers]=useState([])
+  const[teams,setTeams]=useState([])
+  const[loading,setLoading]=useState(true)
+  const[sidebarOpen,setSidebarOpen]=useState(false)
+  const[spotlight,setSpotlight]=useState(false)
   const[floatTask,setFloatTask]=useState(null)
   const[showNotif,setShowNotif]=useState(false)
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
@@ -33,8 +37,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
         sb.get("equipos","select=*&order=name.asc",token),
       ])
       if(!Array.isArray(t)||t[0]?.code==="PGRST301")throw new Error("SESSION_EXPIRED")
-      setTasks(t);setUsers(u);setTeams(tm);
-      await autoMarkVencidas(t,token,sb);
+      setTasks(t);setUsers(u);setTeams(tm)
     }catch(e){if(e.message==="SESSION_EXPIRED")onLogout()}
     finally{setLoading(false)}
   },[token])
@@ -70,7 +73,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
           </div>
           <button onClick={()=>setSpotlight(true)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 10px",color:"var(--muted)",fontSize:12,cursor:"pointer",marginBottom:16,fontFamily:"var(--font-body)",transition:".13s"}}>
             <Icon n="buscar" size={13}/><span style={{flex:1,textAlign:"left"}}>Buscar...</span>
-            <span style={{fontSize:10,fontFamily:"var(--font-mono)",background:"var(--bg4)",padding:"2px 5px",borderRadius:4}}>⌘K</span>
+            <span style={{fontSize:10,fontFamily:"var(--font-mono)",background:"var(--bg4)",padding:"2px 5px",borderRadius:4}}>K</span>
           </button>
           <nav>
             {["trabajo","admin"].map(section=>{
@@ -86,39 +89,57 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
           <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:8}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",marginBottom:8}}>
               <Av u={profile} size={28}/>
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div><div style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</div></div>
-              <button onClick={toggleTheme} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}}><Icon n={isDark?"sol":"luna"} size={15}/></button>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div>
+                <div style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</div>
+              </div>
+              <button onClick={toggleTheme} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}}>
+                <Icon n={isDark?"sol":"luna"} size={15}/>
+              </button>
               <div style={{position:"relative"}}>
                 <button onClick={()=>setShowNotif(s=>!s)} style={{background:"none",border:"none",cursor:"pointer",color:unread.length>0?"var(--accent)":"var(--muted2)",padding:4,borderRadius:6,position:"relative"}}>
                   <Icon n="comentar" size={15}/>
                   {unread.length>0&&<span style={{position:"absolute",top:-2,right:-2,background:"var(--s-vencida)",color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:14,height:14,display:"flex",alignItems:"center",justifyContent:"center"}}>{unread.length}</span>}
                 </button>
-                {showNotif&&<div style={{position:"absolute",bottom:"100%",right:0,marginBottom:8,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:10,padding:8,minWidth:280,boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:300}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingBottom:8,borderBottom:"1px solid var(--border)}}>
-                    <span style={{fontSize:12,fontWeight:700}}>Menciones</span>
-                    {unread.length>0&&<button onClick={markAllSeen} style={{fontSize:11,background:"none",border:"none",cursor:"pointer",color:"var(--muted)"}}>Marcar leídas</button>}
-                  </div>
-                  {unread.length===0?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"12px 0"}}>Sin menciones nuevas</p>:unread.slice(0,5).map(n=>(
-                    <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);window._openTask&&window._openTask(n.task)}} style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <span style={{fontSize:16,flexShrink:0}}>💬</span>
-                      <div style={{minWidth:0}}><p style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.task.title}</p><p style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.comment.user_name}: {n.comment.text.slice(0,50)}</p></div>
+                {showNotif&&(
+                  <div style={{position:"absolute",bottom:"100%",right:0,marginBottom:8,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:10,padding:8,minWidth:280,boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:300}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingBottom:8,borderBottom:"1px solid var(--border)"}}>
+                      <span style={{fontSize:12,fontWeight:700}}>Menciones</span>
+                      {unread.length>0&&<button onClick={markAllSeen} style={{fontSize:11,background:"none",border:"none",cursor:"pointer",color:"var(--muted)"}}>Marcar leidas</button>}
                     </div>
-                  ))}
-                </div>}
+                    {unread.length===0
+                      ?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"12px 0"}}>Sin menciones nuevas</p>
+                      :unread.slice(0,5).map(n=>(
+                        <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);window._openTask&&window._openTask(n.task)}}
+                          style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer",transition:".13s"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{fontSize:16,flexShrink:0}}>&#x1F4AC;</span>
+                          <div style={{minWidth:0}}>
+                            <p style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.task.title}</p>
+                            <p style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.comment.user_name}: {n.comment.text.slice(0,50)}</p>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
               </div>
             </div>
-            <button className="btn btn-ghost btn-sm" style={{width:"100%",fontSize:11}} onClick={onLogout}>Cerrar sesión</button>
+            <button className="btn btn-ghost btn-sm" style={{width:"100%",fontSize:11}} onClick={onLogout}>Cerrar sesion</button>
           </div>
         </div>
       </aside>
-
       <main className="main-content">
         <div className="mobile-topbar">
-          <button className="hamburger" onClick={()=>setSidebarOpen(true)}>☰</button>
+          <button className="hamburger" onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text)",fontSize:20,padding:6,lineHeight:1}}>&#9776;</button>
           <div style={{fontWeight:800,fontSize:15,fontFamily:"var(--font-display)"}}>La Cata</div>
         </div>
         <div className="page-content">
-          {loading?<div style={{padding:40,textAlign:"center",color:"var(--muted)"}}><div className="skeleton skeleton-title" style={{width:200,margin:"0 auto 12px"}}/><div className="skeleton skeleton-text" style={{width:300,margin:"0 auto"}}/></div>:(views[page]||views.home)}
+          {loading
+            ?<div style={{padding:40,textAlign:"center",color:"var(--muted)"}}><div className="skeleton skeleton-title" style={{width:200,margin:"0 auto 12px"}}/><div className="skeleton skeleton-text" style={{width:300,margin:"0 auto"}}/></div>
+            :(views[page]||views.home)
+          }
         </div>
       </main>
       {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)}/>}
