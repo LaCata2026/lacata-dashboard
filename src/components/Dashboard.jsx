@@ -111,9 +111,9 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
             </div>)}
           </nav>
           <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",marginBottom:8,overflow:"visible"}}>
               <Av u={profile} size={28}/>
-              <div style={{flex:1,minWidth:0}}>
+              <div style={{flex:1,minWidth:0,overflow:"visible"}}>
                 <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div>
                 <div style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</div>
               </div>
