@@ -120,7 +120,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
               <button onClick={toggleTheme} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}}>
                 <Icon n={isDark?"sol":"luna"} size={15}/>
               </button>
-              <div style={{position:"relative"}}>
+              <div style={{position:"relative",flexShrink:0}}>
                 <button onClick={()=>setShowNotif(s=>!s)} style={{background:"none",border:"none",cursor:"pointer",color:unread.length>0?"var(--accent)":"var(--muted2)",padding:4,borderRadius:6,position:"relative"}}>
                   <Icon n="comentar" size={15}/>
                   {unread.length>0&&<span style={{position:"absolute",top:-2,right:-2,background:"var(--s-vencida)",color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:14,height:14,display:"flex",alignItems:"center",justifyContent:"center"}}>{unread.length}</span>}
