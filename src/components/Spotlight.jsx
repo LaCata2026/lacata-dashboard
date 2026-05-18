@@ -6,8 +6,12 @@ export default function Spotlight({tasks,users,teams,onNavigate,onClose}){
   const[q,setQ]=useState("");const[sel,setSel]=useState(0);const inputRef=useRef(null)
   useEffect(()=>{inputRef.current?.focus()},[])
   const results=q.trim().length===0?[]:tasks.filter(t=>{
-    const s=q.toLowerCase();const order="ac-"+String(t.order_number||0).padStart(4,"0")
-    return t.title?.toLowerCase().includes(s)||order.includes(s)||(t.marca||"").toLowerCase().includes(s)
+    const s=q.toLowerCase()
+    const order="ac-"+String(t.order_number||0).padStart(4,"0")
+    const assigned=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
+    const assignedNames=assigned.map(id=>users.find(u=>u.id===id)?.name||"").join(" ").toLowerCase()
+    const team=teams.find(x=>x.id===t.team_id)
+    return t.title?.toLowerCase().includes(s)||order.includes(s)||(t.marca||"").toLowerCase().includes(s)||assignedNames.includes(s)||(team?.name||"").toLowerCase().includes(s)||(t.description||"").toLowerCase().includes(s)
   }).slice(0,8).map(t=>{
     const team=teams.find(x=>x.id===t.team_id)
     const assigned=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
@@ -41,7 +45,7 @@ export default function Spotlight({tasks,users,teams,onNavigate,onClose}){
           </div>
         )}
         {q.trim()&&results.length===0&&<div style={{padding:"20px",textAlign:"center",color:"var(--muted)",fontSize:13}}>Sin resultados para "{q}"</div>}
-        {!q.trim()&&(<div style={{padding:"12px 16px",display:"flex",gap:16}}>{[{icon:"ordenes",label:"Busca por nombre"},{icon:"buscar",label:"AC-0001"},{icon:"marca",label:"Busca por marca"}].map((h,i)=>(<span key={i} style={{fontSize:11,color:"var(--muted)",display:"flex",alignItems:"center",gap:5}}><Icon n={h.icon} size={13} style={{marginRight:2}}/>{h.label}</span>))}</div>)}
+        {!q.trim()&&(<div style={{padding:"12px 16px",display:"flex",gap:16}}>{[{icon:"ordenes",label:"Nombre o descripcion"},{icon:"buscar",label:"AC-0001"},{icon:"marca",label:"Marca o equipo"},{icon:"persona",label:"Responsable"}].map((h,i)=>(<span key={i} style={{fontSize:11,color:"var(--muted)",display:"flex",alignItems:"center",gap:5}}><Icon n={h.icon} size={13} style={{marginRight:2}}/>{h.label}</span>))}</div>)}
       </div>
     </div>,document.body
   )
