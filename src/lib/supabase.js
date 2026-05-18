@@ -41,6 +41,9 @@ export const sb={
     let profile
     if(Array.isArray(profileData)&&profileData.length>0){
       profile=profileData[0]
+      // Normalize team_ids — jsonb can come as string or array
+      if(typeof profile.team_ids==="string"){try{profile.team_ids=JSON.parse(profile.team_ids)}catch{profile.team_ids=[]}}
+      if(!Array.isArray(profile.team_ids))profile.team_ids=[]
     }else{
       profile={id,email:uemail,name,role:getRole(uemail),avatar_color:getAvatarColor(uemail),initials:getInitials(name)}
     }
