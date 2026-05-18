@@ -70,11 +70,15 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           <button onClick={toggleTheme} className="btn btn-ghost" style={{justifyContent:"flex-start",gap:10}}>
-            {isDark?"Modo claro":"Modo oscuro"}
+            {isDark?"&#9728; Modo claro":"&#9790; Modo oscuro"}
           </button>
-          <button onClick={()=>navigate("admin")} className="btn btn-ghost" style={{justifyContent:"flex-start",gap:10}}>
-            Administracion
+          <button onClick={()=>setShowNotif(s=>!s)} className="btn btn-ghost" style={{justifyContent:"flex-start",gap:10,position:"relative"}}>
+            &#x1F4AC; Menciones
+            {unread.length>0&&<span style={{marginLeft:"auto",background:"var(--s-vencida)",color:"#fff",fontSize:10,fontWeight:700,borderRadius:10,padding:"1px 7px"}}>{unread.length}</span>}
           </button>
+          {(profile.role==="director"||profile.role==="cuentas")&&<button onClick={()=>navigate("admin")} className="btn btn-ghost" style={{justifyContent:"flex-start",gap:10}}>
+            &#9881; Administracion
+          </button>}
           <button onClick={onLogout} className="btn btn-danger" style={{justifyContent:"flex-start",gap:10,marginTop:8}}>
             Cerrar sesion
           </button>
