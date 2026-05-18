@@ -65,7 +65,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   }
   return(
     <div className="app-shell">
-      <style>{`@media(max-width:768px){.sidebar{display:none!important}.main-content{margin-left:0!important;padding-bottom:70px!important}.page-content{padding:14px!important}}`}</style>
       <div className={`mobile-overlay${sidebarOpen?" open":""}`} onClick={()=>setSidebarOpen(false)}/>
       <aside className={`sidebar${sidebarOpen?" open":""}`}>
         <div className="sidebar-inner">
