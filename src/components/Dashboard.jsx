@@ -105,6 +105,9 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   function navigate(id,arg=null){setPage(id);setPageArg(arg);setSidebarOpen(false)}
 
   const navItems=NAV.filter(n=>n.roles.includes(profile.role))
+  const isCuentas=profile.role==="cuentas"
+  const myTeamIds=isCuentas?(Array.isArray(profile.team_ids)&&profile.team_ids.length>0?profile.team_ids:[profile.team_id].filter(Boolean)):null
+  const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
 
   const shared={tasks,users,teams,token,profile,me:profile,onReload:load,onRefresh:load,onNavigate:navigate}
 
@@ -116,11 +119,11 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
     crear:<CreateTask {...shared} onCreated={()=>navigate("ordenes")} onBack={()=>navigate("ordenes")}/>,
 
-    equipos:<TeamsView {...shared}/>,
+    equipos:<TeamsView {...shared} teams={visibleTeams}/>,
 
     calendario:<CalendarView {...shared}/>,
 
-    desempeno:<IntelView {...shared}/>,
+    desempeno:<IntelView {...shared} me={profile} profile={profile}/>,
 
     admin:<AdminView {...shared}/>,
 
@@ -214,7 +217,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
             {teams.length>0&&(<div><div className="nav-section">Equipos</div>
 
-              {teams.map(t=>(<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)"}}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</div>))}
+              {visibleTeams.map(t=>(<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)"}}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</div>))}
 
             </div>)}
 
