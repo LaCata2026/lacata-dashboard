@@ -159,6 +159,9 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   })();
 
   async function changeStatus(s){
+    // Visual feedback before saving
+    const btn=document.querySelector(`[data-status="${s}"]`)
+    if(btn){btn.style.transform="scale(0.95)";setTimeout(()=>{btn.style.transform=""},200)}
     const now=new Date();const nowStr=now.toLocaleString("es-GT");const prev=task.status;
     let newHoursReal=Number(task.hours_real)||0;let entry="";
     if(prev==="en_progreso"&&task.started_at&&(s==="en_pausa"||s==="en_revision"||s==="completada")){
@@ -357,7 +360,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
                   {v:"completada", icon:"completada",label:"Completada", c:"var(--s-completada)",bg:"var(--s-completada-bg)"},
                   ...((isDir||me.role==="cuentas")?[{v:"vencida",icon:"vencida",label:"Vencida",c:"var(--s-vencida)",bg:"var(--s-vencida-bg)"}]:[])
                 ].map(s=>(
-                  <button key={s.v} onClick={()=>changeStatus(s.v)}
+                  <button key={s.v} data-status={s.v} onClick={()=>changeStatus(s.v)}
                     style={{padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",fontFamily:"inherit",transition:".13s",
                       border:task.status===s.v?`2px solid ${s.c}`:"1px solid var(--border)",
                       background:task.status===s.v?s.bg:"transparent",
