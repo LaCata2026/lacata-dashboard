@@ -3,6 +3,7 @@ import{sb}from'../lib/supabase'
 import{autoMarkVencidas}from'../lib/utils'
 import{Realtime}from'../lib/realtime'
 import{NAV}from'../lib/utils'
+import{useNotifications}from'../lib/notifications'
 import Icon from'./Icon'
 import{Av}from'./Shared'
 import Spotlight from'./Spotlight'
@@ -21,6 +22,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const[tasks,setTasks]=useState([]);const[users,setUsers]=useState([]);const[teams,setTeams]=useState([])
   const[loading,setLoading]=useState(true);const[sidebarOpen,setSidebarOpen]=useState(false);const[spotlight,setSpotlight]=useState(false)
   const[floatTask,setFloatTask]=useState(null)
+  const[showNotif,setShowNotif]=useState(false)
+  const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
   window._openTask=(t)=>setFloatTask(t)
   const load=useCallback(async()=>{
     try{
@@ -84,7 +87,33 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",marginBottom:8}}>
               <Av u={profile} size={28}/>
               <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div><div style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</div></div>
-              <button onClick={toggleTheme} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}}><Icon n={isDark?"sol":"luna"} size={15}/></button>
+              <div style={{position:"relative"}}>
+              <button onClick={()=>setShowNotif(s=>!s)} style={{background:"none",border:"none",cursor:"pointer",color:unread.length>0?"var(--accent)":"var(--muted2)",padding:4,borderRadius:6,position:"relative"}}>
+                <Icon n="comentar" size={15}/>
+                {unread.length>0&&<span style={{position:"absolute",top:-2,right:-2,background:"var(--s-vencida)",color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:14,height:14,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--font-mono)"}}>{unread.length}</span>}
+              </button>
+              {showNotif&&(
+                <div style={{position:"absolute",bottom:"100%",right:0,marginBottom:8,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:10,padding:8,minWidth:280,maxWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:300}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingBottom:8,borderBottom:"1px solid var(--border)"}}>
+                    <span style={{fontSize:12,fontWeight:700}}>Menciones</span>
+                    {unread.length>0&&<button onClick={markAllSeen} style={{fontSize:11,background:"none",border:"none",cursor:"pointer",color:"var(--muted)"}}>Marcar todas leídas</button>}
+                  </div>
+                  {unread.length===0?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"12px 0"}}>Sin menciones nuevas</p>:
+                  unread.slice(0,5).map(n=>(
+                    <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);window._openTask&&window._openTask(n.task)}}
+                      style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer",transition:".13s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{fontSize:16,flexShrink:0}}>💬</span>
+                      <div style={{minWidth:0}}>
+                        <p style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.task.title}</p>
+                        <p style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.comment.user_name}: {n.comment.text.slice(0,50)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             </div>
             <button className="btn btn-ghost btn-sm" style={{width:"100%",fontSize:11}} onClick={onLogout}>Cerrar sesión</button>
           </div>
