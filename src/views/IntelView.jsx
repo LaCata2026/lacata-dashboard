@@ -102,10 +102,14 @@ function Chip({label,value,color,sub}){
 /* ═══════════════════════════════════════════
    TAB 1 — CARGA EN TIEMPO REAL
 ═══════════════════════════════════════════ */
-function TabCarga({tasks,users,teams}){
+function TabCarga({tasks,users,teams,myTeamIds,isCuentas}){
   const[viewMode,setViewMode]=useState("individual")
   const[selectedUser,setSelectedUser]=useState(null)
-  const colabs=users.filter(u=>u.role==="colaborador")
+  const colabs=users.filter(u=>{
+    if(u.role!=="colaborador")return false
+    if(!isCuentas||!myTeamIds)return true
+    return myTeamIds.includes(u.team_id)||(Array.isArray(u.team_ids)&&u.team_ids.some(id=>myTeamIds.includes(id)))
+  })
   const sorted=[...colabs].sort((a,b)=>{
     const at=tasks.filter(t=>assignedOf(t).includes(a.id)&&t.status!=="completada").length
     const bt=tasks.filter(t=>assignedOf(t).includes(b.id)&&t.status!=="completada").length
@@ -209,7 +213,7 @@ function TabCarga({tasks,users,teams}){
 
       {viewMode==="equipo"&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:12}}>
-          {teams.map(team=>{
+          {(isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams).map(team=>{
             const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador")
             const teamActive=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada").length
             const teamDone=tasks.filter(t=>t.team_id===team.id&&t.status==="completada").length
@@ -920,7 +924,7 @@ export default function IntelView({tasks,users,teams,onBack,me,profile}){
         ))}
       </div>
 
-      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams}/>}
+      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas}/>}
       {tab==="desempeno"&&<TabDesempeno tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="equipos"&&<TabEquipos tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="marcas"&&<TabMarcas tasks={visibleTasks} users={users} teams={teams} range={range}/>}
