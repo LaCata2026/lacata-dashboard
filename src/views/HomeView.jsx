@@ -29,7 +29,13 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
   // Global stats (for directors/cuentas)
   const allActive=tasks.filter(t=>t.status!=="completada");
   const forReview=tasks.filter(t=>t.status==="en_revision");
-  const overdue=tasks.filter(t=>t.status==="vencida");
+  const overdue=tasks.filter(t=>t.status==="vencida")
+  // Weekly trend — tasks completed in last 7 days vs previous 7
+  const now=Date.now()
+  const day7=7*24*3600000
+  const completedThisWeek=tasks.filter(t=>t.status==="completada"&&t.updated_at&&(now-new Date(t.updated_at).getTime())<day7).length
+  const completedLastWeek=tasks.filter(t=>t.status==="completada"&&t.updated_at&&(now-new Date(t.updated_at).getTime())<day7*2&&(now-new Date(t.updated_at).getTime())>=day7).length
+  const trend=completedLastWeek===0?null:Math.round(((completedThisWeek-completedLastWeek)/completedLastWeek)*100);
   const inProgress=tasks.filter(t=>t.status==="en_progreso");
   const onPause=tasks.filter(t=>t.status==="en_pausa");
 
@@ -347,6 +353,13 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
               <div className="stat-value" style={{color:"var(--s-completada)"}}>{tasks.filter(t=>t.status==="completada").length}</div>
               <div className="stat-sub">Este período →</div>
             </div>
+              <div className="stat-card fade-in" style={{"--ac":"var(--yellow)"}}>
+                <div className="stat-label">Tendencia semanal</div>
+                <div className="stat-value" style={{color:trend===null?"var(--muted)":trend>=0?"var(--green)":"var(--red)",fontSize:22}}>
+                  {trend===null?"—":`${trend>=0?"+":""}${trend}%`}
+                </div>
+                <div className="stat-sub">{completedThisWeek} esta semana{completedLastWeek>0?` vs ${completedLastWeek} anterior`:""}</div>
+              </div>
           </div>
 
           {/* MENTIONS — comentarios donde me mencionaron */}
