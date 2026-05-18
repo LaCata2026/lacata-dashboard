@@ -7,6 +7,9 @@ import Icon from'../components/Icon'
 import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
 import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
+
+const MAX_SIZE=50*1024*1024
+
 export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}){
   const blank={title:"",description:"",assigned_to:[],team_id:"",priority:"Normal",hours:"",due_date:"",status:"pendiente",materials:"",marca:""};
   const [form,setForm]=useState(blank);
@@ -15,6 +18,11 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
   const [showOtra,setShowOtra]=useState(false);
   const [errors,setErrors]=useState({});
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+
+  // Filter teams visible to cuentas
+  const isCuentas=me?.role==="cuentas"
+  const myTeamIds=isCuentas?(Array.isArray(me?.team_ids)&&me.team_ids.length>0?me.team_ids:[me?.team_id].filter(Boolean)):null
+  const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
 
   function validate(){
     const e={};
@@ -26,42 +34,36 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
     setErrors(e);
     return Object.keys(e).length===0;
   }
+
   async function submit(){
     if(!validate())return;
-    // Team assignment priority:
-    // 1. Manually selected team (form.team_id)
-    // 2. Active team filter (form._teamFilter if it's a real team, not "todos")
-    // 3. Primary team of first assigned user
     let finalTeamId=form.team_id;
-    if(!finalTeamId&&form._teamFilter&&form._teamFilter!=="todos"){
-      finalTeamId=form._teamFilter;
-    }
+    if(!finalTeamId&&form._teamFilter&&form._teamFilter!=="todos")finalTeamId=form._teamFilter;
     if(!finalTeamId&&form.assigned_to.length>0){
       const firstUser=users.find(u=>u.id===form.assigned_to[0]);
       finalTeamId=firstUser?.team_id||"";
     }
-    const formWithTeam={...form,team_id:finalTeamId};
     setLoading(true);
     try{
-      // Get next order number
       const existing=await sb.get("tareas","select=order_number&order=order_number.desc&limit=1",token);
       const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
       const orderNum=lastNum+1;
-      const {_teamFilter,...formData}=formWithTeam;
+      const{_teamFilter,...formData}={...form,team_id:finalTeamId};
 
-      // Upload files to storage
+      // Upload files — use sb.upload (correct method name)
       let fileData=[];
       for(const file of files){
         if(file.size>MAX_SIZE){showToast("Archivo muy grande (max 50MB): "+file.name,"error");continue;}
         try{
-          const uploaded=await sb.uploadFile(file,"task-"+orderNum);
-          fileData.push({name:file.name,url:uploaded.url,path:uploaded.path,uploaded_at:uploaded.uploaded_at});
+          const path=`task-${orderNum}/${Date.now()}-${file.name}`;
+          const url=await sb.upload("task-files",path,file,token);
+          fileData.push({name:file.name,url,path,uploaded_at:new Date().toISOString()});
         }catch(e){
           console.warn("File upload failed:",file.name,e);
+          showToast("No se pudo subir: "+file.name,"error");
         }
       }
 
-      // Build clean task object — ensure types match Supabase schema
       const taskData={
         title:       formData.title.trim(),
         description: formData.description.trim(),
@@ -72,8 +74,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
         hours:       Number(formData.hours)||0,
         due_date:    formData.due_date||null,
         team_id:     finalTeamId||null,
-        assigned_to: Array.isArray(formData.assigned_to)?formData.assigned_to:
-                     formData.assigned_to?[formData.assigned_to]:[],
+        assigned_to: Array.isArray(formData.assigned_to)?formData.assigned_to:formData.assigned_to?[formData.assigned_to]:[],
         order_number: orderNum,
         changes:     0,
         files:       fileData,
@@ -92,6 +93,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
     }
     setLoading(false);
   }
+
   return(
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
@@ -100,8 +102,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12}}>
           <div style={{gridColumn:"1/-1"}}>
             <label className="form-label">Nombre del proyecto *</label>
-            <input value={form.title} onChange={e=>{set("title")(e);if(errors.title)setErrors(v=>({...v,title:""}));}}
-              placeholder="Ej: Campaña verano Claro" className={errors.title?"field-error":""}/>
+            <input value={form.title} onChange={e=>{set("title")(e);if(errors.title)setErrors(v=>({...v,title:""}));}} placeholder="Ej: Campaña verano Claro" className={errors.title?"field-error":""}/>
             {errors.title&&<p className="field-hint">{errors.title}</p>}
           </div>
           <div><label className="form-label">Marca / Cliente *</label>
@@ -131,7 +132,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
           <div><label className="form-label">Equipo (manual)</label>
             <select value={form.team_id} onChange={e=>setForm(f=>({...f,team_id:e.target.value,_teamFilter:e.target.value||"todos"}))}>
               <option value="">Auto-detectar desde responsable</option>
-              {teams.map(t=><option key={t.id} value={t.id}>{<Icon n={t.icon||"equipos"} size={16}/>} {t.name}</option>)}
+              {visibleTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div style={{gridColumn:"1/-1"}}><label className="form-label">Brief y especificaciones *</label><textarea value={form.description} onChange={set("description")} placeholder="Entregables, formatos, dimensiones..."/></div>
@@ -139,7 +140,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
             <label className="form-label">Responsables *</label>
             <div style={{background:"var(--bg3)",borderRadius:12,border:"1px solid var(--border)",padding:14}}>
               <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-                {teams.map(t=>(
+                {visibleTeams.map(t=>(
                   <button key={t.id} type="button" onClick={()=>setForm(f=>({...f,_teamFilter:t.id,team_id:t.id}))}
                     style={{padding:"4px 12px",borderRadius:999,fontSize:12,cursor:"pointer",fontFamily:"inherit",background:form._teamFilter===t.id?teamColor(t):"var(--bg4)",color:form._teamFilter===t.id?"#fff":"var(--muted2)",border:"none"}}>
                     {t.name}
@@ -153,11 +154,12 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(72px,1fr))",gap:8}}>
                 {users.filter(u=>{
                   if(u.role!=="colaborador")return false;
-                  if(!form._teamFilter||form._teamFilter==="todos")return true;
-                  // Check both team_id (primary) AND team_ids[] (multi-team)
-                  const inPrimary=u.team_id===form._teamFilter;
-                  const inMulti=Array.isArray(u.team_ids)&&u.team_ids.includes(form._teamFilter);
-                  return inPrimary||inMulti;
+                  if(!form._teamFilter||form._teamFilter==="todos"){
+                    // cuentas: only show users from their teams
+                    if(isCuentas&&myTeamIds)return myTeamIds.includes(u.team_id)||(Array.isArray(u.team_ids)&&u.team_ids.some(id=>myTeamIds.includes(id)))
+                    return true;
+                  }
+                  return u.team_id===form._teamFilter||(Array.isArray(u.team_ids)&&u.team_ids.includes(form._teamFilter));
                 }).map(u=>{
                   const sel=(form.assigned_to||[]).includes(u.id);
                   const taskCount=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada";}).length;
@@ -177,14 +179,12 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
                     </button>
                   );
                 })}
-                {users.filter(u=>u.role==="colaborador").length===0&&<p style={{fontSize:13,color:"var(--muted)",gridColumn:"1/-1",textAlign:"center",padding:16}}>No hay colaboradores registrados aun.</p>}
               </div>
               {(form.assigned_to||[]).length>0&&(
                 <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{fontSize:11,color:"var(--muted)"}}>Seleccionados:</span>
                   {(form.assigned_to||[]).map(id=>{
-                    const u=users.find(x=>x.id===id);
-                    if(!u)return null;
+                    const u=users.find(x=>x.id===id);if(!u)return null;
                     return(
                       <span key={id} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:5,background:"var(--accent)",color:"#0d0d0d",fontSize:12,fontWeight:600}}>
                         {u.name.split(" ")[0]}
@@ -196,21 +196,18 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
               )}
               {(()=>{
                 if((form.assigned_to||[]).length===0)return null;
-                // Mirror the submit logic: manual > filter > user's primary team
                 let teamId=form.team_id;
                 if(!teamId&&form._teamFilter&&form._teamFilter!=="todos")teamId=form._teamFilter;
                 if(!teamId){const fu=users.find(u=>u.id===(form.assigned_to||[])[0]);teamId=fu?.team_id||"";}
                 const detectedTeam=teams.find(t=>t.id===teamId);
                 if(!detectedTeam)return null;
-                const isManual=!!form.team_id;
                 const tc=teamColor(detectedTeam);
                 return(
                   <div style={{marginTop:8,padding:"8px 12px",background:tc+"14",border:`1px solid ${tc}44`,borderRadius:7,display:"flex",alignItems:"center",gap:8}}>
                     <div style={{width:8,height:8,borderRadius:"50%",background:tc,flexShrink:0}}/>
                     <span style={{fontSize:12,color:"var(--muted2)"}}>
-                      {isManual?"Equipo seleccionado:":form._teamFilter&&form._teamFilter!=="todos"?"Equipo del filtro:":"Equipo auto-detectado:"} <strong style={{color:tc}}>{detectedTeam.name}</strong>
+                      {form.team_id?"Equipo seleccionado:":form._teamFilter&&form._teamFilter!=="todos"?"Equipo del filtro:":"Equipo auto-detectado:"} <strong style={{color:tc}}>{detectedTeam.name}</strong>
                     </span>
-                    {!isManual&&<span style={{fontSize:11,color:"var(--muted)",marginLeft:"auto"}}>{form._teamFilter&&form._teamFilter!=="todos"?"desde filtro activo":"desde responsable"}</span>}
                   </div>
                 );
               })()}
@@ -226,7 +223,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
           </div>
           <div style={{gridColumn:"1/-1"}}>
             <label className="form-label">Materiales necesarios</label>
-            <textarea value={form.materials||""} onChange={e=>setForm(f=>({...f,materials:e.target.value}))} placeholder="Lista de materiales, insumos o recursos necesarios para esta tarea..." style={{minHeight:70}}/>
+            <textarea value={form.materials||""} onChange={e=>setForm(f=>({...f,materials:e.target.value}))} placeholder="Lista de materiales, insumos o recursos necesarios..." style={{minHeight:70}}/>
           </div>
           <div style={{gridColumn:"1/-1"}}>
             <label className="form-label">Referencias / archivos</label>
@@ -243,5 +240,3 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
     </div>
   );
 }
-
-/* ── TEAMS ── */
