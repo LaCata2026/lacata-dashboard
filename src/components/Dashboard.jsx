@@ -1,0 +1,104 @@
+import{useState,useEffect,useCallback}from'react'
+import{sb}from'../lib/supabase'
+import{Realtime}from'../lib/realtime'
+import{NAV}from'../lib/utils'
+import Icon from'./Icon'
+import{Av}from'./Shared'
+import Spotlight from'./Spotlight'
+import TaskCard from'../views/TaskCard'
+import HomeView from'../views/HomeView'
+import OrdenesView from'../views/OrdenesView'
+import CreateTask from'../views/CreateTask'
+import TeamsView from'../views/TeamsView'
+import CalendarView from'../views/CalendarView'
+import PerformanceView from'../views/PerformanceView'
+import AdminView from'../views/AdminView'
+
+export default function Dashboard({session,isDark,toggleTheme,onLogout}){
+  const{profile,token}=session
+  const[page,setPage]=useState("home");const[pageArg,setPageArg]=useState(null)
+  const[tasks,setTasks]=useState([]);const[users,setUsers]=useState([]);const[teams,setTeams]=useState([])
+  const[loading,setLoading]=useState(true);const[sidebarOpen,setSidebarOpen]=useState(false);const[spotlight,setSpotlight]=useState(false)
+  const[floatTask,setFloatTask]=useState(null)
+  window._openTask=(t)=>setFloatTask(t)
+  const load=useCallback(async()=>{
+    try{
+      const[t,u,tm]=await Promise.all([
+        sb.get("tareas","select=*&order=created_at.desc",token),
+        sb.get("usuarios","select=*&order=name.asc",token),
+        sb.get("equipos","select=*&order=name.asc",token),
+      ])
+      if(!Array.isArray(t)||t[0]?.code==="PGRST301")throw new Error("SESSION_EXPIRED")
+      setTasks(t);setUsers(u);setTeams(tm)
+    }catch(e){if(e.message==="SESSION_EXPIRED")onLogout()}
+    finally{setLoading(false)}
+  },[token])
+  useEffect(()=>{load()},[load])
+  useEffect(()=>{
+    const unsubs=["tareas","usuarios","equipos"].map(table=>Realtime.subscribe(table,()=>load()))
+    return()=>unsubs.forEach(u=>u())
+  },[load])
+  useEffect(()=>{
+    function onKey(e){if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setSpotlight(s=>!s)};if(e.key==="Escape")setSpotlight(false)}
+    window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)
+  },[])
+  function navigate(id,arg=null){setPage(id);setPageArg(arg);setSidebarOpen(false)}
+  const navItems=NAV.filter(n=>n.roles.includes(profile.role))
+  const shared={tasks,users,teams,token,profile,me:profile,onReload:load,onRefresh:load,onNavigate:navigate}
+  const views={
+    home:<HomeView {...shared}/>,
+    ordenes:<OrdenesView {...shared} initialFilter={pageArg}/>,
+    crear:<CreateTask {...shared} onCreated={()=>navigate("ordenes")} onBack={()=>navigate("ordenes")}/>,
+    equipos:<TeamsView {...shared}/>,
+    calendario:<CalendarView {...shared}/>,
+    desempeno:<PerformanceView {...shared}/>,
+    admin:<AdminView {...shared}/>,
+  }
+  return(
+    <div className="app-shell">
+      <div className={`mobile-overlay${sidebarOpen?" open":""}`} onClick={()=>setSidebarOpen(false)}/>
+      <aside className={`sidebar${sidebarOpen?" open":""}`}>
+        <div className="sidebar-inner">
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24,paddingBottom:16,borderBottom:"1px solid var(--border)"}}>
+            <div className="logo-mark" style={{background:"#e8c547"}}><span style={{fontSize:16,fontWeight:900,color:"#0d0d0d",fontFamily:"var(--font-display)"}}>C</span></div>
+            <div><div style={{fontWeight:800,fontSize:15,fontFamily:"var(--font-display)",letterSpacing:"-.02em"}}>La Cata</div><div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".08em"}}>Creative Ops</div></div>
+          </div>
+          <button onClick={()=>setSpotlight(true)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 10px",color:"var(--muted)",fontSize:12,cursor:"pointer",marginBottom:16,fontFamily:"var(--font-body)",transition:".13s"}}>
+            <Icon n="buscar" size={13}/><span style={{flex:1,textAlign:"left"}}>Buscar...</span>
+            <span style={{fontSize:10,fontFamily:"var(--font-mono)",background:"var(--bg4)",padding:"2px 5px",borderRadius:4}}>⌘K</span>
+          </button>
+          <nav>
+            {["trabajo","admin"].map(section=>{
+              const items=navItems.filter(n=>n.section===section);if(!items.length)return null
+              return(<div key={section}>{section==="admin"&&<div className="nav-section">Admin</div>}
+                {items.map(n=>(<button key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>navigate(n.id)}><Icon n={n.icon} size={15}/>{n.label}</button>))}
+              </div>)
+            })}
+            {teams.length>0&&(<div><div className="nav-section">Equipos</div>
+              {teams.map(t=>(<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)"}}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</div>))}
+            </div>)}
+          </nav>
+          <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",marginBottom:8}}>
+              <Av u={profile} size={28}/>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div><div style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</div></div>
+              <button onClick={toggleTheme} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}}><Icon n={isDark?"sol":"luna"} size={15}/></button>
+            </div>
+            <button className="btn btn-ghost btn-sm" style={{width:"100%",fontSize:11}} onClick={onLogout}>Cerrar sesión</button>
+          </div>
+        </div>
+      </aside>
+      <main className="main-content">
+        <div className="mobile-topbar">
+          <button className="hamburger" onClick={()=>setSidebarOpen(true)}>☰</button>
+          <div style={{fontWeight:800,fontSize:15,fontFamily:"var(--font-display)"}}>La Cata</div>
+        </div>
+        <div className="page-content">
+          {loading?<div style={{padding:40,textAlign:"center",color:"var(--muted)"}}><div className="skeleton skeleton-title" style={{width:200,margin:"0 auto 12px"}}/><div className="skeleton skeleton-text" style={{width:300,margin:"0 auto"}}/></div>:(views[page]||views.home)}
+        </div>
+      </main>
+      {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)}/>}
+      {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTask(null)}/>}
+    </div>
+  )
+}
