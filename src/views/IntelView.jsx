@@ -838,14 +838,21 @@ function TabOrdenes({tasks,users,teams,range}){
 /* ═══════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
-export default function IntelView({tasks,users,teams,onBack}){
+export default function IntelView({tasks,users,teams,onBack,me,profile}){
   const[tab,setTab]=useState("carga")
   const[period,setPeriod]=useState("semana")
   const[offset,setOffset]=useState(0)
 
+  // Cuentas: filter tasks to only their assigned teams
+  const myProfile=me||profile
+  const isCuentas=myProfile?.role==="cuentas"
+  const myTeamIds=isCuentas?(Array.isArray(myProfile?.team_ids)&&myProfile.team_ids.length>0?myProfile.team_ids:[myProfile?.team_id].filter(Boolean)):null
+  const visibleTasks=isCuentas&&myTeamIds
+    ?tasks.filter(t=>myTeamIds.includes(t.team_id))
+    :tasks
+
   function handlePeriod(p,o){setPeriod(p);setOffset(o)}
   const range=getRangeLabel(period,offset)
-  const filtered=filterByRange(tasks,range)
 
   const TABS=[
     {v:"carga",l:"Carga actual"},
@@ -856,6 +863,7 @@ export default function IntelView({tasks,users,teams,onBack}){
   ]
 
   // KPIs globales del período (no aplica a carga que es tiempo real)
+  const filtered=filterByRange(visibleTasks,range)
   const hrsR=filtered.reduce((s,t)=>s+Number(t.hours_real||0),0)
   const hrsE=filtered.reduce((s,t)=>s+Number(t.hours||0),0)
   const comp=filtered.filter(t=>t.status==="completada").length
@@ -865,6 +873,14 @@ export default function IntelView({tasks,users,teams,onBack}){
   return(
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
+
+      {/* Cuentas scope notice */}
+      {isCuentas&&myTeamIds&&(
+        <div style={{background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--muted)",display:"flex",alignItems:"center",gap:8}}>
+          <Icon n="equipo2" size={13}/>
+          Mostrando datos de tus equipos asignados ({myTeamIds.length} equipo{myTeamIds.length!==1?"s":""})
+        </div>
+      )}
 
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:12}}>
@@ -904,11 +920,11 @@ export default function IntelView({tasks,users,teams,onBack}){
         ))}
       </div>
 
-      {tab==="carga"&&<TabCarga tasks={tasks} users={users} teams={teams}/>}
-      {tab==="desempeno"&&<TabDesempeno tasks={tasks} users={users} teams={teams} range={range}/>}
-      {tab==="equipos"&&<TabEquipos tasks={tasks} users={users} teams={teams} range={range}/>}
-      {tab==="marcas"&&<TabMarcas tasks={tasks} users={users} teams={teams} range={range}/>}
-      {tab==="ordenes"&&<TabOrdenes tasks={tasks} users={users} teams={teams} range={range}/>}
+      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams}/>}
+      {tab==="desempeno"&&<TabDesempeno tasks={visibleTasks} users={users} teams={teams} range={range}/>}
+      {tab==="equipos"&&<TabEquipos tasks={visibleTasks} users={users} teams={teams} range={range}/>}
+      {tab==="marcas"&&<TabMarcas tasks={visibleTasks} users={users} teams={teams} range={range}/>}
+      {tab==="ordenes"&&<TabOrdenes tasks={visibleTasks} users={users} teams={teams} range={range}/>}
     </div>
   )
 }
