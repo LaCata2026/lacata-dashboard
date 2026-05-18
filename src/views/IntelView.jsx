@@ -140,14 +140,14 @@ function TabCarga({tasks,users,teams,myTeamIds,isCuentas}){
           </div>
         </div>
         <StatusLegend/>
-        {active.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={{id:"system",role:"director",name:"Director"}} token={null} onRefresh={()=>{}}/>)}
+        {active.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={myProfile} token={token} onRefresh={onRefresh||(() => {})}/>)}
         {done.length>0&&<>
           <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0 8px",opacity:.45}}>
             <div style={{flex:1,height:1,background:"var(--border)"}}/>
             <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Completadas ({done.length})</span>
             <div style={{flex:1,height:1,background:"var(--border)"}}/>
           </div>
-          {done.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={{id:"system",role:"director",name:"Director"}} token={null} onRefresh={()=>{}}/>)}
+          {done.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={myProfile} token={token} onRefresh={onRefresh||(() => {})}/>)}
         </>}
       </div>
     )
@@ -842,7 +842,7 @@ function TabOrdenes({tasks,users,teams,range}){
 /* ═══════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
-export default function IntelView({tasks,users,teams,onBack,me,profile}){
+export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh}){
   const[tab,setTab]=useState("carga")
   const[period,setPeriod]=useState("semana")
   const[offset,setOffset]=useState(0)
@@ -851,6 +851,7 @@ export default function IntelView({tasks,users,teams,onBack,me,profile}){
   const myProfile=me||profile
   const isCuentas=myProfile?.role==="cuentas"
   const myTeamIds=isCuentas?(Array.isArray(myProfile?.team_ids)&&myProfile.team_ids.length>0?myProfile.team_ids:[myProfile?.team_id].filter(Boolean)):null
+  const myProfile=me||profile
   const visibleTasks=isCuentas&&myTeamIds
     ?tasks.filter(t=>myTeamIds.includes(t.team_id))
     :tasks
