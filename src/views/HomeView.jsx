@@ -9,7 +9,12 @@ import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSe
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
 export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
   const isDir=me.role==="director";
-  const isCuentas=me.role==="cuentas";
+  const isCuentas=me.role==="cuentas"
+  const pendingApproval=tasks.filter(t=>t.status==="en_revision"&&(()=>{
+    if(!isCuentas)return false
+    const myTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:me.team_id?[me.team_id]:[]
+    return myTeamIds.length===0||myTeamIds.includes(t.team_id)
+  })());
   const isCollab=me.role==="colaborador";
 
   // My tasks — colaborador sees ONLY tasks assigned to them directly
@@ -170,6 +175,31 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
       )}
 
       {/* DIRECTOR/CUENTAS VIEW */}
+      {isCuentas&&pendingApproval.length>0&&(
+        <div className="card fade-in" style={{marginBottom:16,border:"1px solid var(--s-revision-bg)",background:"rgba(155,127,232,.05)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <span style={{fontSize:16}}>&#x1F50D;</span>
+            <h3 style={{fontSize:15,fontWeight:700}}>Pendiente de aprobar</h3>
+            <span style={{fontSize:11,color:"var(--s-revision)",fontFamily:"var(--font-mono)",background:"var(--s-revision-bg)",padding:"2px 8px",borderRadius:10,fontWeight:700}}>{pendingApproval.length}</span>
+          </div>
+          {pendingApproval.slice(0,4).map(t=>{
+            const team=teams.find(x=>x.id===t.team_id)
+            return(
+              <div key={t.id} onClick={()=>window._openTask&&window._openTask(t)}
+                style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer"}}
+                onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span style={{fontSize:11,fontWeight:700,color:"var(--accent)",fontFamily:"var(--font-mono)",minWidth:72}}>AC-{String(t.order_number||0).padStart(4,"0")}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p>
+                  <p style={{fontSize:11,color:"var(--muted)"}}>{team?.name||"Sin equipo"}</p>
+                </div>
+                <span style={{fontSize:11,color:"var(--s-revision)",fontWeight:600,flexShrink:0}}>Revisar &#x2192;</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
       {(isDir||isCuentas)&&(
         <>
           <div style={{marginBottom:16}}>

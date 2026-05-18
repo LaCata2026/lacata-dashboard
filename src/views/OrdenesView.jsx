@@ -380,7 +380,19 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
                   </div>
                   {isOpen&&(
                     <div style={{padding:"6px 12px 12px"}}>
-                      {[...tTasks].sort((a,b)=>["vencida","en_revision","en_progreso","pendiente","en_pausa","completada"].indexOf(a.status)-["vencida","en_revision","en_progreso","pendiente","en_pausa","completada"].indexOf(b.status))
+                      {[...tTasks].sort((a,b)=>{
+  const order=["vencida","en_revision","en_progreso","pendiente","en_pausa","completada"]
+  const si=order.indexOf(a.status)-order.indexOf(b.status)
+  if(si!==0)return si
+  // Within same status: urgente first, then by due_date
+  const pa=a.priority==="Urgente"?0:a.priority==="Alta"?1:2
+  const pb=b.priority==="Urgente"?0:b.priority==="Alta"?1:2
+  if(pa!==pb)return pa-pb
+  if(a.due_date&&b.due_date)return new Date(a.due_date)-new Date(b.due_date)
+  if(a.due_date)return -1
+  if(b.due_date)return 1
+  return 0
+})
                         .map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
                     </div>
                   )}
