@@ -9,7 +9,7 @@ function ForgotPassword({onBack}){
   return(
     <div className="login-wrap"><div className="login-card">
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
-        <div className="logo-mark" style={{background:"#e8c547"}}><span style={{fontSize:18,fontWeight:900,color:"#0d0d0d",fontFamily:"var(--font-display)"}}>C</span></div>
+        <div className="logo-mark" style={{background:"#0d0d0d",padding:2}}><img src="/logo_cata.png" alt="La Cata" style={{width:"100%",height:"100%",objectFit:"contain",borderRadius:6}}/></div>
         <div><h1 style={{fontSize:24,fontWeight:900,letterSpacing:"-0.4px",fontFamily:"var(--font-display)"}}>La Cata</h1><p style={{fontSize:12,color:"var(--muted)"}}>Recuperar contraseña</p></div>
       </div>
       {sent?(<div style={{textAlign:"center",padding:"20px 0"}}>
@@ -39,7 +39,7 @@ export default function Login({onLogin}){
   return(
     <div className="login-wrap"><div className="login-card">
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
-        <div className="logo-mark" style={{background:"#e8c547"}}><span style={{fontSize:18,fontWeight:900,color:"#0d0d0d",fontFamily:"var(--font-display)"}}>C</span></div>
+        <div className="logo-mark" style={{background:"#0d0d0d",padding:2}}><img src="/logo_cata.png" alt="La Cata" style={{width:"100%",height:"100%",objectFit:"contain",borderRadius:6}}/></div>
         <div><h1 style={{fontSize:24,fontWeight:900,letterSpacing:"-0.4px",fontFamily:"var(--font-display)"}}>La Cata</h1><p style={{fontSize:12,color:"var(--muted)"}}>Creative Ops</p></div>
       </div>
       <div className="form-group"><label className="form-label">Correo electrónico</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email"/></div>
