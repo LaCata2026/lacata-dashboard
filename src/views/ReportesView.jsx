@@ -27,8 +27,32 @@ function getRangeLabel(period,offset){
   return{from,to}
 }
 
+function taskHadActivityInRange(t, range){
+  // Check if any history entry falls within the range
+  const hist=Array.isArray(t.history)?t.history:[]
+  // History entries are strings like "⚡ Name inicio trabajo — 18/5/2026, 14:00"
+  // We also check updated_at if available, and created_at as fallback
+  const hasHistoryInRange=hist.some(entry=>{
+    // Try to parse a date from the entry string (format: dd/m/yyyy or ISO)
+    const isoMatch=entry.match(/\d{4}-\d{2}-\d{2}T[\d:.-]+Z?/)
+    const localMatch=entry.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+    let d=null
+    if(isoMatch)d=new Date(isoMatch[0])
+    else if(localMatch){
+      const[,dd,mm,yyyy]=localMatch
+      d=new Date(`${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`)
+    }
+    return d&&d>=range.from&&d<=range.to
+  })
+  if(hasHistoryInRange)return true
+  // Also include tasks created or with started_at in range
+  if(t.started_at&&new Date(t.started_at)>=range.from&&new Date(t.started_at)<=range.to)return true
+  if(t.created_at&&new Date(t.created_at)>=range.from&&new Date(t.created_at)<=range.to)return true
+  return false
+}
+
 function filterByRange(tasks,range){
-  return tasks.filter(t=>{const d=new Date(t.created_at||0);return d>=range.from&&d<=range.to})
+  return tasks.filter(t=>taskHadActivityInRange(t,range))
 }
 
 function exportCSV(rows,filename){
