@@ -286,13 +286,13 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                 const pct=Math.round((w.active/maxLoad)*100)
                 const color=w.active>=7?"var(--s-vencida)":w.active>=4?"var(--load-warn)":(team?teamColor(team):"var(--s-completada)")
                 return(
-                  <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,padding:"6px 8px",borderRadius:8,cursor:isDir?"pointer":"default",transition:".13s"}} onClick={()=>{if(isDir){onNavigate("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(w),80);}}} onMouseEnter={e=>{if(isDir)e.currentTarget.style.background="var(--bg3)";}} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,padding:"6px 8px",borderRadius:8,cursor:(isDir||isCuentas)?"pointer":"default",transition:".13s"}} onClick={()=>{if(isDir||isCuentas){onNavigate("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(w),80);}}} onMouseEnter={e=>{if(isDir||isCuentas)e.currentTarget.style.background="var(--bg3)";}} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <div className="avatar" style={{width:30,height:30,background:w.avatar_color,fontSize:11,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{w.initials}</div>
                     <div style={{minWidth:110,flexShrink:0}}><p style={{fontSize:12,fontWeight:600}}>{w.name}</p><p style={{fontSize:10,color:"var(--muted)"}}>{team?.name||"Sin equipo"}</p></div>
                     <div style={{flex:1,height:8,background:"var(--bg3)",borderRadius:4,overflow:"hidden"}}><div style={{width:pct+"%",height:"100%",background:color,borderRadius:4,transition:"width .5s"}}/></div>
                     <div style={{minWidth:60,textAlign:"right",flexShrink:0}}><span style={{fontSize:13,fontWeight:700,color}}>{w.active}</span><span style={{fontSize:11,color:"var(--muted)"}}> activas</span></div>
                     {w.overdue>0&&<span style={{fontSize:11,padding:"2px 6px",background:"rgba(239,68,68,.15)",color:"#fca5a5",borderRadius:999,flexShrink:0}}>{w.overdue} venc.</span>}
-                    {isDir&&<span style={{fontSize:11,color:"var(--muted)",flexShrink:0,opacity:.5}}>→</span>}
+                    {(isDir||isCuentas)&&<span style={{fontSize:11,color:"var(--muted)",flexShrink:0,opacity:.5}}>→</span>}
                   </div>
                 )
               })
