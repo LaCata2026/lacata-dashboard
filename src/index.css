@@ -230,3 +230,5 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
 }
 @media(max-width:480px){.stat-grid{grid-template-columns:repeat(2,1fr);gap:6px}.page-content{padding:10px}.pill{font-size:10px;padding:2px 7px}}
 @media(max-width:600px){.filter-bar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}.filter-bar::-webkit-scrollbar{display:none}}
+
+.mobile-bottom-nav{display:none}@media(max-width:768px){.mobile-bottom-nav{display:block}}

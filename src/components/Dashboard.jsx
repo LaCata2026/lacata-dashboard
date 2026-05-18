@@ -14,6 +14,7 @@ import TeamsView from'../views/TeamsView'
 import CalendarView from'../views/CalendarView'
 import PerformanceView from'../views/PerformanceView'
 import AdminView from'../views/AdminView'
+import BottomNav from'./BottomNav'
 
 export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const{profile,token}=session
@@ -64,6 +65,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   }
   return(
     <div className="app-shell">
+      <style>{`@media(max-width:768px){.sidebar{display:none!important}.main-content{margin-left:0!important;padding-bottom:70px!important}.page-content{padding:14px!important}}`}</style>
       <div className={`mobile-overlay${sidebarOpen?" open":""}`} onClick={()=>setSidebarOpen(false)}/>
       <aside className={`sidebar${sidebarOpen?" open":""}`}>
         <div className="sidebar-inner">
@@ -144,6 +146,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       </main>
       {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)}/>}
       {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTask(null)}/>}
+      <div className="mobile-bottom-nav"><BottomNav page={page} navigate={navigate} profile={profile} isDark={isDark} toggleTheme={toggleTheme} onLogout={onLogout} unread={unread.length} onNotif={()=>setShowNotif(s=>!s)}/></div>
     </div>
   )
 }
