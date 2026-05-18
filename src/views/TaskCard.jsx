@@ -283,6 +283,17 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
             <span className={`pill ${prioPill[task.priority]||"pill-gray"}`}>{task.priority}</span>
             <span className={`pill ${statusPill[task.status]||"pill-gray"}`}>{statusLabel[task.status]||task.status}</span>
             {task.changes>0&&<span className="pill pill-purple"><Icon n="cambio" size={10}/> {task.changes}</span>}
+            {(()=>{
+              const files=Array.isArray(task.files)?task.files:[];
+              if(files.length===0)return null;
+              const now=Date.now();
+              const urgent=files.some(f=>typeof f==="object"&&f.uploaded_at&&(new Date(f.uploaded_at).getTime()+48*3600000-now)<6*3600000&&(new Date(f.uploaded_at).getTime()+48*3600000-now)>0);
+              const warning=!urgent&&files.some(f=>typeof f==="object"&&f.uploaded_at&&(new Date(f.uploaded_at).getTime()+48*3600000-now)<24*3600000&&(new Date(f.uploaded_at).getTime()+48*3600000-now)>0);
+              if(urgent)return<span className="pill" style={{background:"rgba(232,93,93,.15)",color:"var(--s-vencida)",animation:"badgePulse 2s ease-in-out infinite"}}><Icon n="alerta" size={10}/> Archivo expira pronto</span>;
+              if(warning)return<span className="pill" style={{background:"rgba(232,140,46,.12)",color:"var(--p-alta)"}}><Icon n="alerta" size={10}/> Archivo vence hoy</span>;
+              if(files.length>0)return<span className="pill" style={{background:"var(--bg4)",color:"var(--muted2)"}}><Icon n="adjunto" size={10}/> {files.length}</span>;
+              return null;
+            })()}
             {comments.length>0&&<span className="pill" style={{background:"rgba(155,127,232,.12)",color:"var(--s-revision)"}}><Icon n="comentar" size={10}/> {comments.length}</span>}
             {team&&(()=>{const tc=teamColor(team);return <span className="pill" style={{background:tc+"22",color:tc}}>{team.name}</span>;})()}
           </div>
@@ -424,7 +435,7 @@ const uploaded=[];
                   <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px"}}>Archivos adjuntos</p>
                   <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,background:"rgba(232,140,46,.1)",border:"1px solid rgba(232,140,46,.25)"}}>
                     <Icon n="alerta" size={12} color="var(--p-alta)"/>
-                    <span style={{fontSize:11,color:"var(--p-alta)",fontWeight:600}}>Se eliminan automáticamente a las 48h</span>
+                    <span style={{fontSize:11,color:"var(--p-alta)",fontWeight:600}}>⚠️ Los archivos se eliminan automáticamente a las 48h de subidos. Descárgalos antes de que expiren.</span>
                   </div>
                 </div>
                 {/* Per-file expiry badge */}
