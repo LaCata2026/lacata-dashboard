@@ -41,7 +41,10 @@ export function exportExcel(tasks,users,teams){
 }
 
 export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter,initialView}){
-  const [viewMode,setViewMode]=useSessionFilters("ordenes_view",initialView||"kanban");
+  // Default = lista para todos los roles. La lista permite escanear
+  // urgencia de un vistazo (el Kanban obliga a scroll horizontal y
+  // columnas vacías). El Kanban sigue disponible como opción.
+  const [viewMode,setViewMode]=useSessionFilters("ordenes_view",initialView||"lista");
   const [sf,setSf]=useSessionFilters("ordenes_status",initialFilter||"todas");
   const [tf,setTf]=useSessionFilters("ordenes_team","todas");
   const [search,setSearch]=useState("");
