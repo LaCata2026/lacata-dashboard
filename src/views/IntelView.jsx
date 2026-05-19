@@ -16,7 +16,6 @@ const eff=(est,real)=>{const e=Number(est),r=Number(real);if(!e||!r)return null;
 const effColor=e=>e==null?"var(--muted)":e>=90?"var(--green)":e>=70?"var(--yellow)":"var(--red)"
 const effLabel=e=>e==null?"—":e+"%"
 
-
 function getRangeLabel(period,offset){
   const now=new Date()
   let from,to
@@ -101,15 +100,117 @@ function Chip({label,value,color,sub}){
 }
 
 /* ═══════════════════════════════════════════
-   TAB 1 — CARGA EN TIEMPO REAL
-   initialUser: usuario a preseleccionar al montar
-   (viene de onViewUser en Dashboard, vía pageArg)
+   GRÁFICA: BARRAS HORIZONTALES SVG
+   Usada en Colaboradores — hrs reales por persona
 ═══════════════════════════════════════════ */
-function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefresh,initialUser}){
-  const[viewMode,setViewMode]=useState("individual")
+function BarChart({data,maxVal,colorFn,labelKey,valueKey,valueSuffix=""}){
+  if(!data||data.length===0)return null
+  const BAR_H=22,GAP=8,LABEL_W=110,VALUE_W=48,BAR_W=260
+  const h=data.length*(BAR_H+GAP)
+  return(
+    <svg width="100%" viewBox={`0 0 ${LABEL_W+BAR_W+VALUE_W+16} ${h}`} style={{overflow:"visible",display:"block"}}>
+      {data.map((d,i)=>{
+        const y=i*(BAR_H+GAP)
+        const val=Number(d[valueKey])||0
+        const pct=maxVal>0?Math.max(val/maxVal,val>0?0.02:0):0
+        const barW=Math.round(pct*BAR_W)
+        const color=colorFn?colorFn(d,i):"var(--accent)"
+        return(
+          <g key={d[labelKey]||i}>
+            {/* Label */}
+            <text x={LABEL_W-8} y={y+BAR_H/2+4} textAnchor="end" fontSize={11}
+              fill="var(--text)" fontFamily="var(--font-body)" style={{dominantBaseline:"middle"}}>
+              {(d[labelKey]||"").split(" ")[0]}
+            </text>
+            {/* Bar background */}
+            <rect x={LABEL_W} y={y} width={BAR_W} height={BAR_H} rx={4} fill="var(--bg3)"/>
+            {/* Bar fill */}
+            {barW>0&&<rect x={LABEL_W} y={y} width={barW} height={BAR_H} rx={4} fill={color} style={{transition:"width .6s cubic-bezier(.4,0,.2,1)"}}/>}
+            {/* Value */}
+            <text x={LABEL_W+BAR_W+8} y={y+BAR_H/2+4} fontSize={11} fontWeight={700}
+              fill={color} fontFamily="var(--font-mono)" style={{dominantBaseline:"middle"}}>
+              {val>0?val.toFixed(1)+valueSuffix:"—"}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
 
-  // Si se recibe initialUser (navegación desde HomeView u otro componente),
-  // arrancamos con ese usuario ya seleccionado — sin globals ni setTimeout.
+/* ═══════════════════════════════════════════
+   GRÁFICA: BARRAS APILADAS SVG
+   Usada en Equipos — completadas/activas/vencidas
+═══════════════════════════════════════════ */
+function StackedBar({comp,actv,venc,total}){
+  if(total===0)return<div style={{height:14,background:"var(--bg3)",borderRadius:4}}/>
+  const W=100
+  const wComp=Math.round(comp/total*W)
+  const wVenc=Math.round(venc/total*W)
+  const wActv=W-wComp-wVenc
+  return(
+    <div style={{display:"flex",height:14,borderRadius:4,overflow:"hidden",background:"var(--bg3)"}}>
+      {wComp>0&&<div style={{width:wComp+"%",background:"var(--green)",transition:"width .5s"}}/>}
+      {wActv>0&&<div style={{width:wActv+"%",background:"var(--blue)",opacity:.7,transition:"width .5s"}}/>}
+      {wVenc>0&&<div style={{width:wVenc+"%",background:"var(--red)",transition:"width .5s"}}/>}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════
+   GRÁFICA: DONUT SVG
+   Usada en Marcas — distribución hrs por marca
+═══════════════════════════════════════════ */
+function DonutChart({data,size=180}){
+  if(!data||data.length===0)return null
+  const total=data.reduce((s,d)=>s+d.value,0)
+  if(total===0)return null
+  const cx=size/2,cy=size/2,r=size*0.38,inner=size*0.24
+  const COLORS=["var(--accent)","var(--blue)","var(--green)","var(--s-revision)","var(--orange)","var(--red)","var(--yellow)","var(--s-progreso)"]
+
+  let startAngle=-Math.PI/2
+  const slices=data.map((d,i)=>{
+    const angle=(d.value/total)*2*Math.PI
+    const endAngle=startAngle+angle
+    const x1=cx+r*Math.cos(startAngle),y1=cy+r*Math.sin(startAngle)
+    const x2=cx+r*Math.cos(endAngle),y2=cy+r*Math.sin(endAngle)
+    const xi1=cx+inner*Math.cos(startAngle),yi1=cy+inner*Math.sin(startAngle)
+    const xi2=cx+inner*Math.cos(endAngle),yi2=cy+inner*Math.sin(endAngle)
+    const large=angle>Math.PI?1:0
+    const path=`M${xi1},${yi1} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${xi2},${yi2} A${inner},${inner} 0 ${large} 0 ${xi1},${yi1} Z`
+    const color=COLORS[i%COLORS.length]
+    startAngle=endAngle
+    return{path,color,label:d.label,value:d.value,pct:Math.round(d.value/total*100)}
+  })
+
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{flexShrink:0}}>
+        {slices.map((s,i)=>(
+          <path key={i} d={s.path} fill={s.color} stroke="var(--bg2)" strokeWidth={2}/>
+        ))}
+        <text x={cx} y={cy-6} textAnchor="middle" fontSize={13} fontWeight={800}
+          fill="var(--text)" fontFamily="var(--font-display)">{data.length}</text>
+        <text x={cx} y={cy+10} textAnchor="middle" fontSize={9}
+          fill="var(--muted)" fontFamily="var(--font-mono)">MARCAS</text>
+      </svg>
+      <div style={{display:"flex",flexDirection:"column",gap:6,flex:1,minWidth:120}}>
+        {slices.map((s,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:7}}>
+            <div style={{width:10,height:10,borderRadius:2,background:s.color,flexShrink:0}}/>
+            <span style={{fontSize:11,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
+            <span style={{fontSize:11,fontWeight:700,color:s.color,fontFamily:"var(--font-mono)",minWidth:32,textAlign:"right"}}>{s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════
+   TAB 1 — CARGA ACTUAL → redirige a Inicio
+═══════════════════════════════════════════ */
+function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefresh,initialUser,onNavigateHome}){
   const[selectedUser,setSelectedUser]=useState(initialUser||null)
 
   const colabs=users.filter(u=>{
@@ -162,119 +263,62 @@ function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefre
 
   return(
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-        <div className="stat-grid" style={{flex:1}}>
+      {/* Banner de redirección */}
+      <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+        <div style={{fontSize:28}}>🏠</div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>La carga en tiempo real está en Inicio</div>
+          <div style={{fontSize:12,color:"var(--muted)"}}>El semáforo de equipos, cola de revisión y carga por colaborador se actualizan en vivo desde la pantalla de Inicio.</div>
+        </div>
+        {onNavigateHome&&(
+          <button onClick={onNavigateHome}
+            style={{padding:"9px 18px",borderRadius:8,border:"none",background:"var(--accent)",color:"#0d0d0d",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"inherit",whiteSpace:"nowrap"}}>
+            Ir a Inicio →
+          </button>
+        )}
+      </div>
+
+      {/* Vista rápida de carga — solo lectura, sin click */}
+      <div className="card fade-in">
+        <h3 style={{fontSize:15,fontWeight:700,marginBottom:4}}>Resumen de carga actual</h3>
+        <p style={{fontSize:11,color:"var(--muted)",marginBottom:16,fontFamily:"var(--font-mono)"}}>Para ver detalle de cada colaborador ve a Inicio</p>
+        <div className="stat-grid" style={{marginBottom:16}}>
           <SC label="Activas" value={tasks.filter(t=>t.status!=="completada").length} color="var(--blue)"/>
           <SC label="Completadas" value={tasks.filter(t=>t.status==="completada").length} color="var(--green)"/>
           <SC label="Vencidas" value={tasks.filter(t=>t.status==="vencida").length} color="var(--red)"/>
           <SC label="Horas totales" value={fmtH(tasks.reduce((s,t)=>s+Number(t.hours||0),0))} color="var(--accent)"/>
         </div>
-        <div style={{display:"flex",gap:3,background:"var(--bg3)",borderRadius:8,padding:3}}>
-          {[{v:"individual",l:"Individual"},{v:"equipo",l:"Por equipo"}].map(m=>(
-            <button key={m.v} onClick={()=>setViewMode(m.v)}
-              style={{padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",border:"none",
-                background:viewMode===m.v?"var(--bg2)":"transparent",color:viewMode===m.v?"var(--text)":"var(--muted)",fontWeight:viewMode===m.v?600:400,transition:".13s"}}>
-              {m.l}
-            </button>
-          ))}
-        </div>
+        {sorted.map((u,i)=>{
+          const ut=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status!=="completada")
+          const team=teams.find(t=>t.id===u.team_id)
+          const pct=Math.min(100,Math.round(ut.length/8*100))
+          const loadColor=ut.length>=7?"var(--s-vencida)":ut.length>=4?"var(--load-warn)":(team?teamColor(team):"var(--load-ok)")
+          return(
+            <div key={u.id} onClick={()=>setSelectedUser(u)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"10px 8px",borderBottom:"1px solid var(--border)",cursor:"pointer",borderRadius:6,transition:".13s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{fontSize:12,fontWeight:700,color:"var(--muted)",minWidth:20,fontFamily:"var(--font-mono)"}}>{i+1}</span>
+              <Av u={u} size={30}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:4}}>{u.name.split(" ")[0]}{team&&<span style={{color:"var(--muted)",fontWeight:400,fontSize:11,marginLeft:6}}>· {team.name}</span>}</div>
+                <div style={{height:6,background:"var(--bg3)",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{width:pct+"%",height:"100%",background:loadColor,borderRadius:3,transition:"width .5s"}}/>
+                </div>
+              </div>
+              <span style={{fontSize:16,fontWeight:800,color:loadColor,fontFamily:"var(--font-display)",minWidth:24,textAlign:"right"}}>{ut.length}</span>
+              <span style={{fontSize:11,color:"var(--muted)"}}>→</span>
+            </div>
+          )
+        })}
       </div>
-
-      {viewMode==="individual"&&(
-        <div className="card fade-in">
-          <h3 style={{fontSize:15,fontWeight:700,marginBottom:16}}>Carga por colaborador</h3>
-          {sorted.length===0&&<p style={{textAlign:"center",color:"var(--muted)",padding:20}}>No hay colaboradores aún.</p>}
-          {sorted.map((u,i)=>{
-            const ut=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status!=="completada")
-            const uc=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status==="completada")
-            const uv=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status==="vencida")
-            const team=teams.find(t=>t.id===u.team_id)
-            const pct=Math.min(100,Math.round(ut.length/8*100))
-            const loadColor=ut.length>=7?"var(--s-vencida)":ut.length>=4?"var(--load-warn)":(team?teamColor(team):"var(--load-ok)")
-            const uHrs=tasks.filter(t=>assignedOf(t).includes(u.id)).reduce((s,t)=>s+Number(t.hours_real||0),0)
-            return(
-              <div key={u.id} onClick={()=>setSelectedUser(u)}
-                style={{display:"flex",alignItems:"center",gap:14,padding:"12px 10px",borderBottom:"1px solid var(--border)",cursor:"pointer",borderRadius:8,transition:".13s"}}
-                onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span style={{fontSize:13,fontWeight:700,color:"var(--muted)",minWidth:22,fontFamily:"var(--font-mono)"}}>{i+1}</span>
-                <Av u={u} size={36}/>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,flexWrap:"wrap",gap:6}}>
-                    <span style={{fontWeight:600,fontSize:13}}>{u.name}{team&&<span style={{fontWeight:400,color:"var(--muted)",fontSize:11,marginLeft:8}}>· {team.name}</span>}</span>
-                    <div style={{display:"flex",gap:10,fontSize:12,fontFamily:"var(--font-mono)"}}>
-                      <span style={{color:"var(--s-completada)"}}>✓ {uc.length}</span>
-                      {uv.length>0&&<span style={{color:"var(--s-vencida)"}}>{uv.length} venc.</span>}
-                      <span style={{color:"var(--muted)"}}>{fmtH(uHrs)}</span>
-                    </div>
-                  </div>
-                  <div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`,background:loadColor,transition:"width .6s cubic-bezier(.4,0,.2,1)"}}/></div>
-                </div>
-                <span style={{fontSize:20,fontWeight:800,minWidth:28,textAlign:"right",color:loadColor,fontFamily:"var(--font-display)"}}>{ut.length}</span>
-                <span style={{color:"var(--muted)",fontSize:12}}>→</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {viewMode==="equipo"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:12}}>
-          {(isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams).map(team=>{
-            const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador")
-            const teamActive=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada").length
-            const teamDone=tasks.filter(t=>t.team_id===team.id&&t.status==="completada").length
-            const teamOverdue=tasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length
-            const teamHours=tasks.filter(t=>t.team_id===team.id).reduce((s,t)=>s+Number(t.hours_real||0),0)
-            const avgLoad=members.length>0?teamActive/members.length:0
-            const health=teamOverdue>0||members.some(u=>tasks.filter(x=>assignedOf(x).includes(u.id)&&x.status!=="completada").length>=7)?"red":avgLoad>=4?"yellow":"green"
-            const healthColor={red:"var(--load-crit)",yellow:"var(--load-warn)",green:"var(--load-ok)"}[health]
-            return(
-              <div key={team.id} className="card fade-in">
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-                  <Icon n={team.icon||"equipos"} size={18}/>
-                  <div style={{flex:1}}><h3 style={{fontSize:15,fontWeight:700}}>{team.name}</h3><p style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{members.length} miembros</p></div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:11,color:healthColor,fontWeight:700,fontFamily:"var(--font-mono)"}}>{teamActive} activas</div>
-                    <div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>✓{teamDone}{teamOverdue>0&&<span style={{color:"var(--red)"}}> · {teamOverdue} venc.</span>}</div>
-                  </div>
-                </div>
-                <div style={{height:4,background:"var(--bg3)",borderRadius:2,marginBottom:14,overflow:"hidden"}}>
-                  <div style={{width:Math.min(100,avgLoad/8*100)+"%",height:"100%",background:healthColor,borderRadius:2,transition:"width .6s"}}/>
-                </div>
-                {members.length===0?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:8}}>Sin miembros</p>
-                  :members.map(u=>{
-                    const ut=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status!=="completada").length
-                    const uh=tasks.filter(t=>assignedOf(t).includes(u.id)).reduce((s,t)=>s+Number(t.hours_real||0),0)
-                    const uColor=ut>=7?"var(--red)":ut>=4?"var(--yellow)":u.avatar_color
-                    return(
-                      <div key={u.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                        <div style={{width:3,height:32,borderRadius:2,background:u.avatar_color,flexShrink:0}}/>
-                        <Av u={u} size={26}/>
-                        <div style={{flex:1}}>
-                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                            <span style={{fontSize:12,fontWeight:600}}>{u.name.split(" ")[0]}</span>
-                            <span style={{fontSize:11,color:uColor,fontWeight:700,fontFamily:"var(--font-mono)"}}>{ut} · {fmtH(uh)}</span>
-                          </div>
-                          <div className="progress-bar" style={{height:3}}><div className="progress-fill" style={{width:Math.min(100,ut/8*100)+"%",background:uColor}}/></div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
-                  <span>{fmtH(teamHours)} reales</span><span>{avgLoad.toFixed(1)} tareas/persona</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
 
 /* ═══════════════════════════════════════════
-   TAB 2 — DESEMPEÑO INDIVIDUAL
+   TAB 2 — COLABORADORES
+   + Gráfica barras horizontales hrs reales
 ═══════════════════════════════════════════ */
 function TabDesempeno({tasks,users,teams,range}){
   const[detail,setDetail]=useState(null)
@@ -291,11 +335,11 @@ function TabDesempeno({tasks,users,teams,range}){
     const e=eff(hrsE,hrsR)
     const marcas=[...new Set(mt.map(t=>t.marca).filter(Boolean))]
     return{u,mt,comp,venc,actv,hrsE,hrsR,e,marcas}
-  }).filter(r=>r.mt.length>0).sort((a,b)=>b.comp.length-a.comp.length),[filtered])
+  }).filter(r=>r.mt.length>0).sort((a,b)=>b.hrsR-a.hrsR),[filtered])
 
-  // Rankings
-  const top3=rows.slice(0,3)
-  const bot3=[...rows].sort((a,b)=>a.comp.length-b.comp.length).slice(0,3)
+  const maxHrs=Math.max(...rows.map(r=>r.hrsR),1)
+  const top=rows[0]
+  const bot=rows.length>1?rows[rows.length-1]:null
 
   function doExport(){
     const hdr=["Colaborador","Equipo","Total","Completadas","Vencidas","Activas","Hrs Est.","Hrs Reales","Eficiencia","Marcas"]
@@ -315,7 +359,7 @@ function TabDesempeno({tasks,users,teams,range}){
     const hrsR=mt.reduce((s,t)=>s+Number(t.hours_real||0),0)
     return(
       <div>
-        <BackBtn onClick={()=>setDetail(null)} label="← Desempeño"/>
+        <BackBtn onClick={()=>setDetail(null)} label="← Colaboradores"/>
         <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20,padding:"16px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)",borderLeft:`4px solid ${u.avatar_color||"var(--accent)"}`}}>
           <Av u={u} size={44}/>
           <div style={{flex:1}}><div style={{fontSize:16,fontWeight:700}}>{u.name}</div><div style={{fontSize:12,color:"var(--muted)"}}>{team?.name||"Sin equipo"}</div></div>
@@ -356,12 +400,48 @@ function TabDesempeno({tasks,users,teams,range}){
 
   return(
     <div>
-      {/* Rankings top/bottom */}
+      {/* ── GRÁFICA: barras horizontales hrs reales ── */}
+      {rows.length>0&&(
+        <div className="card fade-in" style={{marginBottom:20}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+            <div>
+              <h3 style={{fontSize:15,fontWeight:700,marginBottom:2}}>Horas reales por colaborador</h3>
+              <p style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Ordenado de mayor a menor · click para ver detalle</p>
+            </div>
+            <div style={{display:"flex",gap:12,fontSize:11,fontFamily:"var(--font-mono)"}}>
+              {top&&<span style={{color:"var(--green)"}}>▲ {top.u.name.split(" ")[0]} {fmtH(top.hrsR)}</span>}
+              {bot&&<span style={{color:"var(--muted)"}}>▼ {bot.u.name.split(" ")[0]} {fmtH(bot.hrsR)}</span>}
+            </div>
+          </div>
+          <BarChart
+            data={rows.map(r=>({name:r.u.name,hrsR:r.hrsR,color:r.u.avatar_color||"var(--accent)",u:r.u}))}
+            maxVal={maxHrs}
+            labelKey="name"
+            valueKey="hrsR"
+            valueSuffix="h"
+            colorFn={(d,i)=>i===0?"var(--green)":i===rows.length-1&&rows.length>1?"var(--red)":d.color||"var(--accent)"}
+          />
+          {/* Leyenda eficiencia */}
+          <div style={{display:"flex",gap:16,marginTop:14,paddingTop:12,borderTop:"1px solid var(--border)",flexWrap:"wrap"}}>
+            {rows.map(r=>(
+              <div key={r.u.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}} onClick={()=>setDetail({u:r.u,mt:r.mt})}>
+                <Av u={r.u} size={20}/>
+                <div>
+                  <div style={{fontSize:11,fontWeight:600}}>{r.u.name.split(" ")[0]}</div>
+                  <div style={{fontSize:10,color:effColor(r.e),fontFamily:"var(--font-mono)",fontWeight:700}}>{effLabel(r.e)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Rankings top/bottom ── */}
       {rows.length>=2&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
           <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px"}}>
             <div style={{fontSize:11,fontWeight:700,color:"var(--green)",fontFamily:"var(--font-mono)",marginBottom:10,letterSpacing:".08em"}}>🏆 MÁS PRODUCTIVOS</div>
-            {top3.map(({u,comp,hrsR},i)=>(
+            {rows.slice(0,3).map(({u,comp,hrsR},i)=>(
               <div key={u.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                 <span style={{fontSize:12,fontWeight:800,color:i===0?"var(--yellow)":"var(--muted)",minWidth:16,fontFamily:"var(--font-mono)"}}>{i+1}</span>
                 <Av u={u} size={24}/>
@@ -374,7 +454,7 @@ function TabDesempeno({tasks,users,teams,range}){
           </div>
           <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px"}}>
             <div style={{fontSize:11,fontWeight:700,color:"var(--red)",fontFamily:"var(--font-mono)",marginBottom:10,letterSpacing:".08em"}}>⚠️ NECESITAN ATENCIÓN</div>
-            {bot3.map(({u,comp,venc,hrsR},i)=>(
+            {[...rows].sort((a,b)=>a.comp.length-b.comp.length).slice(0,3).map(({u,comp,venc,hrsR},i)=>(
               <div key={u.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                 <span style={{fontSize:12,fontWeight:800,color:"var(--muted)",minWidth:16,fontFamily:"var(--font-mono)"}}>{i+1}</span>
                 <Av u={u} size={24}/>
@@ -428,6 +508,7 @@ function TabDesempeno({tasks,users,teams,range}){
 
 /* ═══════════════════════════════════════════
    TAB 3 — EQUIPOS
+   + Gráfica barras apiladas comp/actv/venc
 ═══════════════════════════════════════════ */
 function TabEquipos({tasks,users,teams,range}){
   const[detail,setDetail]=useState(null)
@@ -474,7 +555,6 @@ function TabEquipos({tasks,users,teams,range}){
             <Chip label="EFIC." value={effLabel(eff(hrsE,hrsR))} color={effColor(eff(hrsE,hrsR))}/>
           </div>
         </div>
-        {/* Members summary */}
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
           {members.map(u=>{
             const umt=mt.filter(t=>assignedOf(t).includes(u.id))
@@ -519,6 +599,37 @@ function TabEquipos({tasks,users,teams,range}){
 
   return(
     <div>
+      {/* ── GRÁFICA: barras apiladas por equipo ── */}
+      {rows.length>0&&(
+        <div className="card fade-in" style={{marginBottom:20}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+            <h3 style={{fontSize:15,fontWeight:700}}>Órdenes por equipo</h3>
+            <div style={{display:"flex",gap:12,fontSize:11,fontFamily:"var(--font-mono)"}}>
+              <span style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:2,background:"var(--green)"}}/> Completadas</span>
+              <span style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:2,background:"var(--blue)",opacity:.7}}/> Activas</span>
+              <span style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:2,background:"var(--red)"}}/> Vencidas</span>
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {rows.map(({team,mt,comp,venc})=>{
+              const actv=mt.filter(t=>t.status!=="completada"&&t.status!=="vencida")
+              return(
+                <div key={team.id} style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}
+                  onClick={()=>setDetail({team,members:users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador"),mt})}>
+                  <div style={{width:4,height:32,borderRadius:2,background:teamColor(team),flexShrink:0}}/>
+                  <span style={{fontSize:12,fontWeight:600,minWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team.name}</span>
+                  <div style={{flex:1}}>
+                    <StackedBar comp={comp.length} actv={actv.length} venc={venc.length} total={mt.length}/>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,fontFamily:"var(--font-mono)",minWidth:28,textAlign:"right"}}>{mt.length}</span>
+                  <span style={{fontSize:11,color:"var(--muted)"}}>→</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Comparativo top/bottom */}
       {rows.length>=2&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
@@ -531,7 +642,7 @@ function TabEquipos({tasks,users,teams,range}){
           )}
           {botTeam&&botTeam.team.id!==topTeam?.team.id&&(
             <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",fontFamily:"var(--font-mono)",marginBottom:8,letterSpacing:".08em"}}>📉 EQUIPO CON MENOS ACTIVIDAD</div>
+              <div style={{fontSize:11,fontWeight:700,color:"var(--muted)",fontFamily:"var(--font-mono)",marginBottom:8,letterSpacing:".08em"}}>📉 MENOS ACTIVIDAD</div>
               <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>{botTeam.team.name}</div>
               <div style={{fontSize:12,color:"var(--muted)"}}>{botTeam.mt.length} órdenes · {botTeam.comp.length} completadas · {fmtH(botTeam.hrsR)}</div>
             </div>
@@ -563,10 +674,8 @@ function TabEquipos({tasks,users,teams,range}){
               <Chip label="HRS REAL" value={fmtH(hrsR)} color="var(--blue)"/>
               <Chip label="EFIC." value={effLabel(e)} color={effColor(e)}/>
             </div>
-            <div style={{height:4,background:"var(--bg3)",borderRadius:2,overflow:"hidden",marginBottom:6}}>
-              <div style={{width:(comp.length/Math.max(mt.length,1)*100)+"%",height:"100%",background:"var(--green)",borderRadius:2,transition:"width .6s"}}/>
-            </div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
+            <StackedBar comp={comp.length} actv={mt.filter(t=>t.status!=="completada"&&t.status!=="vencida").length} venc={venc.length} total={mt.length}/>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:6}}>
               <span>{Math.round(comp.length/Math.max(mt.length,1)*100)}% completado</span>
               <span>~{fmtH(avgHrsPerOrder)}/orden</span>
             </div>
@@ -580,6 +689,7 @@ function TabEquipos({tasks,users,teams,range}){
 
 /* ═══════════════════════════════════════════
    TAB 4 — MARCAS
+   + Donut distribución hrs + comparativo top/bottom
 ═══════════════════════════════════════════ */
 function TabMarcas({tasks,users,teams,range}){
   const[detail,setDetail]=useState(null)
@@ -605,7 +715,9 @@ function TabMarcas({tasks,users,teams,range}){
   },[filtered])
 
   const topMarca=rows[0]
+  const botMarca=rows.length>1?rows[rows.length-1]:null
   const mostChanges=[...rows].sort((a,b)=>b.changes-a.changes)[0]
+  const maxHrs=Math.max(...rows.map(r=>r.hrsR),1)
 
   function doExport(){
     const hdr=["Marca","Órdenes","Completadas","Vencidas","Colaboradores","Hrs Est.","Hrs Reales","Eficiencia","Total cambios"]
@@ -687,34 +799,85 @@ function TabMarcas({tasks,users,teams,range}){
 
   return(
     <div>
-      {/* Insights */}
-      {rows.length>=2&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12,marginBottom:20}}>
-          {topMarca&&(
-            <div style={{background:"var(--bg2)",border:"1px solid var(--blue)",borderRadius:12,padding:"14px 16px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"var(--blue)",fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:".08em"}}>📊 MAYOR DEMANDA</div>
-              <div style={{fontSize:15,fontWeight:700}}>{topMarca.marca}</div>
-              <div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>{topMarca.tasks.length} órdenes · {fmtH(topMarca.hrsR)} invertidas</div>
+      {rows.length>0&&(
+        <>
+          {/* ── GRÁFICA: Donut distribución hrs + comparativo top/bottom ── */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:20}}>
+
+            {/* Donut */}
+            <div className="card fade-in">
+              <h3 style={{fontSize:14,fontWeight:700,marginBottom:16}}>Distribución de horas reales</h3>
+              <DonutChart data={rows.map(r=>({label:r.marca,value:r.hrsR}))}/>
             </div>
-          )}
-          {mostChanges&&mostChanges.changes>0&&(
-            <div style={{background:"var(--bg2)",border:"1px solid var(--yellow)",borderRadius:12,padding:"14px 16px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"var(--yellow)",fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:".08em"}}>🔄 MÁS CAMBIOS DE OPINIÓN</div>
-              <div style={{fontSize:15,fontWeight:700}}>{mostChanges.marca}</div>
-              <div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>{mostChanges.changes} cambios en {mostChanges.tasks.length} órdenes</div>
-            </div>
-          )}
-          {rows.filter(r=>r.venc>0).length>0&&(
-            <div style={{background:"var(--bg2)",border:"1px solid var(--red)",borderRadius:12,padding:"14px 16px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"var(--red)",fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:".08em"}}>⚠️ MARCAS CON VENCIDAS</div>
-              <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                {rows.filter(r=>r.venc>0).map(r=>(
-                  <div key={r.marca} style={{fontSize:13,fontWeight:600}}>{r.marca} <span style={{color:"var(--red)",fontFamily:"var(--font-mono)",fontSize:11}}>{r.venc} venc.</span></div>
-                ))}
+
+            {/* Comparativo top vs bottom */}
+            {rows.length>=2&&topMarca&&botMarca&&(
+              <div className="card fade-in">
+                <h3 style={{fontSize:14,fontWeight:700,marginBottom:16}}>Top vs bottom</h3>
+                {[
+                  {label:"Órdenes",top:topMarca.tasks.length,bot:botMarca.tasks.length,color:"var(--accent)"},
+                  {label:"Completadas",top:topMarca.comp,bot:botMarca.comp,color:"var(--green)"},
+                  {label:"Hrs reales",top:topMarca.hrsR,bot:botMarca.hrsR,color:"var(--blue)"},
+                  {label:"Cambios",top:topMarca.changes,bot:botMarca.changes,color:"var(--yellow)"},
+                ].map(({label,top,bot,color})=>{
+                  const mx=Math.max(top,bot,1)
+                  return(
+                    <div key={label} style={{marginBottom:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginBottom:4}}>
+                        <span style={{color:"var(--green)",fontWeight:700}}>{topMarca.marca.slice(0,12)}</span>
+                        <span style={{fontWeight:600}}>{label}</span>
+                        <span style={{color:"var(--muted)"}}>{botMarca.marca.slice(0,12)}</span>
+                      </div>
+                      <div style={{display:"flex",gap:3,alignItems:"center"}}>
+                        <div style={{flex:top/mx,height:16,background:color,borderRadius:"4px 0 0 4px",minWidth:top>0?4:0,transition:"flex .5s"}}/>
+                        <span style={{fontSize:10,fontFamily:"var(--font-mono)",minWidth:28,textAlign:"center",fontWeight:700,color}}>{typeof top==="number"&&top%1!==0?top.toFixed(1):top}</span>
+                        <div style={{flex:bot/mx,height:16,background:"var(--bg3)",borderRadius:"0 4px 4px 0",border:"1px solid var(--border)",minWidth:bot>0?4:0,transition:"flex .5s"}}/>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontSize:11,fontFamily:"var(--font-mono)"}}>
+                  <span style={{color:"var(--green)",fontWeight:700}}>↑ {topMarca.marca}</span>
+                  <span style={{color:"var(--muted)"}}>↓ {botMarca.marca}</span>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+
+          {/* Barras horizontales hrs por marca */}
+          <div className="card fade-in" style={{marginBottom:20}}>
+            <h3 style={{fontSize:14,fontWeight:700,marginBottom:16}}>Horas reales por marca</h3>
+            <BarChart
+              data={rows.map(r=>({marca:r.marca,hrsR:r.hrsR}))}
+              maxVal={maxHrs}
+              labelKey="marca"
+              valueKey="hrsR"
+              valueSuffix="h"
+              colorFn={(d,i)=>i===0?"var(--accent)":"var(--blue)"}
+            />
+          </div>
+
+          {/* Insight cards — solo cambios y vencidas (no duplica el donut) */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:20}}>
+            {mostChanges&&mostChanges.changes>0&&(
+              <div style={{background:"var(--bg2)",border:"1px solid var(--yellow)",borderRadius:12,padding:"14px 16px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--yellow)",fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:".08em"}}>🔄 MÁS CAMBIOS</div>
+                <div style={{fontSize:15,fontWeight:700}}>{mostChanges.marca}</div>
+                <div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>{mostChanges.changes} cambios en {mostChanges.tasks.length} órdenes</div>
+              </div>
+            )}
+            {rows.filter(r=>r.venc>0).length>0&&(
+              <div style={{background:"var(--bg2)",border:"1px solid var(--red)",borderRadius:12,padding:"14px 16px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--red)",fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:".08em"}}>⚠️ CON VENCIDAS</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {rows.filter(r=>r.venc>0).map(r=>(
+                    <div key={r.marca} style={{fontSize:13,fontWeight:600}}>{r.marca} <span style={{color:"var(--red)",fontFamily:"var(--font-mono)",fontSize:11}}>{r.venc} venc.</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
@@ -848,35 +1011,23 @@ function TabOrdenes({tasks,users,teams,range}){
 
 /* ═══════════════════════════════════════════
    MAIN COMPONENT
-   initialUser: usuario a preseleccionar en TabCarga
-   (recibido desde Dashboard vía pageArg cuando
-   se navega desde onViewUser en HomeView u otros)
 ═══════════════════════════════════════════ */
-export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh,onLoadHistory,initialUser}){
+export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh,onLoadHistory,initialUser,onNavigate}){
   const[tab,setTab]=useState("carga")
   const[period,setPeriod]=useState("semana")
   const[offset,setOffset]=useState(0)
   const[historyLoaded,setHistoryLoaded]=useState(false)
 
-  // Si el usuario navega a un período antiguo (>60 días atrás) o entra a las
-  // pestañas de Marcas/Órdenes que necesitan histórico, carga todas las
-  // tareas completadas viejas una sola vez.
   useEffect(()=>{
     if(historyLoaded||!onLoadHistory)return
     const needsHistory=offset<0||tab==="ordenes"||tab==="marcas"||tab==="desempeno"
-    if(needsHistory){
-      setHistoryLoaded(true)
-      onLoadHistory()
-    }
+    if(needsHistory){setHistoryLoaded(true);onLoadHistory()}
   },[offset,tab,historyLoaded,onLoadHistory])
 
-  // Cuentas: filter tasks to only their assigned teams
   const myProfile=me||profile
   const isCuentas=myProfile?.role==="cuentas"
   const myTeamIds=isCuentas?(Array.isArray(myProfile?.team_ids)&&myProfile.team_ids.length>0?myProfile.team_ids:[myProfile?.team_id].filter(Boolean)):null
-  const visibleTasks=isCuentas&&myTeamIds
-    ?tasks.filter(t=>myTeamIds.includes(t.team_id))
-    :tasks
+  const visibleTasks=isCuentas&&myTeamIds?tasks.filter(t=>myTeamIds.includes(t.team_id)):tasks
 
   function handlePeriod(p,o){setPeriod(p);setOffset(o)}
   const range=getRangeLabel(period,offset)
@@ -889,7 +1040,6 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
     {v:"ordenes",l:"Órdenes"},
   ]
 
-  // KPIs globales del período (no aplica a carga que es tiempo real)
   const filtered=filterByRange(visibleTasks,range)
   const hrsR=filtered.reduce((s,t)=>s+Number(t.hours_real||0),0)
   const hrsE=filtered.reduce((s,t)=>s+Number(t.hours||0),0)
@@ -901,7 +1051,6 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
 
-      {/* Cuentas scope notice */}
       {isCuentas&&myTeamIds&&(
         <div style={{background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--muted)",display:"flex",alignItems:"center",gap:8}}>
           <Icon n="equipo2" size={13}/>
@@ -909,13 +1058,11 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
         </div>
       )}
 
-      {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:12}}>
         <h2 style={{fontSize:18,fontWeight:800,fontFamily:"var(--font-display)"}}>Desempeño & Reportería</h2>
         {tab!=="carga"&&<PeriodBar period={period} offset={offset} onChange={handlePeriod}/>}
       </div>
 
-      {/* KPIs — solo cuando no es pestaña de carga */}
       {tab!=="carga"&&(
         <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
           {[
@@ -934,7 +1081,6 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
         </div>
       )}
 
-      {/* Tabs */}
       <div style={{display:"flex",gap:3,background:"var(--bg3)",borderRadius:10,padding:4,marginBottom:20,overflowX:"auto"}}>
         {TABS.map(t=>(
           <button key={t.v} onClick={()=>setTab(t.v)}
@@ -947,8 +1093,7 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
         ))}
       </div>
 
-      {/* initialUser se pasa a TabCarga para preseleccionar al usuario sin globals */}
-      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas} myProfile={myProfile} token={token} onRefresh={onRefresh} initialUser={initialUser||null}/>}
+      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas} myProfile={myProfile} token={token} onRefresh={onRefresh} initialUser={initialUser||null} onNavigateHome={onNavigate?()=>onNavigate("home"):null}/>}
       {tab==="desempeno"&&<TabDesempeno tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="equipos"&&<TabEquipos tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="marcas"&&<TabMarcas tasks={visibleTasks} users={users} teams={teams} range={range}/>}
