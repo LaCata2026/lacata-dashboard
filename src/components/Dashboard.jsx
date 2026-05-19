@@ -233,7 +233,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     calendario:<CalendarView {...shared}/>,
 
     // initialUser viene de pageArg cuando se navega desde onViewUser
-    desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load} onLoadHistory={loadHistory} initialUser={pageArg}/>,
+    desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load} onLoadHistory={loadHistory} initialUser={pageArg} onNavigate={navigate}/>,
 
     admin:<AdminView {...shared}/>,
 
