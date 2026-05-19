@@ -73,13 +73,22 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   window._openTask=(t)=>setFloatTask(t)
 
+  // Carga inicial optimizada: activas SIEMPRE + completadas/vencidas de los últimos 60 días.
+  // Las completadas viejas se cargan bajo demanda (loadHistory) solo si se necesitan en reportes.
   const load=useCallback(async()=>{
 
     try{
 
+      // Fecha límite: 60 días atrás en formato ISO
+      const cutoff=new Date(Date.now()-60*24*3600000).toISOString()
+
+      // Tareas: trae todas las NO completadas + las completadas recientes.
+      // Filtro PostgREST: status != completada OR created_at >= cutoff
+      const taskQuery="select=*&order=created_at.desc&or=(status.neq.completada,created_at.gte."+cutoff+")"
+
       const[t,u,tm]=await Promise.all([
 
-        sb.get("tareas","select=*&order=created_at.desc",token),
+        sb.get("tareas",taskQuery,token),
 
         sb.get("usuarios","select=*&order=name.asc",token),
 
@@ -97,11 +106,83 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   },[token])
 
+  // Carga el histórico completo (todas las completadas) — usado solo cuando
+  // los reportes necesitan datos antiguos. No se llama en el arranque normal.
+  const loadHistory=useCallback(async()=>{
+
+    try{
+
+      const all=await sb.get("tareas","select=*&order=created_at.desc",token)
+
+      if(Array.isArray(all))setTasks(all)
+
+    }catch(e){console.warn("loadHistory:",e)}
+
+  },[token])
+
   useEffect(()=>{load()},[load])
 
+  // Realtime incremental: aplica SOLO el registro que cambió al estado local,
+  // en lugar de recargar las 3 tablas completas en cada cambio.
+  // Esto reduce drásticamente las llamadas a Supabase con muchos usuarios.
   useEffect(()=>{
 
-    const unsubs=["tareas","usuarios","equipos"].map(table=>Realtime.subscribe(table,()=>load()))
+    const setters={tareas:setTasks,usuarios:setUsers,equipos:setTeams}
+
+    function applyChange(table,payload){
+
+      const setter=setters[table]
+
+      if(!setter)return
+
+      // payload puede venir como {eventType,new,old} o {type,record,old_record}
+      const evType=payload.eventType||payload.type||payload.event
+
+      const rec=payload.new||payload.record||payload.new_record
+
+      const oldRec=payload.old||payload.old_record
+
+      const recId=rec?.id||oldRec?.id
+
+      if(!recId){load();return} // sin id no podemos hacer merge — fallback a recarga
+
+      setter(prev=>{
+
+        const arr=Array.isArray(prev)?prev:[]
+
+        if(evType==="DELETE"||evType==="delete"){
+
+          return arr.filter(x=>x.id!==recId)
+
+        }
+
+        if(evType==="INSERT"||evType==="insert"){
+
+          if(arr.some(x=>x.id===recId))return arr.map(x=>x.id===recId?{...x,...rec}:x)
+
+          return [rec,...arr]
+
+        }
+
+        // UPDATE — reemplaza la fila; si no existe (estaba fuera del rango cargado), la agrega
+
+        if(arr.some(x=>x.id===recId))return arr.map(x=>x.id===recId?{...x,...rec}:x)
+
+        return [rec,...arr]
+
+      })
+
+    }
+
+    const unsubs=["tareas","usuarios","equipos"].map(table=>
+
+      Realtime.subscribe(table,(payload)=>{
+
+        try{applyChange(table,payload)}catch(e){console.warn("realtime apply error:",e);load()}
+
+      })
+
+    )
 
     return()=>unsubs.forEach(u=>u())
 
@@ -147,7 +228,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
     calendario:<CalendarView {...shared}/>,
 
-    desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load}/>,
+    desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load} onLoadHistory={loadHistory}/>,
 
     admin:<AdminView {...shared}/>,
 
