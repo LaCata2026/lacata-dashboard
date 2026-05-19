@@ -102,7 +102,7 @@ function Chip({label,value,color,sub}){
 /* ═══════════════════════════════════════════
    TAB 1 — CARGA EN TIEMPO REAL
 ═══════════════════════════════════════════ */
-function TabCarga({tasks,users,teams,myTeamIds,isCuentas}){
+function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefresh}){
   const[viewMode,setViewMode]=useState("individual")
   const[selectedUser,setSelectedUser]=useState(null)
   const colabs=users.filter(u=>{
@@ -924,7 +924,7 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
         ))}
       </div>
 
-      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas}/>}
+      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas} myProfile={myProfile} token={token} onRefresh={onRefresh}/>}
       {tab==="desempeno"&&<TabDesempeno tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="equipos"&&<TabEquipos tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="marcas"&&<TabMarcas tasks={visibleTasks} users={users} teams={teams} range={range}/>}
