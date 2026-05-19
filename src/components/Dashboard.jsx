@@ -206,8 +206,21 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const navItems=NAV.filter(n=>n.roles.includes(profile.role))
   const isCuentas=profile.role==="cuentas"
-  const myTeamIds=isCuentas?(Array.isArray(profile.team_ids)&&profile.team_ids.length>0?profile.team_ids:[profile.team_id].filter(Boolean)):null
-  const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
+  const isCollab=profile.role==="colaborador"
+  // Equipos visibles en sidebar / vistas:
+  //  - director: todos
+  //  - cuentas: solo los de sus team_ids asignados
+  //  - colaborador: solo los equipos a los que pertenece (team_ids + team_id)
+  // Antes solo se filtraba para cuentas; el colaborador veía TODOS los equipos
+  // en el sidebar. Ahora se aplica el mismo scope a colaborador.
+  const myScopedTeamIds=(isCuentas||isCollab)
+    ?(Array.isArray(profile.team_ids)&&profile.team_ids.length>0
+        ?profile.team_ids
+        :[profile.team_id].filter(Boolean))
+    :null
+  const visibleTeams=(isCuentas||isCollab)&&myScopedTeamIds
+    ?teams.filter(t=>myScopedTeamIds.includes(t.id))
+    :teams
 
   // Navega a desempeño y pasa el usuario como pageArg — IntelView lo recibe
   // como initialUser y lo pasa a TabCarga, eliminando la necesidad de
@@ -228,6 +241,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
     crear:<CreateTask {...shared} onCreated={()=>navigate("ordenes")} onBack={()=>navigate("ordenes")}/>,
 
+    // visibleTeams ya está scoped por rol — TeamsView recibe solo los equipos permitidos
     equipos:<TeamsView {...shared} teams={visibleTeams}/>,
 
     calendario:<CalendarView {...shared}/>,
@@ -325,7 +339,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
             })}
 
-            {teams.length>0&&(<div><div className="nav-section">Equipos</div>
+            {visibleTeams.length>0&&(<div><div className="nav-section">Equipos</div>
 
               {visibleTeams.map(t=>(<button key={t.id} onClick={()=>navigate("equipos")} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)",background:"transparent",border:"none",cursor:"pointer",width:"100%",borderRadius:6,transition:".13s",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</button>))}
 
