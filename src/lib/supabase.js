@@ -10,6 +10,16 @@ export const CUENTAS_EMAILS  = []
 export const COLLAB_COLORS = ["#e85d4a","#f0924a","#e8c547","#4ade80","#3ecf8e","#5b9cf6","#60a5fa","#a78bfa","#c084fc","#f472b6","#fb923c","#f87171","#34d399","#38bdf8","#818cf8","#e879f9"]
 export const COLORS = ["#e85d4a","#e8a23a","#4ade80","#3ecf8e","#5b9cf6","#a78bfa","#f472b6","#fb923c","#34d399","#60a5fa","#c084fc","#f87171"]
 export const MARCAS_PREDEFINIDAS = ["Novex","Painsa","Sombrela Y Rabinal","Purina","Seguros GyT","CIAM","Digital"]
+// Dynamic brands — stored in localStorage, merged with predefined
+export function getMarcas(){
+  try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");return[...new Set([...MARCAS_PREDEFINIDAS,...custom])].sort()}catch{return MARCAS_PREDEFINIDAS}
+}
+export function addMarca(name){
+  try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");if(!custom.includes(name)){custom.push(name);localStorage.setItem("lc_custom_marcas",JSON.stringify(custom))}}catch{}
+}
+export function removeMarca(name){
+  try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");localStorage.setItem("lc_custom_marcas",JSON.stringify(custom.filter(m=>m!==name)))}catch{}
+}
 export function getRole(e){const em=(e||"").toLowerCase();if(DIRECTOR_EMAILS.includes(em))return"director";if(CUENTAS_EMAILS.includes(em))return"cuentas";return"colaborador"}
 export function getInitials(name){if(!name)return"?";return name.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase()}
 export function getAvatarColor(email){let h=0;for(let c of (email||""))h=(h*31+c.charCodeAt(0))%COLLAB_COLORS.length;return COLLAB_COLORS[Math.abs(h)]}
