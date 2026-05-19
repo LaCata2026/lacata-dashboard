@@ -58,7 +58,7 @@ export const sb={
       if(!profile.name)profile.name=fullName||fallbackName
       if(!profile.initials)profile.initials=getInitials(profile.name)
       if(!profile.avatar_color)profile.avatar_color=getAvatarColor(uemail)
-      if(!profile.role)profile.role=getRole(uemail)
+      if(!profile.role)profile.role="colaborador" // fallback si la BD no tiene rol
     }else{
       // No profile found — build one and auto-create in DB (best effort)
       const role=getRole(uemail)
