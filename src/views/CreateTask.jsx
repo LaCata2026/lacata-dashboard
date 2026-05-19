@@ -45,9 +45,12 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
     }
     setLoading(true);
     try{
-      const existing=await sb.get("tareas","select=order_number&order=order_number.desc&limit=1",token);
-      const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
-      const orderNum=lastNum+1;
+      // ── NÚMERO DE ORDEN ATÓMICO ──
+      // Antes: MAX(order_number)+1 sobre la tabla → si borrabas la orden
+      // más alta, el siguiente número se REUTILIZABA (bug de auditoría).
+      // Ahora: contador persistente en Supabase que solo sube, nunca
+      // disminuye. Los números no se reutilizan jamás, igual que facturas.
+      const orderNum=await sb.nextOrderNumber(token);
       const{_teamFilter,...formData}={...form,team_id:finalTeamId};
 
       // Upload files — use sb.upload (correct method name)
