@@ -44,7 +44,9 @@ export const sb={
     const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({email,password:pw})})
     const d=await r.json()
     if(d.error||d.error_description)throw new Error("Correo o contraseña incorrectos")
-    const{id,email:uemail,name}=safeUser(d)
+    // safeUser devuelve: id, email, name (ya con fallback al prefijo del correo),
+    // meta y fullName. Renombramos name→authName para usarlo como respaldo.
+    const{id,email:uemail,name:authName,fullName}=safeUser(d)
     if(!id)throw new Error("No se pudo obtener el usuario. Intenta de nuevo.")
     const profileR=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${id}&select=*`,{headers:{apikey:SB_ANON,Authorization:`Bearer ${d.access_token}`}})
     const profileData=await profileR.json()
@@ -54,8 +56,15 @@ export const sb={
       // Normalize team_ids
       if(typeof profile.team_ids==="string"){try{profile.team_ids=JSON.parse(profile.team_ids)}catch{profile.team_ids=[]}}
       if(!Array.isArray(profile.team_ids))profile.team_ids=[]
-      // Ensure all required fields exist
-      if(!profile.name)profile.name=fullName||fallbackName
+      // Ensure all required fields exist.
+      // ── BUGFIX ──
+      // Antes esta línea usaba `fallbackName`, una variable que NUNCA se
+      // declaró. Cuando el name del perfil venía vacío, JS lanzaba un
+      // ReferenceError aquí y cortaba el resto de la normalización
+      // (initials / avatar_color / role nunca se asignaban), y el name
+      // quedaba vacío → terminaba mostrándose como "Usuario" en el saludo.
+      // Ahora usa authName (full_name del metadata o prefijo del correo).
+      if(!profile.name)profile.name=fullName||authName||(uemail?uemail.split("@")[0]:"Usuario")
       if(!profile.initials)profile.initials=getInitials(profile.name)
       if(!profile.avatar_color)profile.avatar_color=getAvatarColor(uemail)
       if(!profile.role)profile.role="colaborador" // fallback si la BD no tiene rol
@@ -63,13 +72,14 @@ export const sb={
       // No profile found — build one and auto-create in DB (best effort)
       const role=getRole(uemail)
       const avatar_color=getAvatarColor(uemail)
-      const initials=getInitials(name)
-      profile={id,email:uemail,name,role,avatar_color,initials,team_ids:[],team_id:null}
+      const safeName=fullName||authName||(uemail?uemail.split("@")[0]:"Usuario")
+      const initials=getInitials(safeName)
+      profile={id,email:uemail,name:safeName,role,avatar_color,initials,team_ids:[],team_id:null}
       try{
         await fetch(`${SB_URL}/rest/v1/usuarios`,{
           method:"POST",
           headers:{apikey:SB_ANON,Authorization:`Bearer ${d.access_token}`,"Content-Type":"application/json",Prefer:"return=minimal"},
-          body:JSON.stringify({id,email:uemail,name,role,avatar_color,initials,team_ids:[],team_id:null})
+          body:JSON.stringify({id,email:uemail,name:safeName,role,avatar_color,initials,team_ids:[],team_id:null})
         })
       }catch(err){console.warn("Auto-create profile failed:",err)}
     }
