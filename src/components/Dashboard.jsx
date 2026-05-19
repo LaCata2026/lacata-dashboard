@@ -32,6 +32,7 @@ import AdminView from'../views/AdminView'
 
 import BottomNav from'./BottomNav'
 import DiagnosticPanel from'./DiagnosticPanel'
+import ReporteExcel from'../views/ReporteExcel'
 
 export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
@@ -68,6 +69,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const[showNotif,setShowNotif]=useState(false)
   const[showDiag,setShowDiag]=useState(false)
+  const[showReporte,setShowReporte]=useState(false)
 
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
 
@@ -329,6 +331,15 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
             </div>)}
 
+            {profile.role==="director"&&(
+              <div style={{marginTop:8}}>
+                <div className="nav-section">Reportes</div>
+                <button className="nav-item" onClick={()=>setShowReporte(true)}>
+                  <Icon n="exportar" size={15}/>Reporte Excel
+                </button>
+              </div>
+            )}
+
           </nav>
 
           <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:8}}>
@@ -450,11 +461,12 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       </main>
 
       {showDiag&&<DiagnosticPanel session={session} tasks={tasks} users={users} teams={teams} onClose={()=>setShowDiag(false)}/>}
+      {showReporte&&<ReporteExcel tasks={tasks} users={users} teams={teams} isOpen={showReporte} onClose={()=>setShowReporte(false)}/>}
       {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)} onOpenTask={setFloatTask}/>}
 
       {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTask(null)}/>}
 
-      <div className="mobile-bottom-nav"><BottomNav page={page} navigate={navigate} profile={profile} isDark={isDark} toggleTheme={toggleTheme} onLogout={onLogout} unread={unread.length} onNotif={()=>setShowNotif(s=>!s)}/></div>
+      <div className="mobile-bottom-nav"><BottomNav page={page} navigate={navigate} profile={profile} isDark={isDark} toggleTheme={toggleTheme} onLogout={onLogout} unread={unread.length} onNotif={()=>setShowNotif(s=>!s)} onReporte={()=>setShowReporte(true)}/></div>
 
     </div>
 
