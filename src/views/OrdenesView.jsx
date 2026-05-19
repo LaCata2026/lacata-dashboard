@@ -174,9 +174,26 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
 
       {effectiveView==="calendario"&&(<CalendarView tasks={tasks} users={users} teams={teams} me={me}/>)}
 
-      {visible.length===0&&effectiveView!=="calendario"&&(
-        <div className="empty"><div style={{opacity:.3,marginBottom:8}}><Icon n="ordenes" size={40} color="currentColor"/></div><p>No hay órdenes con estos filtros.</p></div>
-      )}
+      {visible.length===0&&effectiveView!=="calendario"&&(()=>{
+        const hayFiltros=sf!=="todas"||tf!=="todas"||search.trim()!=="";
+        return(
+          <div className="empty">
+            <div style={{opacity:.3,marginBottom:8}}><Icon n="ordenes" size={40} color="currentColor"/></div>
+            {hayFiltros
+              ?<>
+                 <p>Ninguna orden coincide con los filtros actuales.</p>
+                 <button onClick={()=>{setSf("todas");setTf("todas");setSearch("");}} style={{marginTop:10,fontSize:12,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"6px 14px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:600}}>Limpiar filtros</button>
+               </>
+              :isCollab
+                ?<p>Aún no tienes órdenes asignadas. Cuando te asignen una, aparecerá aquí.</p>
+                :<>
+                   <p>Todavía no hay órdenes de trabajo.</p>
+                   {isDir&&<p style={{fontSize:12,color:"var(--muted)",marginTop:6}}>Usa “Nueva orden” en el menú lateral para crear la primera.</p>}
+                 </>
+            }
+          </div>
+        );
+      })()}
 
       {effectiveView==="kanban"&&visible.length>0&&(
         <div className="kanban-wrap">
