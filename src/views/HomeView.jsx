@@ -7,7 +7,7 @@ import Icon from'../components/Icon'
 import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
 import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
-export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate}){
+export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate,onOpenTask,onViewUser}){
   const isDir=me.role==="director"
   const isCuentas=me.role==="cuentas"
   const isCollab=me.role==="colaborador"
@@ -78,7 +78,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:14,padding:16,marginBottom:16}}>
               <p style={{fontSize:13,fontWeight:700,color:"#fca5a5",marginBottom:10}}><Icon n="vencida" size={13} style={{marginRight:4}}/> Requieren atención inmediata</p>
               {myUrgent.slice(0,3).map(t=>(
-                <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderBottom:"1px solid rgba(239,68,68,.1)",cursor:"pointer",borderRadius:6,transition:".12s"}} onClick={()=>{window._openTask&&window._openTask(t);}} onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderBottom:"1px solid rgba(239,68,68,.1)",cursor:"pointer",borderRadius:6,transition:".12s"}} onClick={()=>onOpenTask&&onOpenTask(t)} onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                   {t.order_number&&<span style={{fontSize:11,color:"#fca5a5",fontWeight:700}}>#{String(t.order_number).padStart(4,"0")}</span>}
                   <span style={{flex:1,fontSize:13}}>{t.title}</span>
                   {(()=>{const dr=fmtDateRelative(t.due_date);return<span style={{color:dr.color,fontWeight:700,fontSize:11}}>{dr.label}</span>;})()}
@@ -93,7 +93,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
               :myActive.map(t=>{
                 const team=teams.find(x=>x.id===t.team_id),dr=fmtDateRelative(t.due_date)
                 return(
-                  <div key={t.id} className="task-card fade-in" style={{cursor:"pointer",borderLeft:`3px solid ${statusColor[t.status]||"var(--border2)"}`,marginBottom:8}} onClick={()=>{window._openTask&&window._openTask(t);}}>
+                  <div key={t.id} className="task-card fade-in" style={{cursor:"pointer",borderLeft:`3px solid ${statusColor[t.status]||"var(--border2)"}`,marginBottom:8}} onClick={()=>onOpenTask&&onOpenTask(t)}>
                     <div style={{display:"flex",alignItems:"center",gap:12}}>
                       {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",minWidth:45,fontFamily:"var(--font-mono)"}}>AC-{String(t.order_number).padStart(4,"0")}</span>}
                       <div style={{flex:1}}><p style={{fontSize:13,fontWeight:600,marginBottom:2}}>{t.title}</p><p style={{fontSize:11,color:"var(--muted)"}}>{team?.name} · <span style={{color:dr.color,fontWeight:dr.urgent?700:400}}>{dr.label}</span></p></div>
@@ -118,7 +118,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
           {pendingApproval.slice(0,4).map(t=>{
             const team=teams.find(x=>x.id===t.team_id)
             return(
-              <div key={t.id} onClick={()=>window._openTask&&window._openTask(t)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <span style={{fontSize:11,fontWeight:700,color:"var(--accent)",fontFamily:"var(--font-mono)",minWidth:72}}>AC-{String(t.order_number||0).padStart(4,"0")}</span>
                 <div style={{flex:1,minWidth:0}}><p style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p><p style={{fontSize:11,color:"var(--muted)"}}>{team?.name||"Sin equipo"}</p></div>
                 <span style={{fontSize:11,color:"var(--s-revision)",fontWeight:600,flexShrink:0}}>Revisar →</span>
@@ -217,7 +217,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                 :forReview.slice(0,5).map(t=>{
                   const u=users.find(x=>x.id===(Array.isArray(t.assigned_to)?t.assigned_to[0]:t.assigned_to))
                   return(
-                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer",borderRadius:5,transition:".12s"}} onClick={()=>{window._openTask&&window._openTask(t);}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer",borderRadius:5,transition:".12s"}} onClick={()=>onOpenTask&&onOpenTask(t)} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",minWidth:40,fontFamily:"var(--font-mono)"}}>{"AC-"+String(t.order_number).padStart(4,"0")}</span>}
                       <div style={{flex:1,minWidth:0}}><p style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p><p style={{fontSize:11,color:"var(--muted)"}}>{u?.name||"—"}</p></div>
                       <span style={{fontSize:11,color:"var(--accent)",opacity:.6}}>→</span>
@@ -236,7 +236,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                   const u=users.find(x=>x.id===(Array.isArray(t.assigned_to)?t.assigned_to[0]:t.assigned_to))
                   const days=Math.ceil((new Date()-new Date(t.due_date+"T00:00:00"))/(1000*60*60*24))
                   return(
-                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(240,107,107,.1)",cursor:"pointer",borderRadius:5,transition:".12s"}} onClick={()=>{window._openTask&&window._openTask(t);}} onMouseEnter={e=>e.currentTarget.style.background="rgba(240,107,107,.04)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(240,107,107,.1)",cursor:"pointer",borderRadius:5,transition:".12s"}} onClick={()=>onOpenTask&&onOpenTask(t)} onMouseEnter={e=>e.currentTarget.style.background="rgba(240,107,107,.04)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--red)",minWidth:40,fontFamily:"var(--font-mono)"}}>{"AC-"+String(t.order_number).padStart(4,"0")}</span>}
                       <div style={{flex:1,minWidth:0}}><p style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p><p style={{fontSize:11,color:"var(--muted)"}}>{u?.name||"—"}</p></div>
                       <span style={{fontSize:11,background:"rgba(240,107,107,.12)",color:"var(--red)",fontWeight:700,flexShrink:0,padding:"2px 7px",borderRadius:4}}>{days}d tarde</span>
@@ -286,7 +286,10 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                 const pct=Math.round((w.active/maxLoad)*100)
                 const color=w.active>=7?"var(--s-vencida)":w.active>=4?"var(--load-warn)":(team?teamColor(team):"var(--s-completada)")
                 return(
-                  <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,padding:"6px 8px",borderRadius:8,cursor:(isDir||isCuentas)?"pointer":"default",transition:".13s"}} onClick={()=>{if(isDir||isCuentas){onNavigate("desempeno");setTimeout(()=>window._perfSelectUser&&window._perfSelectUser(w),80);}}} onMouseEnter={e=>{if(isDir||isCuentas)e.currentTarget.style.background="var(--bg3)";}} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div key={w.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,padding:"6px 8px",borderRadius:8,cursor:(isDir||isCuentas)?"pointer":"default",transition:".13s"}}
+                    onClick={()=>{if((isDir||isCuentas)&&onViewUser)onViewUser(w)}}
+                    onMouseEnter={e=>{if(isDir||isCuentas)e.currentTarget.style.background="var(--bg3)";}}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <div className="avatar" style={{width:30,height:30,background:w.avatar_color,fontSize:11,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{w.initials}</div>
                     <div style={{minWidth:110,flexShrink:0}}><p style={{fontSize:12,fontWeight:600}}>{w.name}</p><p style={{fontSize:10,color:"var(--muted)"}}>{team?.name||"Sin equipo"}</p></div>
                     <div style={{flex:1,height:8,background:"var(--bg3)",borderRadius:4,overflow:"hidden"}}><div style={{width:pct+"%",height:"100%",background:color,borderRadius:4,transition:"width .5s"}}/></div>
