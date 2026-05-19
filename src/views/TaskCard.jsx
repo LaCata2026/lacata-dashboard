@@ -144,6 +144,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   const [showReassign,setShowReassign]=useState(false);
   const [showAddChange,setShowAddChange]=useState(false);
   const [pausePrompt,setPausePrompt]=useState(false); // diálogo motivo de pausa
+  const [quickMenu,setQuickMenu]=useState(false); // menú rápido del pill de estado
   const [imgPreview,setImgPreview]=useState(null);
   const textareaRef=useRef(null);
   const commentsEndRef=useRef(null);
@@ -278,7 +279,47 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:7,alignItems:"center"}}>
             {task.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",fontFamily:"monospace"}}>#{"AC-"+String(task.order_number).padStart(4,"0")}</span>}
             <span className={`pill ${prioPill[task.priority]||"pill-gray"}`}>{task.priority}</span>
-            <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}>{statusLabel[effStatus]||task.status}</span>
+            {(()=>{
+              // Mismos permisos que el modal: director/cuentas todo,
+              // colaborador solo si está asignado a la tarea.
+              const canChange=isDir||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id);
+              if(!canChange)return <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}>{statusLabel[effStatus]||task.status}</span>;
+              const opts=[
+                {v:"pendiente",label:"Pendiente"},
+                {v:"en_progreso",label:"En progreso"},
+                {v:"en_pausa",label:"En pausa"},
+                {v:"en_revision",label:"Revisión"},
+                {v:"completada",label:"Completada"},
+                ...(isDir?[{v:"vencida",label:"Vencida"}]:[])
+              ];
+              return(
+                <span style={{position:"relative",display:"inline-flex"}}>
+                  <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}
+                    onClick={e=>{e.stopPropagation();setQuickMenu(q=>!q);}}
+                    style={{cursor:"pointer",userSelect:"none"}}
+                    title="Cambiar estado">
+                    {statusLabel[effStatus]||task.status} <span style={{opacity:.5,fontSize:8,marginLeft:2}}>▼</span>
+                  </span>
+                  {quickMenu&&(
+                    <>
+                      <span onClick={e=>{e.stopPropagation();setQuickMenu(false);}}
+                        style={{position:"fixed",inset:0,zIndex:50}}/>
+                      <span style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:51,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:8,padding:4,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,.4)",display:"flex",flexDirection:"column",gap:1}}>
+                        {opts.map(o=>(
+                          <span key={o.v}
+                            onClick={e=>{e.stopPropagation();setQuickMenu(false);if(o.v!==effStatus)changeStatus(o.v);}}
+                            style={{padding:"7px 12px",borderRadius:5,fontSize:12,cursor:"pointer",color:o.v===effStatus?"var(--accent)":"var(--text)",fontWeight:o.v===effStatus?700:400,background:o.v===effStatus?"var(--accent-dim)":"transparent",fontFamily:"var(--font-body)",whiteSpace:"nowrap",transition:".1s"}}
+                            onMouseEnter={ev=>{if(o.v!==effStatus)ev.currentTarget.style.background="var(--bg3)";}}
+                            onMouseLeave={ev=>{if(o.v!==effStatus)ev.currentTarget.style.background="transparent";}}>
+                            {o.label}{o.v===effStatus&&" ✓"}
+                          </span>
+                        ))}
+                      </span>
+                    </>
+                  )}
+                </span>
+              );
+            })()}
             {task.changes>0&&<span className="pill pill-purple"><Icon n="cambio" size={10}/> {task.changes}</span>}
             {(()=>{
               const files=Array.isArray(task.files)?task.files:[];if(files.length===0)return null;
