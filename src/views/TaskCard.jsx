@@ -89,9 +89,10 @@ export function AddChangeModal({task,token,onClose,onRefresh,me}){
 
 export async function duplicateTask(task,token,onRefresh){
   try{
-    const existing=await sb.get("tareas","select=order_number&order=order_number.desc&limit=1",token);
-    const lastNum=Array.isArray(existing)&&existing.length>0&&existing[0].order_number?existing[0].order_number:0;
-    const orderNum=lastNum+1;
+    // ── NÚMERO DE ORDEN ATÓMICO ──
+    // Antes: MAX(order_number)+1 → reutilizaba números si se borraban
+    // órdenes. Ahora: contador persistente en Supabase. Ver supabase.js.
+    const orderNum=await sb.nextOrderNumber(token);
     const assigned=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
     await sb.insert("tareas",{
       title:task.title,description:task.description||"",marca:task.marca||"",
