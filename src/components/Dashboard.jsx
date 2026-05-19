@@ -31,6 +31,7 @@ import IntelView from'../views/IntelView'
 import AdminView from'../views/AdminView'
 
 import BottomNav from'./BottomNav'
+import DiagnosticPanel from'./DiagnosticPanel'
 
 export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
@@ -66,6 +67,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const[floatTask,setFloatTask]=useState(null)
 
   const[showNotif,setShowNotif]=useState(false)
+  const[showDiag,setShowDiag]=useState(false)
 
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
 
@@ -113,14 +115,25 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   },[])
 
-  function navigate(id,arg=null){setPage(id);setPageArg(arg);setSidebarOpen(false)}
+  function navigate(id,arg=null){
+    // Handle equipo_TEAMID routes — go to equipos view
+    if(id&&id.startsWith("equipo_")){
+      setPage("equipos");setPageArg(id.replace("equipo_",""));setSidebarOpen(false);return
+    }
+    setPage(id);setPageArg(arg);setSidebarOpen(false)
+  }
 
   const navItems=NAV.filter(n=>n.roles.includes(profile.role))
   const isCuentas=profile.role==="cuentas"
   const myTeamIds=isCuentas?(Array.isArray(profile.team_ids)&&profile.team_ids.length>0?profile.team_ids:[profile.team_id].filter(Boolean)):null
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
 
-  const shared={tasks,users,teams,token,profile,me:profile,onReload:load,onRefresh:load,onNavigate:navigate}
+  function onViewUser(u){
+    navigate("desempeno")
+    setTimeout(()=>{if(window._perfSelectUser)window._perfSelectUser(u)},150)
+  }
+  function onOpenTask(t){setFloatTask(t)}
+  const shared={tasks,users,teams,token,profile,me:profile,onReload:load,onRefresh:load,onNavigate:navigate,onViewUser,onOpenTask}
 
   const views={
 
@@ -254,6 +267,12 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
               </button>
 
+              {profile.role==="director"&&<button onClick={()=>setShowDiag(true)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}} title="Diagnóstico del sistema">
+
+                <Icon n="semaforo" size={15}/>
+
+              </button>}
+
               <div style={{position:"relative",flexShrink:0}}>
 
                 <button onClick={()=>setShowNotif(s=>!s)} style={{background:"none",border:"none",cursor:"pointer",color:unread.length>0?"var(--accent)":"var(--muted2)",padding:4,borderRadius:6,position:"relative"}}>
@@ -346,6 +365,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
       </main>
 
+      {showDiag&&<DiagnosticPanel session={session} tasks={tasks} users={users} teams={teams} onClose={()=>setShowDiag(false)}/>}
       {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)}/>}
 
       {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTask(null)}/>}
