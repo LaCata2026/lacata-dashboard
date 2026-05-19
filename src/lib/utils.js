@@ -49,3 +49,21 @@ export async function autoMarkVencidas(tasks, token, sb) {
   ));
   return true;
 }
+
+/**
+ * assignedOf — helper único para normalizar el campo assigned_to.
+ *
+ * La BD puede guardar assigned_to como:
+ *   - array:  ["uuid1","uuid2"]   (asignación múltiple)
+ *   - string: "uuid1"             (asignación simple, legacy)
+ *   - null/undefined              (sin asignar)
+ *
+ * Siempre devuelve un array de strings (puede ser vacío), nunca null.
+ *
+ * Uso:  assignedOf(task).includes(userId)
+ *       assignedOf(task).map(id => users.find(u => u.id === id))
+ */
+export const assignedOf = t =>
+  Array.isArray(t.assigned_to)
+    ? t.assigned_to
+    : [t.assigned_to].filter(Boolean)
