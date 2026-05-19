@@ -71,10 +71,10 @@ function MyWeekCard({me,tasks,onNavigate}){
     return"Vamos a ponernos al día 💪"
   })()
 
-  const Metric=({val,label,color})=>(
-    <div style={{textAlign:"center",padding:"12px 8px",background:"var(--bg3)",borderRadius:10}}>
+  const Metric=({val,label,color,tip})=>(
+    <div data-tip={tip||undefined} style={{textAlign:"center",padding:"12px 8px",background:"var(--bg3)",borderRadius:10,cursor:tip?"help":"default"}}>
       <div style={{fontSize:26,fontWeight:800,color,fontFamily:"var(--font-display)",lineHeight:1}}>{val}</div>
-      <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5,textTransform:"uppercase",letterSpacing:".06em"}}>{label}</div>
+      <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5,textTransform:"uppercase",letterSpacing:".06em"}}>{label}{tip&&<span style={{marginLeft:4,opacity:.5}}>ⓘ</span>}</div>
     </div>
   )
 
@@ -110,9 +110,9 @@ function MyWeekCard({me,tasks,onNavigate}){
 
       {/* Fila 1 — métricas de logro */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-        <Metric val={doneThisWeek.length} label="Completadas" color="var(--s-completada)"/>
-        <Metric val={efic==null?"—":efic+"%"} label="Eficiencia" color={efic==null?"var(--muted)":efic>=90?"var(--s-completada)":efic>=70?"var(--yellow)":"var(--accent)"}/>
-        <Metric val={`${streak}${streak>=7?" 🔥":""}`} label="Días sin atraso" color={streak>=7?"var(--accent)":"var(--text)"}/>
+        <Metric val={doneThisWeek.length} label="Completadas" color="var(--s-completada)" tip="Órdenes que terminaste esta semana (lunes a domingo)"/>
+        <Metric val={efic==null?"—":efic+"%"} label="Eficiencia" color={efic==null?"var(--muted)":efic>=90?"var(--s-completada)":efic>=70?"var(--yellow)":"var(--accent)"} tip="Horas estimadas vs. horas reales. 100% = trabajaste justo lo previsto"/>
+        <Metric val={`${streak}${streak>=7?" 🔥":""}`} label="Días sin atraso" color={streak>=7?"var(--accent)":"var(--text)"} tip="Días seguidos sin que se te venza ninguna tarea"/>
       </div>
 
       {/* Fila 2 — contadores operativos (clickeables) */}
@@ -513,7 +513,10 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
           <div className="card">
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}>⚖️ Carga de trabajo por colaborador</h3>
             {workload.length===0
-              ?<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:16}}>No hay colaboradores aún.</p>
+              ?<div style={{textAlign:"center",padding:"20px 16px"}}>
+                 <p style={{fontSize:13,color:"var(--muted)",marginBottom:8}}>Aún no hay colaboradores registrados.</p>
+                 {isDir&&<button onClick={()=>onNavigate("admin")} style={{fontSize:12,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"6px 14px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:600}}>Ir a Administración para invitar →</button>}
+               </div>
               :workload.map(w=>{
                 const team=teams.find(t=>t.id===w.team_id)
                 const pct=Math.round((w.active/maxLoad)*100)
