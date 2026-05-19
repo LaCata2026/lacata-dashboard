@@ -85,11 +85,13 @@ export default function DiagnosticPanel({session,tasks,users,teams,onClose}){
     // 10. Can write to DB
     try{
       const testId="diag-test-"+Date.now()
+      // Test write using initials field (always exists)
+      const safeUpdate={initials:profile?.initials||profile?.name?.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()||"??"}
       const r=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${profile?.id}`,{
         method:"PATCH",headers:{apikey:SB_ANON,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"return=minimal"},
-        body:JSON.stringify({updated_at:new Date().toISOString()})
+        body:JSON.stringify(safeUpdate)
       })
-      results.push({label:"Escritura en base de datos",status:r.ok||r.status===204?"pass":"fail",detail:`Status ${r.status} · ${r.ok||r.status===204?"Escritura OK":"Error al escribir"}`})
+      results.push({label:"Escritura en base de datos",status:r.ok||r.status===204?"pass":"fail",detail:`Status ${r.status} · ${r.ok||r.status===204?"Escritura OK":"Error al escribir — puede ser RLS o permisos"}`})
     }catch(e){results.push({label:"Escritura en base de datos",status:"fail",detail:e.message})}
 
     setChecks(results)
