@@ -7,6 +7,130 @@ import Icon from'../components/Icon'
 import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
 import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
+
+// assignedOf — normaliza assigned_to a array
+const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
+
+/* ═══════════════════════════════════════════
+   SEMANA ACTUAL — lunes 00:00 a domingo 23:59
+═══════════════════════════════════════════ */
+function currentWeekRange(){
+  const now=new Date()
+  const day=now.getDay()
+  const diff=now.getDate()-day+(day===0?-6:1) // lunes como inicio de semana
+  const from=new Date(now);from.setDate(diff);from.setHours(0,0,0,0)
+  const to=new Date(from);to.setDate(to.getDate()+6);to.setHours(23,59,59,999)
+  return{from,to}
+}
+
+// ¿La tarea tuvo actividad dentro de la semana? (history / started_at / created_at)
+function taskInWeek(t,range){
+  const inR=d=>d&&d>=range.from&&d<=range.to
+  const hist=Array.isArray(t.history)?t.history:[]
+  if(hist.some(e=>{
+    const iso=e.match(/\d{4}-\d{2}-\d{2}T[\d:.-]+Z?/);if(iso)return inR(new Date(iso[0]))
+    const loc=e.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(loc)return inR(new Date(`${loc[3]}-${loc[2].padStart(2,"0")}-${loc[1].padStart(2,"0")}`))
+    return false
+  }))return true
+  if(inR(t.started_at?new Date(t.started_at):null))return true
+  if(inR(t.created_at?new Date(t.created_at):null))return true
+  return false
+}
+
+const effPct=(est,real)=>{const e=Number(est),r=Number(real);if(!e||!r)return null;return Math.min(999,Math.round(e/r*100))}
+
+/* ═══════════════════════════════════════════
+   TARJETA DE DESEMPEÑO PERSONAL — COLABORADOR
+   Semana actual · completadas + eficiencia + racha
+   Tono motivador, no de vigilancia.
+═══════════════════════════════════════════ */
+function MyPerfCard({me,tasks}){
+  const week=currentWeekRange()
+  const mine=tasks.filter(t=>assignedOf(t).includes(me.id))
+
+  // Completadas esta semana
+  const doneThisWeek=mine.filter(t=>t.status==="completada"&&taskInWeek(t,week))
+
+  // Eficiencia: sobre las completadas de la semana con horas registradas
+  const withHrs=doneThisWeek.filter(t=>Number(t.hours)>0&&Number(t.hours_real)>0)
+  const totalEst=withHrs.reduce((s,t)=>s+Number(t.hours||0),0)
+  const totalReal=withHrs.reduce((s,t)=>s+Number(t.hours_real||0),0)
+  const eff=effPct(totalEst,totalReal)
+
+  // Racha: días consecutivos (hasta hoy) sin tareas vencidas.
+  // Si ahora mismo tengo alguna vencida, racha = 0.
+  const streak=(()=>{
+    const hasOverdueNow=mine.some(t=>t.status==="vencida")
+    if(hasOverdueNow)return 0
+    // Fecha más reciente en que algo mío estuvo "vencida" (según history).
+    let lastBad=null
+    mine.forEach(t=>{
+      const hist=Array.isArray(t.history)?t.history:[]
+      hist.forEach(e=>{
+        if(/vencid/i.test(e)){
+          const iso=e.match(/\d{4}-\d{2}-\d{2}T[\d:.-]+Z?/)
+          const loc=e.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+          let d=null
+          if(iso)d=new Date(iso[0])
+          else if(loc)d=new Date(`${loc[3]}-${loc[2].padStart(2,"0")}-${loc[1].padStart(2,"0")}`)
+          if(d&&(!lastBad||d>lastBad))lastBad=d
+        }
+      })
+    })
+    const firstTaskTime=mine.length>0
+      ?Math.min(...mine.map(t=>new Date(t.created_at||Date.now()).getTime()))
+      :Date.now()
+    const base=lastBad||new Date(firstTaskTime)
+    return Math.max(0,Math.floor((Date.now()-base.getTime())/(24*3600000)))
+  })()
+
+  const effColor=eff==null?"var(--muted)":eff>=90?"var(--green)":eff>=70?"var(--yellow)":"var(--orange)"
+
+  // Mensaje motivador según resultados
+  const cheer=(()=>{
+    if(doneThisWeek.length===0&&streak>=3)return"Vas bien — sin vencidas esta semana 👏"
+    if(doneThisWeek.length===0)return"Nueva semana, nuevas metas 💪"
+    if(doneThisWeek.length>=5)return"¡Semana imparable! 🔥"
+    if(eff!=null&&eff>=90)return"Excelente ritmo esta semana ⭐"
+    return"Buen avance, sigue así 🚀"
+  })()
+
+  return(
+    <div style={{
+      background:"linear-gradient(135deg, rgba(232,197,71,.10), rgba(46,196,160,.06))",
+      border:"1px solid rgba(232,197,71,.22)",borderRadius:16,
+      padding:"18px 20px",marginBottom:20
+    }}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <Av u={me} size={34}/>
+        <div>
+          <div style={{fontSize:14,fontWeight:700}}>Tu semana</div>
+          <div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{cheer}</div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        <div style={{textAlign:"center",padding:"10px 8px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
+          <div style={{fontSize:26,fontWeight:800,color:"var(--green)",fontFamily:"var(--font-display)",lineHeight:1}}>{doneThisWeek.length}</div>
+          <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5}}>COMPLETADAS</div>
+        </div>
+        <div style={{textAlign:"center",padding:"10px 8px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
+          <div style={{fontSize:26,fontWeight:800,color:effColor,fontFamily:"var(--font-display)",lineHeight:1}}>{eff==null?"—":eff+"%"}</div>
+          <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5}}>EFICIENCIA</div>
+        </div>
+        <div style={{textAlign:"center",padding:"10px 8px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
+          <div style={{fontSize:26,fontWeight:800,color:streak>=3?"var(--accent)":"var(--muted2)",fontFamily:"var(--font-display)",lineHeight:1}}>{streak}{streak>=7?" 🔥":""}</div>
+          <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5}}>DÍAS SIN VENCIDAS</div>
+        </div>
+      </div>
+      {eff==null&&doneThisWeek.length>0&&(
+        <p style={{fontSize:10,color:"var(--muted)",marginTop:10,fontFamily:"var(--font-mono)",textAlign:"center"}}>
+          La eficiencia aparece cuando registres horas en tus tareas
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate,onOpenTask,onViewUser}){
   const isDir=me.role==="director"
   const isCuentas=me.role==="cuentas"
@@ -64,6 +188,10 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             <h2 style={{fontSize:20,fontWeight:700,marginBottom:4}}>{(()=>{const h=new Date().getHours();return(h<12?"Buenos días":h<18?"Buenas tardes":"Buenas noches")+", "+me.name.split(" ")[0]+" 👋";})()}</h2>
             <p style={{color:"var(--muted)",fontSize:14}}>Tienes {myActive.length} tarea{myActive.length!==1?"s":""} activa{myActive.length!==1?"s":""}</p>
           </div>
+
+          {/* ── TARJETA DE DESEMPEÑO PERSONAL ── */}
+          <MyPerfCard me={me} tasks={tasks}/>
+
           <div style={{display:"flex",gap:8,marginBottom:20}}>
             <button className="quick-action" onClick={()=>onNavigate("ordenes")}><div className="quick-action-icon" style={{background:"rgba(77,157,224,.12)"}}><Icon n="ordenes" size={18} color="var(--s-progreso)"/></div><span style={{fontSize:11,fontWeight:600}}>Mis órdenes</span></button>
             <button className="quick-action" onClick={()=>onNavigate("ordenes","en_revision")}><div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}><Icon n="revision" size={18} color="var(--s-revision)"/></div><span style={{fontSize:11,fontWeight:600}}>En revisión</span></button>
@@ -81,7 +209,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                 <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderBottom:"1px solid rgba(239,68,68,.1)",cursor:"pointer",borderRadius:6,transition:".12s"}} onClick={()=>onOpenTask&&onOpenTask(t)} onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                   {t.order_number&&<span style={{fontSize:11,color:"#fca5a5",fontWeight:700}}>#{String(t.order_number).padStart(4,"0")}</span>}
                   <span style={{flex:1,fontSize:13}}>{t.title}</span>
-                  {(()=>{const dr=fmtDateRelative(t.due_date);return<span style={{color:dr.color,fontWeight:700,fontSize:11}}>{dr.label}</span>;})()}
+                  {(()=>{const dr=fmtDateRelative(t.due_date,t.status);return<span style={{color:dr.color,fontWeight:700,fontSize:11}}>{dr.label}</span>;})()}
                 </div>
               ))}
             </div>
@@ -89,9 +217,9 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
           <div>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>Mis tareas activas</h3>
             {myActive.length===0
-              ?<div className="empty"><div style={{fontSize:36,opacity:.4}}>🎉</div><p>Sin tareas pendientes</p></div>
+              ?<div className="empty"><div style={{fontSize:36,opacity:.4}}>🎉</div><p>Sin tareas pendientes</p><p style={{fontSize:12,color:"var(--muted)",marginTop:6}}>Cuando te asignen una orden nueva, aparecerá aquí.</p></div>
               :myActive.map(t=>{
-                const team=teams.find(x=>x.id===t.team_id),dr=fmtDateRelative(t.due_date)
+                const team=teams.find(x=>x.id===t.team_id),dr=fmtDateRelative(t.due_date,t.status)
                 return(
                   <div key={t.id} className="task-card fade-in" style={{cursor:"pointer",borderLeft:`3px solid ${statusColor[t.status]||"var(--border2)"}`,marginBottom:8}} onClick={()=>onOpenTask&&onOpenTask(t)}>
                     <div style={{display:"flex",alignItems:"center",gap:12}}>
