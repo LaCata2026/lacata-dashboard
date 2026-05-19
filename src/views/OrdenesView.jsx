@@ -7,6 +7,8 @@ import{showConfirm}from'../components/ConfirmDialog'
 import Icon from'../components/Icon'
 import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
 import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
+import TaskCard from'./TaskCard'
+import CalendarView from'./CalendarView'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
 export function exportExcel(tasks,users,teams){
   const statusMap={pendiente:"Pendiente",en_progreso:"En progreso",en_pausa:"En pausa",en_revision:"En revision",completada:"Completada",vencida:"Vencida"};
