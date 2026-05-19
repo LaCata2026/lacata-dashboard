@@ -10,6 +10,94 @@ import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSe
 import TaskCard from'./TaskCard'
 import CalendarView from'./CalendarView'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
+
+// Detecta viewport móvil (<=768px, mismo breakpoint del CSS).
+// Escucha resize para reaccionar si rotan el dispositivo.
+// Exportado para reutilizar en TeamsView sin duplicar lógica.
+export function useIsMobile(){
+  const [m,setM]=useState(typeof window!=="undefined"&&window.innerWidth<=768);
+  useEffect(()=>{
+    const onR=()=>setM(window.innerWidth<=768);
+    window.addEventListener("resize",onR);
+    return()=>window.removeEventListener("resize",onR);
+  },[]);
+  return m;
+}
+
+// Fila compacta para móvil — 2 líneas densas, ~40% del alto de TaskCard.
+// Línea 1: #orden · pill estado (clickeable) · vencimiento
+// Línea 2: título · responsable · marca
+// Tocar el cuerpo abre el detalle (TaskCard forceOpen, autocontenido).
+// El TaskCard NO se toca: esta fila es independiente y solo se usa en móvil.
+// Exportado para reutilizar en TeamsView.
+export function CompactRow({task,users,teams,me,token,onRefresh}){
+  const [menu,setMenu]=useState(false);
+  const [open,setOpen]=useState(false);
+  const isDir=me.role==="director"||me.role==="cuentas";
+  const assigned=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
+  const respUsers=assigned.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+  const team=teams.find(t=>t.id===task.team_id);
+  const dr=fmtDateRelative(task.due_date,task.status);
+  const canChange=isDir||assigned.includes(me.id);
+  const opts=[
+    {v:"pendiente",label:"Pendiente"},{v:"en_progreso",label:"En progreso"},
+    {v:"en_pausa",label:"En pausa"},{v:"en_revision",label:"Revisión"},
+    {v:"completada",label:"Completada"},...(isDir?[{v:"vencida",label:"Vencida"}]:[])
+  ];
+  async function quickChange(s){
+    if(s===task.status)return;
+    setMenu(false);
+    try{
+      const h=Array.isArray(task.history)?[...task.history]:[];
+      h.push(`Estado → ${statusLabel[s]} — ${me.name} — ${new Date().toLocaleString("es-GT")}`);
+      await sb.update("tareas",task.id,{status:s,history:h},token);
+      showToast("Estado: "+statusLabel[s],"success");onRefresh();
+    }catch(e){showToast("Error: "+e.message,"error");}
+  }
+  return(
+    <>
+    <div onClick={()=>setOpen(true)}
+      style={{background:"var(--bg2)",border:"1px solid var(--border)",borderLeft:`3px solid ${statusColor[task.status]||"var(--border2)"}`,borderRadius:9,padding:"10px 12px",marginBottom:6,cursor:"pointer"}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5,flexWrap:"wrap"}}>
+        <span style={{fontSize:10,fontWeight:700,color:"var(--accent)",fontFamily:"var(--font-mono)"}}>
+          {task.order_number?"#AC-"+String(task.order_number).padStart(4,"0"):"Sin #"}
+        </span>
+        <span style={{position:"relative",display:"inline-flex"}}>
+          <span className={`pill ${statusPill[task.status]||"pill-gray"}`}
+            onClick={e=>{e.stopPropagation();if(canChange)setMenu(m=>!m);}}
+            style={{cursor:canChange?"pointer":"default",fontSize:9}}>
+            {statusLabel[task.status]||task.status}{canChange&&<span style={{opacity:.5,fontSize:7,marginLeft:2}}>▼</span>}
+          </span>
+          {menu&&ReactDOM.createPortal(
+            <div style={{position:"fixed",inset:0,zIndex:600}} onClick={e=>{e.stopPropagation();setMenu(false);}}>
+              <div onClick={e=>e.stopPropagation()} style={{position:"fixed",bottom:0,left:0,right:0,background:"var(--bg2)",borderTop:"1px solid var(--border2)",borderRadius:"14px 14px 0 0",padding:12,boxShadow:"0 -8px 32px rgba(0,0,0,.5)"}}>
+                <p style={{fontSize:12,color:"var(--muted)",fontFamily:"var(--font-mono)",marginBottom:10,textAlign:"center"}}>Cambiar estado · {task.title}</p>
+                {opts.map(o=>(
+                  <div key={o.v} onClick={e=>{e.stopPropagation();quickChange(o.v);}}
+                    style={{padding:"12px 14px",borderRadius:8,fontSize:14,cursor:"pointer",marginBottom:2,color:o.v===task.status?"var(--accent)":"var(--text)",fontWeight:o.v===task.status?700:400,background:o.v===task.status?"var(--accent-dim)":"var(--bg3)"}}>
+                    {o.label}{o.v===task.status&&" ✓"}
+                  </div>
+                ))}
+                <button onClick={e=>{e.stopPropagation();setMenu(false);}} className="btn btn-ghost" style={{width:"100%",marginTop:8}}>Cancelar</button>
+              </div>
+            </div>,
+            document.body
+          )}
+        </span>
+        <span style={{marginLeft:"auto",fontSize:10,color:dr.color,fontWeight:dr.urgent?700:400,fontFamily:"var(--font-mono)"}}>{dr.label}</span>
+        <span style={{fontSize:11,color:"var(--muted)",opacity:.5}}>›</span>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <span style={{fontSize:13,fontWeight:600,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</span>
+        {respUsers[0]&&<span style={{width:18,height:18,borderRadius:4,background:respUsers[0].avatar_color,fontSize:8,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{respUsers[0].initials}</span>}
+        {team&&<span style={{fontSize:9,color:"var(--muted)",fontFamily:"var(--font-mono)",flexShrink:0,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team.name}</span>}
+      </div>
+    </div>
+    {open&&<TaskCard task={task} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh} forceOpen={true} onForceClose={()=>setOpen(false)}/>}
+    </>
+  );
+}
+
 export function exportExcel(tasks,users,teams){
   const statusMap={pendiente:"Pendiente",en_progreso:"En progreso",en_pausa:"En pausa",en_revision:"En revision",completada:"Completada",vencida:"Vencida"};
   function buildRows(taskList){
@@ -41,6 +129,7 @@ export function exportExcel(tasks,users,teams){
 }
 
 export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter,initialView}){
+  const isMobile=useIsMobile();
   // Default = lista para todos los roles. La lista permite escanear
   // urgencia de un vistazo (el Kanban obliga a scroll horizontal y
   // columnas vacías). El Kanban sigue disponible como opción.
@@ -170,7 +259,7 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
         </div>
       )}
 
-      {effectiveView!=="calendario"&&!isCollab&&<StatusLegend/>}
+      {effectiveView!=="calendario"&&!isCollab&&!isMobile&&<StatusLegend/>}
 
       {effectiveView==="calendario"&&(<CalendarView tasks={tasks} users={users} teams={teams} me={me}/>)}
 
@@ -236,9 +325,14 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
         const sorted=[...visible].sort((a,b)=>order.indexOf(a.status)-order.indexOf(b.status));
         const active=sorted.filter(t=>t.status!=="completada");
         const done=sorted.filter(t=>t.status==="completada");
+        // En móvil usamos la fila compacta (2 líneas densas). En escritorio
+        // el TaskCard completo de siempre — no se toca el comportamiento desktop.
+        const Row=isMobile
+          ?(t)=><CompactRow key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>
+          :(t)=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>;
         return(
           <>
-            {active.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
+            {active.map(Row)}
             {done.length>0&&(
               <>
                 <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0 8px",opacity:.45}}>
@@ -246,7 +340,7 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
                   <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}><Icon n="completada" size={11} style={{marginRight:4}}/> Completadas ({done.length})</span>
                   <div style={{flex:1,height:1,background:"var(--border)"}}/>
                 </div>
-                {done.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
+                {done.map(Row)}
               </>
             )}
           </>
