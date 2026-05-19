@@ -14,6 +14,8 @@ const fmtD=s=>{if(!s)return"—";return new Date(s).toLocaleDateString("es-GT",{
 const eff=(est,real)=>{const e=Number(est),r=Number(real);if(!e||!r)return null;return Math.round(e/r*100)}
 const effColor=e=>e==null?"var(--muted)":e>=90?"var(--green)":e>=70?"var(--yellow)":"var(--red)"
 const effLabel=e=>e==null?"—":e+"%"
+
+// Helper único para normalizar assigned_to (array o valor único)
 const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
 
 function getRangeLabel(period,offset){
@@ -101,10 +103,16 @@ function Chip({label,value,color,sub}){
 
 /* ═══════════════════════════════════════════
    TAB 1 — CARGA EN TIEMPO REAL
+   initialUser: usuario a preseleccionar al montar
+   (viene de onViewUser en Dashboard, vía pageArg)
 ═══════════════════════════════════════════ */
-function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefresh}){
+function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefresh,initialUser}){
   const[viewMode,setViewMode]=useState("individual")
-  const[selectedUser,setSelectedUser]=useState(null)
+
+  // Si se recibe initialUser (navegación desde HomeView u otro componente),
+  // arrancamos con ese usuario ya seleccionado — sin globals ni setTimeout.
+  const[selectedUser,setSelectedUser]=useState(initialUser||null)
+
   const colabs=users.filter(u=>{
     if(u.role!=="colaborador")return false
     if(!isCuentas||!myTeamIds)return true
@@ -841,8 +849,11 @@ function TabOrdenes({tasks,users,teams,range}){
 
 /* ═══════════════════════════════════════════
    MAIN COMPONENT
+   initialUser: usuario a preseleccionar en TabCarga
+   (recibido desde Dashboard vía pageArg cuando
+   se navega desde onViewUser en HomeView u otros)
 ═══════════════════════════════════════════ */
-export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh,onLoadHistory}){
+export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh,onLoadHistory,initialUser}){
   const[tab,setTab]=useState("carga")
   const[period,setPeriod]=useState("semana")
   const[offset,setOffset]=useState(0)
@@ -937,7 +948,8 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
         ))}
       </div>
 
-      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas} myProfile={myProfile} token={token} onRefresh={onRefresh}/>}
+      {/* initialUser se pasa a TabCarga para preseleccionar al usuario sin globals */}
+      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas} myProfile={myProfile} token={token} onRefresh={onRefresh} initialUser={initialUser||null}/>}
       {tab==="desempeno"&&<TabDesempeno tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="equipos"&&<TabEquipos tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="marcas"&&<TabMarcas tasks={visibleTasks} users={users} teams={teams} range={range}/>}
