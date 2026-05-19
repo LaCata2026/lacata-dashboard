@@ -137,7 +137,8 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
   const scopedTasks=isCuentas&&myTeamIds?tasks.filter(t=>myTeamIds.includes(t.team_id)):tasks
 
-  const pendingApproval=scopedTasks.filter(t=>t.status==="en_revision")
+  // pendingApproval se eliminó: su bloque "Pendiente de aprobar"
+  // duplicaba la "Cola de revisión". forReview cubre ese dato.
 
   // My tasks — colaborador sees ONLY tasks assigned to them directly
   const myTasks=tasks.filter(t=>{
@@ -221,26 +222,9 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
         </>
       )}
 
-      {/* ════════ DIRECTOR / CUENTAS VIEW (sin cambios) ════════ */}
-      {isCuentas&&pendingApproval.length>0&&(
-        <div className="card fade-in" style={{marginBottom:16,border:"1px solid var(--s-revision-bg)",background:"rgba(155,127,232,.05)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-            <span style={{fontSize:16}}>🔍</span>
-            <h3 style={{fontSize:15,fontWeight:700}}>Pendiente de aprobar</h3>
-            <span style={{fontSize:11,color:"var(--s-revision)",fontFamily:"var(--font-mono)",background:"var(--s-revision-bg)",padding:"2px 8px",borderRadius:10,fontWeight:700}}>{pendingApproval.length}</span>
-          </div>
-          {pendingApproval.slice(0,4).map(t=>{
-            const team=teams.find(x=>x.id===t.team_id)
-            return(
-              <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span style={{fontSize:11,fontWeight:700,color:"var(--accent)",fontFamily:"var(--font-mono)",minWidth:72}}>AC-{String(t.order_number||0).padStart(4,"0")}</span>
-                <div style={{flex:1,minWidth:0}}><p style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</p><p style={{fontSize:11,color:"var(--muted)"}}>{team?.name||"Sin equipo"}</p></div>
-                <span style={{fontSize:11,color:"var(--s-revision)",fontWeight:600,flexShrink:0}}>Revisar →</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {/* ════════ DIRECTOR / CUENTAS VIEW ════════
+         Nota: "Pendiente de aprobar" se eliminó — duplicaba la
+         "Cola de revisión" que aparece más abajo con la misma data. */}
 
       {/* ════════ MIS MARCAS — solo CUENTAS ════════
          Su trabajo real es por cliente/marca, no por equipo.
@@ -331,63 +315,38 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             {isDir&&<button className="quick-action" onClick={()=>onNavigate("desempeno")}><div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}><Icon n="desempeno" size={18} color="var(--s-revision)"/></div><span style={{fontSize:11,fontWeight:600}}>Desempeño</span></button>}
           </div>
 
-          {(()=>{
-            const teamData=visibleTeams.map(t=>({...t,color:teamColor(t),count:allActive.filter(x=>x.team_id===t.id).length})).filter(t=>t.count>0).sort((a,b)=>b.count-a.count)
-            const noTeam=allActive.filter(x=>!x.team_id).length
-            if(noTeam>0&&isDir)teamData.push({id:"none",name:"Sin equipo",color:"#555",count:noTeam})
-            const total=allActive.length,totalForPct=Math.max(total,1)
-            return(
-              <div className="card" style={{marginBottom:16,padding:"18px 22px"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,gap:12,flexWrap:"wrap"}}>
-                  <div style={{display:"flex",alignItems:"baseline",gap:14}}>
-                    <div style={{display:"flex",alignItems:"baseline",gap:8}}>
-                      <span style={{fontSize:42,fontWeight:800,lineHeight:1,fontFamily:"var(--font-display)",letterSpacing:"-.04em",color:"var(--text)"}}>{total}</span>
-                      <span style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",fontFamily:"var(--font-mono)"}}>tareas activas</span>
-                    </div>
-                    <div style={{display:"flex",gap:10,fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
-                      <span style={{color:"var(--s-progreso)"}}><Icon n="progreso" size={11} style={{marginRight:3}}/>{inProgress.length}</span>
-                      <span style={{color:"var(--s-revision)"}}>🔍 {forReview.length}</span>
-                      {onPause.length>0&&<span style={{color:"var(--s-pausa)"}}><Icon n="pausa" size={11} style={{marginRight:3}}/>{onPause.length}</span>}
-                    </div>
-                  </div>
-                  <button onClick={()=>onNavigate("ordenes")} style={{fontSize:11,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"5px 12px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:700}}>Ver todas →</button>
+          {/* TIRA DE SALUD — una sola línea, reemplaza el stacked bar
+             (duplicaba Mis marcas/Semáforo) y el stat-grid de 4 tarjetas
+             (repetía números que ya están abajo). Todo accionable. */}
+          <div className="card" style={{marginBottom:16,padding:"16px 22px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
+                <div onClick={()=>onNavigate("ordenes")} style={{display:"flex",alignItems:"baseline",gap:8,cursor:"pointer"}}>
+                  <span style={{fontSize:34,fontWeight:800,lineHeight:1,fontFamily:"var(--font-display)",letterSpacing:"-.03em",color:"var(--text)"}}>{allActive.length}</span>
+                  <span style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".1em",fontFamily:"var(--font-mono)"}}>activas</span>
                 </div>
-                {teamData.length===0
-                  ?<div style={{padding:20,textAlign:"center",color:"var(--muted)",fontSize:13}}>Sin tareas activas 🎉</div>
-                  :<>
-                    <div style={{display:"flex",height:38,borderRadius:6,overflow:"hidden",background:"var(--bg3)",marginBottom:10}}>
-                      {teamData.map((s,i)=>{
-                        const w=(s.count/totalForPct)*100
-                        return(
-                          <div key={s.id} onClick={()=>s.id!=="none"&&onNavigate("equipo_"+s.id)} title={`${s.name} · ${s.count} tareas · ${Math.round(w)}%`}
-                            style={{width:`${w}%`,background:s.color,cursor:s.id!=="none"?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",borderRight:i<teamData.length-1?"2px solid var(--bg2)":"none",transition:"all .2s"}}
-                            onMouseEnter={e=>e.currentTarget.style.filter="brightness(1.15)"} onMouseLeave={e=>e.currentTarget.style.filter="brightness(1)"}>
-                            {w>=8&&<span style={{fontSize:13,fontWeight:800,color:"#0d0d0d",fontFamily:"var(--font-display)"}}>{s.count}</span>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:6}}>
-                      {teamData.map(s=>(
-                        <div key={s.id} onClick={()=>s.id!=="none"&&onNavigate("equipo_"+s.id)} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 8px",borderRadius:5,cursor:s.id!=="none"?"pointer":"default",transition:".13s"}} onMouseEnter={e=>{if(s.id!=="none")e.currentTarget.style.background="var(--bg3)"}} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                          <div style={{width:8,height:8,borderRadius:2,background:s.color,flexShrink:0}}/>
-                          <span style={{fontSize:11.5,color:"var(--muted2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.name}</span>
-                          <span style={{fontSize:11,fontWeight:700,color:s.color,fontFamily:"var(--font-mono)"}}>{s.count}</span>
-                          <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",minWidth:28,textAlign:"right"}}>{Math.round(s.count/totalForPct*100)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                }
+                <div style={{width:1,height:32,background:"var(--border)"}}/>
+                <div onClick={()=>onNavigate("ordenes","en_revision")} style={{cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:"var(--s-revision)",fontFamily:"var(--font-display)",lineHeight:1}}>{forReview.length}</div>
+                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>en revisión</div>
+                </div>
+                <div onClick={()=>onNavigate("ordenes","vencida")} style={{cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:overdue.length>0?"var(--s-vencida)":"var(--s-completada)",fontFamily:"var(--font-display)",lineHeight:1}}>{overdue.length}</div>
+                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>vencidas</div>
+                </div>
+                {onPause.length>0&&(
+                  <div onClick={()=>onNavigate("ordenes","en_pausa")} style={{cursor:"pointer",textAlign:"center"}}>
+                    <div style={{fontSize:22,fontWeight:800,color:"var(--s-pausa)",fontFamily:"var(--font-display)",lineHeight:1}}>{onPause.length}</div>
+                    <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>en pausa</div>
+                  </div>
+                )}
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:trend===null?"var(--muted)":trend>=0?"var(--green)":"var(--red)",fontFamily:"var(--font-display)",lineHeight:1}}>{trend===null?"—":`${trend>=0?"+":""}${trend}%`}</div>
+                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>tendencia</div>
+                </div>
               </div>
-            )
-          })()}
-
-          <div className="stat-grid" style={{marginBottom:20,gridTemplateColumns:"repeat(3,1fr)"}}>
-            <div className="stat-card clickable" style={{"--ac":"var(--s-revision)"}} onClick={()=>onNavigate("ordenes","en_revision")}><div className="stat-label">En revisión</div><div className="stat-value" style={{color:"var(--s-revision)"}}>{forReview.length}</div><div className="stat-sub">Esperando aprobación →</div></div>
-            <div className="stat-card clickable" style={{"--ac":overdue.length>0?"var(--s-vencida)":"var(--s-completada)"}} onClick={()=>onNavigate("ordenes","vencida")}><div className="stat-label">Vencidas</div><div className="stat-value" style={{color:overdue.length>0?"var(--s-vencida)":"var(--s-completada)"}}>{overdue.length}</div><div className="stat-sub">{overdue.length===0?"Todo al día ✓":"Requieren atención →"}</div></div>
-            <div className="stat-card clickable" style={{"--ac":"var(--s-completada)"}} onClick={()=>onNavigate("ordenes","completada")}><div className="stat-label">Completadas</div><div className="stat-value" style={{color:"var(--s-completada)"}}>{scopedTasks.filter(t=>t.status==="completada").length}</div><div className="stat-sub">Este período →</div></div>
-            <div className="stat-card fade-in" style={{"--ac":"var(--yellow)"}}><div className="stat-label">Tendencia semanal</div><div className="stat-value" style={{color:trend===null?"var(--muted)":trend>=0?"var(--green)":"var(--red)",fontSize:22}}>{trend===null?"—":`${trend>=0?"+":""}${trend}%`}</div><div className="stat-sub">{completedThisWeek} esta semana{completedLastWeek>0?` vs ${completedLastWeek} anterior`:""}</div></div>
+              <button onClick={()=>onNavigate("ordenes")} style={{fontSize:11,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"6px 14px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:700}}>Ver todas →</button>
+            </div>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:14}}>
