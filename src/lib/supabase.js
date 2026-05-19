@@ -80,7 +80,21 @@ export const sb={
     const r=await fetch(`${SB_URL}/auth/v1/invite`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_SERVICE,Authorization:`Bearer ${SB_SERVICE}`},body:JSON.stringify({email,data:{full_name:name}})})
     const d=await r.json();if(d.error)throw new Error(d.msg||d.error);return d
   },
-  async get(table,params,token){const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(token)});if(r.status===401)throw new Error("SESSION_EXPIRED");return r.json()},
+
+  // get — maneja 401 (token expirado) y 403 (RLS denegado).
+  // 401 → SESSION_EXPIRED dispara onLogout en Dashboard.
+  // 403 → no debe desloguear, retorna array vacío para no romper
+  //        vistas que esperan un array (tareas, equipos, usuarios).
+  async get(table,params,token){
+    const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(token)})
+    if(r.status===401)throw new Error("SESSION_EXPIRED")
+    if(r.status===403){
+      console.warn(`RLS 403 en ${table} — retornando array vacío`)
+      return[]
+    }
+    return r.json()
+  },
+
   async insert(table,data,token){const r=await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:hdrWrite(token),body:JSON.stringify(data)});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(Array.isArray(j)?j[0]?.message:j?.message||j?.error||`Error ${r.status}`)};return{}},
   async update(table,id,data,token){const r=await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:hdrWrite(token),body:JSON.stringify(data)});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j?.message||j?.error||`Error ${r.status}`)}},
   async del(table,id,token){await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"DELETE",headers:hdr(token)})},
