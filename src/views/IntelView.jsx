@@ -1,4 +1,4 @@
-import{useState,useMemo}from'react'
+import{useState,useMemo,useEffect}from'react'
 import Icon from'../components/Icon'
 import{Av,SC,BackBtn,StatusLegend}from'../components/Shared'
 import{showToast}from'../components/Toast'
@@ -842,10 +842,23 @@ function TabOrdenes({tasks,users,teams,range}){
 /* ═══════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
-export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh}){
+export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh,onLoadHistory}){
   const[tab,setTab]=useState("carga")
   const[period,setPeriod]=useState("semana")
   const[offset,setOffset]=useState(0)
+  const[historyLoaded,setHistoryLoaded]=useState(false)
+
+  // Si el usuario navega a un período antiguo (>60 días atrás) o entra a las
+  // pestañas de Marcas/Órdenes que necesitan histórico, carga todas las
+  // tareas completadas viejas una sola vez.
+  useEffect(()=>{
+    if(historyLoaded||!onLoadHistory)return
+    const needsHistory=offset<0||tab==="ordenes"||tab==="marcas"||tab==="desempeno"
+    if(needsHistory){
+      setHistoryLoaded(true)
+      onLoadHistory()
+    }
+  },[offset,tab,historyLoaded,onLoadHistory])
 
   // Cuentas: filter tasks to only their assigned teams
   const myProfile=me||profile
