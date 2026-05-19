@@ -1,6 +1,6 @@
 import{useState,useEffect,useRef,useCallback}from'react'
 import ReactDOM from'react-dom'
-import{sb,teamColor,COLLAB_COLORS,COLORS,MARCAS_PREDEFINIDAS,getInitials,autoColor}from'../lib/supabase'
+import{sb,teamColor,COLLAB_COLORS,COLORS,MARCAS_PREDEFINIDAS,getMarcas,getInitials,autoColor}from'../lib/supabase'
 import{showToast}from'../components/Toast'
 import{showConfirm}from'../components/ConfirmDialog'
 import Icon from'../components/Icon'
@@ -108,7 +108,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
           <div><label className="form-label">Marca / Cliente *</label>
             {(()=>{
               const existing=[...new Set(tasks.map(t=>t.marca).filter(Boolean))];
-              const allMarcas=[...new Set([...MARCAS_PREDEFINIDAS,...existing])].sort();
+              const allMarcas=[...new Set([...getMarcas(),...existing])].sort();
               return(
                 <>
                   <select value={showOtra?"__otra__":form.marca||""} onChange={e=>{
