@@ -2,7 +2,7 @@ import{useState,useEffect,useRef}from'react'
 import ReactDOM from'react-dom'
 import{statusLabel,statusPill}from'../lib/utils'
 import Icon from'./Icon'
-export default function Spotlight({tasks,users,teams,onNavigate,onClose}){
+export default function Spotlight({tasks,users,teams,onNavigate,onClose,onOpenTask}){
   const[q,setQ]=useState("");const[sel,setSel]=useState(0);const inputRef=useRef(null)
   useEffect(()=>{inputRef.current?.focus()},[])
   const results=q.trim().length===0?[]:tasks.filter(t=>{
@@ -18,7 +18,7 @@ export default function Spotlight({tasks,users,teams,onNavigate,onClose}){
     const names=assigned.map(id=>users.find(u=>u.id===id)?.name?.split(" ")[0]||"?").join(", ")
     return{t,team,names}
   })
-  function go(r){onClose();setTimeout(()=>{window._openTask&&window._openTask(r.t)},50)}
+  function go(r){onClose();if(onOpenTask)onOpenTask(r.t)}
   function onKey(e){
     if(e.key==="ArrowDown"){e.preventDefault();setSel(s=>Math.min(s+1,results.length-1))}
     if(e.key==="ArrowUp"){e.preventDefault();setSel(s=>Math.max(s-1,0))}
