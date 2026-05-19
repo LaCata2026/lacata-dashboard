@@ -3,6 +3,7 @@ import Icon from'../components/Icon'
 import{Av,SC,BackBtn,StatusLegend}from'../components/Shared'
 import{showToast}from'../components/Toast'
 import{teamColor}from'../lib/supabase'
+import{assignedOf}from'../lib/utils'
 import TaskCard from'./TaskCard'
 
 /* ═══════════════════════════════════════════
@@ -15,8 +16,6 @@ const eff=(est,real)=>{const e=Number(est),r=Number(real);if(!e||!r)return null;
 const effColor=e=>e==null?"var(--muted)":e>=90?"var(--green)":e>=70?"var(--yellow)":"var(--red)"
 const effLabel=e=>e==null?"—":e+"%"
 
-// Helper único para normalizar assigned_to (array o valor único)
-const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
 
 function getRangeLabel(period,offset){
   const now=new Date()
