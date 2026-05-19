@@ -13,8 +13,24 @@ export const NAV=[
   {id:"admin",icon:"admin",label:"Administración",section:"admin",roles:["director"]},
 ]
 export const fmtDate=d=>{if(!d)return"—";const[y,m,dd]=d.split("-");return`${dd}/${m}/${y}`}
-export const fmtDateRelative=d=>{
+
+/**
+ * fmtDateRelative — etiqueta de fecha límite relativa al hoy.
+ *
+ * @param {string} d       fecha límite (YYYY-MM-DD)
+ * @param {string} status  estado de la tarea (opcional). Si la tarea ya está
+ *                          "completada", NO se muestra alerta de vencimiento —
+ *                          una tarea terminada no debe generar pánico aunque
+ *                          su fecha límite haya pasado. Se muestra la fecha
+ *                          plana en color neutro.
+ *
+ * Retorna {label, color, urgent}.
+ */
+export const fmtDateRelative=(d,status)=>{
   if(!d)return{label:"—",color:"var(--muted)",urgent:false}
+  // Tarea completada: la fecha límite ya no es relevante como alerta.
+  // Mostramos solo la fecha en gris, sin "Venció hace" ni urgencia.
+  if(status==="completada")return{label:fmtDate(d),color:"var(--muted)",urgent:false}
   const today=new Date();today.setHours(0,0,0,0)
   const due=new Date(d+"T00:00:00")
   const diff=Math.round((due-today)/(1000*60*60*24))
