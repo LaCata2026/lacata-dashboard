@@ -41,11 +41,27 @@ export const sb={
     let profile
     if(Array.isArray(profileData)&&profileData.length>0){
       profile=profileData[0]
-      // Normalize team_ids — jsonb can come as string or array
+      // Normalize team_ids
       if(typeof profile.team_ids==="string"){try{profile.team_ids=JSON.parse(profile.team_ids)}catch{profile.team_ids=[]}}
       if(!Array.isArray(profile.team_ids))profile.team_ids=[]
+      // Ensure all required fields exist
+      if(!profile.name)profile.name=fullName||fallbackName
+      if(!profile.initials)profile.initials=getInitials(profile.name)
+      if(!profile.avatar_color)profile.avatar_color=getAvatarColor(uemail)
+      if(!profile.role)profile.role=getRole(uemail)
     }else{
-      profile={id,email:uemail,name,role:getRole(uemail),avatar_color:getAvatarColor(uemail),initials:getInitials(name)}
+      // No profile found — build one and auto-create in DB (best effort)
+      const role=getRole(uemail)
+      const avatar_color=getAvatarColor(uemail)
+      const initials=getInitials(name)
+      profile={id,email:uemail,name,role,avatar_color,initials,team_ids:[],team_id:null}
+      try{
+        await fetch(`${SB_URL}/rest/v1/usuarios`,{
+          method:"POST",
+          headers:{apikey:SB_ANON,Authorization:`Bearer ${d.access_token}`,"Content-Type":"application/json",Prefer:"return=minimal"},
+          body:JSON.stringify({id,email:uemail,name,role,avatar_color,initials,team_ids:[],team_id:null})
+        })
+      }catch(err){console.warn("Auto-create profile failed:",err)}
     }
     return{profile,access_token:d.access_token,refresh_token:d.refresh_token}
   },
