@@ -84,7 +84,9 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
 
   function KanbanCard({t}){
     const assigned=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
-    const dr=fmtDateRelative(t.due_date);
+    // Pasamos t.status: si la orden está completada, fmtDateRelative no
+    // genera alerta de vencimiento (no debe crear pánico una tarea ya hecha).
+    const dr=fmtDateRelative(t.due_date,t.status);
     const canDrag=(isDir||isCuentas||assigned.includes(me.id));
     return(
       <div className="kanban-card" draggable={canDrag}
