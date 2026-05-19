@@ -382,7 +382,9 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
                         if(pa!==pb)return pa-pb
                         if(a.due_date&&b.due_date)return new Date(a.due_date)-new Date(b.due_date)
                         if(a.due_date)return -1;if(b.due_date)return 1;return 0
-                      }).map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
+                      }).map(t=>isMobile
+                        ?<CompactRow key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>
+                        :<TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
                     </div>
                   )}
                 </div>
@@ -391,7 +393,9 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
             {noTeam.length>0&&(
               <div style={{marginTop:8}}>
                 <p style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",marginBottom:6}}>Sin equipo asignado</p>
-                {noTeam.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
+                {noTeam.map(t=>isMobile
+                  ?<CompactRow key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>
+                  :<TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
               </div>
             )}
           </>
