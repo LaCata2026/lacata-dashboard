@@ -283,6 +283,99 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             </div>
           </div>
 
+          {/* ════════ RIESGO DE LA SEMANA — solo DIRECTOR ════════
+             Señal priorizada: qué está por explotar. Solo se renderiza
+             si HAY riesgo real — si todo está bien, no aparece (evita
+             que se vuelva ruido ignorable). Vence48h + vencidas + sobrecarga. */}
+          {isDir&&(()=>{
+            const now=new Date()
+            const in48h=new Date(now.getTime()+48*3600000)
+            // Vence en próximas 48h (activas, aún no vencidas)
+            const dueSoon=scopedTasks.filter(t=>{
+              if(t.status==="completada"||t.status==="vencida")return false
+              if(!t.due_date)return false
+              const d=new Date(t.due_date+"T23:59:59")
+              return d>=now&&d<=in48h
+            }).sort((a,b)=>new Date(a.due_date)-new Date(b.due_date))
+            // Ya vencidas
+            const vencidas=scopedTasks.filter(t=>t.status==="vencida")
+            // Colaboradores sobrecargados (>=7 activas)
+            const sobrecargados=collabs.map(u=>({
+              u,
+              n:scopedTasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada"}).length
+            })).filter(x=>x.n>=7).sort((a,b)=>b.n-a.n)
+            // Si no hay NINGÚN riesgo, no renderizar nada
+            if(dueSoon.length===0&&vencidas.length===0&&sobrecargados.length===0)return null
+            return(
+              <div className="card fade-in" style={{marginBottom:16,border:"1px solid rgba(232,93,93,.3)",background:"linear-gradient(135deg, rgba(232,93,93,.06), rgba(232,93,93,.02))"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                  <Icon n="alerta" size={16} color="var(--s-vencida)"/>
+                  <h3 style={{fontSize:15,fontWeight:700,color:"#fca5a5"}}>Riesgo de la semana</h3>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
+
+                  {/* Vencidas */}
+                  {vencidas.length>0&&(
+                    <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
+                        <span style={{fontSize:22,fontWeight:800,color:"var(--s-vencida)",fontFamily:"var(--font-display)"}}>{vencidas.length}</span>
+                        <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".05em"}}>ya vencida{vencidas.length>1?"s":""}</span>
+                      </div>
+                      {vencidas.slice(0,3).map(t=>{
+                        const u=users.find(x=>x.id===(Array.isArray(t.assigned_to)?t.assigned_to[0]:t.assigned_to))
+                        return(
+                          <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",cursor:"pointer",fontSize:12}}>
+                            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</span>
+                            <span style={{fontSize:10,color:"var(--muted)",flexShrink:0}}>{u?.name?.split(" ")[0]||"—"}</span>
+                          </div>
+                        )
+                      })}
+                      {vencidas.length>3&&<button onClick={()=>onNavigate("ordenes","vencida")} style={{fontSize:10,color:"var(--s-vencida)",background:"none",border:"none",cursor:"pointer",padding:"4px 0 0",fontFamily:"var(--font-mono)"}}>+{vencidas.length-3} más →</button>}
+                    </div>
+                  )}
+
+                  {/* Vence en 48h */}
+                  {dueSoon.length>0&&(
+                    <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
+                        <span style={{fontSize:22,fontWeight:800,color:"var(--yellow)",fontFamily:"var(--font-display)"}}>{dueSoon.length}</span>
+                        <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".05em"}}>vence{dueSoon.length>1?"n":""} en 48h</span>
+                      </div>
+                      {dueSoon.slice(0,3).map(t=>{
+                        const u=users.find(x=>x.id===(Array.isArray(t.assigned_to)?t.assigned_to[0]:t.assigned_to))
+                        return(
+                          <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",cursor:"pointer",fontSize:12}}>
+                            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</span>
+                            <span style={{fontSize:10,color:"var(--muted)",flexShrink:0}}>{u?.name?.split(" ")[0]||"—"}</span>
+                          </div>
+                        )
+                      })}
+                      {dueSoon.length>3&&<button onClick={()=>onNavigate("ordenes")} style={{fontSize:10,color:"var(--yellow)",background:"none",border:"none",cursor:"pointer",padding:"4px 0 0",fontFamily:"var(--font-mono)"}}>+{dueSoon.length-3} más →</button>}
+                    </div>
+                  )}
+
+                  {/* Sobrecargados */}
+                  {sobrecargados.length>0&&(
+                    <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
+                        <span style={{fontSize:22,fontWeight:800,color:"var(--s-vencida)",fontFamily:"var(--font-display)"}}>{sobrecargados.length}</span>
+                        <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".05em"}}>sobrecargado{sobrecargados.length>1?"s":""}</span>
+                      </div>
+                      {sobrecargados.slice(0,3).map(({u,n})=>(
+                        <div key={u.id} onClick={()=>onViewUser&&onViewUser(u)} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",cursor:"pointer",fontSize:12}}>
+                          <div style={{width:18,height:18,borderRadius:"50%",background:u.avatar_color,fontSize:8,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{u.initials}</div>
+                          <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</span>
+                          <span style={{fontSize:11,fontWeight:700,color:"var(--s-vencida)",fontFamily:"var(--font-mono)",flexShrink:0}}>{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            )
+          })()}
+
           {/* ════════ MIS MARCAS — solo CUENTAS ════════
              Va aquí: después de la tira de salud (general) y antes
              de las listas (detalle). Orden de lectura natural.
