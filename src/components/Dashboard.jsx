@@ -34,7 +34,18 @@ import BottomNav from'./BottomNav'
 
 export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
-  const{profile,token}=session
+  const{token}=session
+  // Defensive profile — ensure all fields exist even if DB returned incomplete data
+  const profile={
+    id:session.profile?.id||"",
+    name:session.profile?.name||"Usuario",
+    email:session.profile?.email||"",
+    role:session.profile?.role||"colaborador",
+    initials:session.profile?.initials||(session.profile?.name||"U").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),
+    avatar_color:session.profile?.avatar_color||"#7c3aed",
+    team_id:session.profile?.team_id||null,
+    team_ids:Array.isArray(session.profile?.team_ids)?session.profile.team_ids:[],
+  }
 
   const[page,setPage]=useState("home")
 
