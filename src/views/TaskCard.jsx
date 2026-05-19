@@ -105,6 +105,31 @@ export async function duplicateTask(task,token,onRefresh){
   }catch(e){showToast("Error al duplicar: "+e.message,"error");}
 }
 
+// Campo "Otro motivo" para el diálogo de pausa: input + botón.
+// Se mantiene como componente aparte para tener su propio estado
+// sin re-renderizar el TaskCard completo en cada tecla.
+function OtherReasonInput({onSubmit}){
+  const [open,setOpen]=useState(false);
+  const [txt,setTxt]=useState("");
+  if(!open)return(
+    <button onClick={()=>setOpen(true)}
+      style={{textAlign:"left",padding:"11px 14px",borderRadius:8,background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--muted2)",fontSize:13,cursor:"pointer",fontFamily:"var(--font-body)",transition:".13s"}}
+      onMouseEnter={e=>{e.currentTarget.style.background="var(--bg4)";e.currentTarget.style.borderColor="var(--border2)";}}
+      onMouseLeave={e=>{e.currentTarget.style.background="var(--bg3)";e.currentTarget.style.borderColor="var(--border)";}}>
+      Otro motivo…
+    </button>
+  );
+  return(
+    <div style={{display:"flex",gap:6}}>
+      <input autoFocus value={txt} onChange={e=>setTxt(e.target.value)}
+        onKeyDown={e=>{if(e.key==="Enter"&&txt.trim())onSubmit(txt.trim());}}
+        placeholder="Escribe el motivo…" style={{fontSize:13}}/>
+      <button className="btn btn-primary btn-sm" disabled={!txt.trim()}
+        onClick={()=>txt.trim()&&onSubmit(txt.trim())}>OK</button>
+    </div>
+  );
+}
+
 export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=false,onForceClose=null}){
   const [modal,setModal]=useState(forceOpen);
   // ── LOCAL STATUS for immediate visual feedback ──
@@ -118,6 +143,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   const [mentionState,setMentionState]=useState({open:false,query:"",pos:0});
   const [showReassign,setShowReassign]=useState(false);
   const [showAddChange,setShowAddChange]=useState(false);
+  const [pausePrompt,setPausePrompt]=useState(false); // diálogo motivo de pausa
   const [imgPreview,setImgPreview]=useState(null);
   const textareaRef=useRef(null);
   const commentsEndRef=useRef(null);
@@ -148,7 +174,13 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
     return`hace ${Math.floor(h/24)}d`;
   })();
 
-  async function changeStatus(s){
+  async function changeStatus(s,pauseReason){
+    // Si se pausa y aún no hay motivo, abrir el diálogo en vez de ejecutar.
+    // El diálogo vuelve a llamar changeStatus("en_pausa", motivo).
+    if(s==="en_pausa"&&!pauseReason){
+      setPausePrompt(true);
+      return;
+    }
     setLocalStatus(s); // ── immediate visual update ──
     const btn=document.querySelector(`[data-status="${s}"]`);
     if(btn){btn.style.transform="scale(0.95)";setTimeout(()=>{btn.style.transform=""},200);}
@@ -158,11 +190,12 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
       const started=new Date(task.started_at);const diffH=Math.round(((now-started)/3600000)*100)/100;
       newHoursReal=Math.round((newHoursReal+diffH)*100)/100;
       if(s==="en_revision")entry=`🔍 ${me.name} envió a revisión — ${nowStr} (⏱ ${diffH}h sesión · total: ${newHoursReal}h — reloj detenido)`;
-      else if(s==="en_pausa")entry=`⏸ ${me.name} → Pausa — ${nowStr} (${diffH}h sesión · total: ${newHoursReal}h)`;
+      else if(s==="en_pausa")entry=`⏸ ${me.name} → Pausa: ${pauseReason} — ${nowStr} (${diffH}h sesión · total: ${newHoursReal}h)`;
       else entry=`✅ ${me.name} completó — ${nowStr} — Total: ${newHoursReal}h`;
     }else if(s==="en_progreso"){entry=`⚡ ${me.name} inició trabajo — ${nowStr}`;
     }else if(s==="en_revision"&&prev!=="en_progreso"){entry=`🔍 ${me.name} envió a revisión — ${nowStr}`;
     }else if(s==="completada"){entry=`✅ ${me.name} marcó como completada — ${nowStr} — Total: ${newHoursReal}h reales`;
+    }else if(s==="en_pausa"){entry=`⏸ ${me.name} → Pausa: ${pauseReason} — ${nowStr}`;
     }else{entry=`${statusLabel[s]} — ${me.name} — ${nowStr}`;}
     const h=[...(task.history||[]),entry];
     const updates={status:s,history:h,hours_real:newHoursReal,
@@ -514,8 +547,31 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
         </div>
         </ModalPortal>
       )}
-      {showReassign&&<ReassignModal task={task} users={users} teams={teams} token={token} me={me} onClose={()=>setShowReassign(false)} onRefresh={onRefresh}/>}
       {showAddChange&&<AddChangeModal task={task} token={token} me={me} onClose={()=>setShowAddChange(false)} onRefresh={onRefresh}/>}
+      {pausePrompt&&ReactDOM.createPortal(
+        <div className="confirm-overlay" onClick={e=>e.target===e.currentTarget&&setPausePrompt(false)}>
+          <div className="confirm-box fade-in" style={{maxWidth:420}}>
+            <h3 style={{fontSize:16,fontWeight:700,marginBottom:4,fontFamily:"var(--font-display)"}}>¿Por qué pausas esta orden?</h3>
+            <p style={{fontSize:12,color:"var(--muted)",marginBottom:16,fontFamily:"var(--font-mono)"}}>{task.title}</p>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+              {["Cambió la prioridad","Continúa otro día","Esperando algo (material/feedback)"].map(motivo=>(
+                <button key={motivo} onClick={()=>{setPausePrompt(false);changeStatus("en_pausa",motivo);}}
+                  style={{textAlign:"left",padding:"11px 14px",borderRadius:8,background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,cursor:"pointer",fontFamily:"var(--font-body)",transition:".13s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="var(--bg4)";e.currentTarget.style.borderColor="var(--border2)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="var(--bg3)";e.currentTarget.style.borderColor="var(--border)";}}>
+                  {motivo}
+                </button>
+              ))}
+              <OtherReasonInput onSubmit={(txt)=>{setPausePrompt(false);changeStatus("en_pausa",txt);}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end"}}>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setPausePrompt(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      {showReassign&&<ReassignModal task={task} users={users} teams={teams} token={token} me={me} onClose={()=>setShowReassign(false)} onRefresh={onRefresh}/>}
       {imgPreview&&ReactDOM.createPortal(
         <div onClick={()=>setImgPreview(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.9)",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
           <img src={imgPreview} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,boxShadow:"0 0 80px rgba(0,0,0,.8)"}}/>
