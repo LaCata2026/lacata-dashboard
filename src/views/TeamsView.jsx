@@ -8,11 +8,30 @@ import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
 import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
 import TaskCard from'./TaskCard'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
+
+// assignedOf — normaliza assigned_to a array (array | string | null → array)
+const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
+
 export default function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTask,me,token,onRefresh}){
   const [selectedTeam,setSelectedTeam]=useState("all");
   const [openMembers,setOpenMembers]=useState({});
   const filteredTeams=selectedTeam==="all"?teams:teams.filter(t=>t.id===selectedTeam);
   const toggleMember=(id)=>setOpenMembers(o=>({...o,[id]:!o[id]}));
+
+  // ── ALCANCE POR ROL ──
+  // El colaborador NO debe ver las tareas de otras personas, ni siquiera
+  // dentro de su propio equipo. Solo ve lo que se le asignó a él.
+  // Director y cuentas ven todo (las tareas que ya les llegan filtradas
+  // desde el Dashboard / scope de cuentas).
+  const isCollab=me?.role==="colaborador"
+
+  // Las tareas que este usuario tiene permitido ver en esta vista.
+  // - colaborador: solo donde está en assigned_to
+  // - resto: todas las que recibió por props (ya scoped arriba)
+  const scopedTasks=isCollab
+    ?tasks.filter(t=>assignedOf(t).includes(me.id))
+    :tasks
+
   return(
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
@@ -24,11 +43,20 @@ export default function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTas
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:16}}>
         {filteredTeams.map(team=>{
           const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador");
-          const teamTasks=tasks.filter(t=>t.team_id===team.id&&t.status!=="completada");
-          const overdueCount=tasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length;
-          const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
+          // Para el header del equipo: el colaborador solo cuenta SUS tareas
+          // del equipo; director/cuentas ven el total del equipo.
+          const teamTasks=scopedTasks.filter(t=>t.team_id===team.id&&t.status!=="completada");
+          const overdueCount=scopedTasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length;
+          const overloaded=members.filter(u=>scopedTasks.filter(x=>assignedOf(x).includes(u.id)&&x.status!=="completada").length>=7).length;
           const avgLoad=members.length>0?teamTasks.length/members.length:0;
           const health=overdueCount>0||overloaded>0?"var(--s-vencida)":avgLoad>=4?"var(--load-warn)":"var(--load-ok)";
+
+          // Para el colaborador: si no tiene tareas en este equipo, ocultamos
+          // el desglose por miembros (no debe husmear cargas ajenas).
+          const visibleMembers=isCollab
+            ?members.filter(m=>m.id===me.id)
+            :members
+
           return(
             <div key={team.id} className="card fade-in">
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
@@ -36,14 +64,16 @@ export default function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTas
                   <span style={{fontSize:20}}><Icon n={team.icon||"equipos"} size={18} style={{display:"inline-block"}}/></span>
                   <div>
                     <h3 style={{fontSize:15,fontWeight:700}}>{team.name}</h3>
-                    <p style={{fontSize:11,color:"var(--muted)",marginTop:1,fontFamily:"var(--font-mono)"}}>{members.length} miembros · {teamTasks.length} activas</p>
+                    <p style={{fontSize:11,color:"var(--muted)",marginTop:1,fontFamily:"var(--font-mono)"}}>{members.length} miembros · {teamTasks.length} {isCollab?"mías activas":"activas"}</p>
                   </div>
                 </div>
                 <div style={{width:10,height:10,borderRadius:"50%",background:health,boxShadow:`0 0 8px ${health}66`}}/>
               </div>
-              {members.length===0&&<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:20}}>Sin miembros asignados</p>}
-              {members.map(m=>{
-                const mTasks=tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(m.id)&&t.status!=="completada";});
+              {visibleMembers.length===0&&<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:20}}>{isCollab?"No tienes tareas en este equipo":"Sin miembros asignados"}</p>}
+              {visibleMembers.map(m=>{
+                // Tareas del miembro — desde scopedTasks. Para el colaborador
+                // m siempre es él mismo, así que solo ve sus propias tareas.
+                const mTasks=scopedTasks.filter(t=>assignedOf(t).includes(m.id)&&t.status!=="completada");
                 const mOverdue=mTasks.filter(t=>t.status==="vencida").length;
                 const pct=Math.min(100,Math.round(mTasks.length/8*100));
                 const loadColor=mTasks.length>=7?"var(--s-vencida)":mTasks.length>=4?"var(--load-warn)":m.avatar_color;
@@ -55,10 +85,10 @@ export default function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTas
                         borderLeft:`3px solid ${m.avatar_color}`,transition:".13s",
                         background:isOpen?"var(--bg4)":"transparent"}}>
                       <span style={{color:"var(--muted)",fontSize:11,transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(0)":"rotate(-90deg)",flexShrink:0}}>▼</span>
-                      {/* Avatar — click navigates to Desempeño */}
-                      <div onClick={e=>{e.stopPropagation();onViewUser&&onViewUser(m);}}
-                        style={{cursor:onViewUser?"pointer":"default"}}
-                        title="Ver en Desempeño">
+                      {/* Avatar — click navega a Desempeño (solo director/cuentas) */}
+                      <div onClick={e=>{e.stopPropagation();if(!isCollab&&onViewUser)onViewUser(m);}}
+                        style={{cursor:(!isCollab&&onViewUser)?"pointer":"default"}}
+                        title={!isCollab?"Ver en Desempeño":""}>
                         <Av u={m} size={28}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
