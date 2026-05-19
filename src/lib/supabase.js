@@ -10,7 +10,6 @@ export const CUENTAS_EMAILS  = []
 export const COLLAB_COLORS = ["#e85d4a","#f0924a","#e8c547","#4ade80","#3ecf8e","#5b9cf6","#60a5fa","#a78bfa","#c084fc","#f472b6","#fb923c","#f87171","#34d399","#38bdf8","#818cf8","#e879f9"]
 export const COLORS = ["#e85d4a","#e8a23a","#4ade80","#3ecf8e","#5b9cf6","#a78bfa","#f472b6","#fb923c","#34d399","#60a5fa","#c084fc","#f87171"]
 export const MARCAS_PREDEFINIDAS = ["Novex","Painsa","Sombrela Y Rabinal","Purina","Seguros GyT","CIAM","Digital"]
-// Dynamic brands — stored in localStorage, merged with predefined
 export function getMarcas(){
   try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");return[...new Set([...MARCAS_PREDEFINIDAS,...custom])].sort()}catch{return MARCAS_PREDEFINIDAS}
 }
@@ -30,7 +29,6 @@ export function teamColor(team){if(!team)return"var(--muted)";const key=(team.na
 export const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),del:(k)=>localStorage.removeItem(k)}
 
 function safeUser(d){
-  // d may be the raw auth response — user object can be at d.user or d itself
   const u=d?.user||d||{}
   const email=u.email||u.new_email||d?.email||""
   const meta=u.user_metadata||u.raw_user_meta_data||{}
@@ -44,8 +42,6 @@ export const sb={
     const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({email,password:pw})})
     const d=await r.json()
     if(d.error||d.error_description)throw new Error("Correo o contraseña incorrectos")
-    // safeUser devuelve: id, email, name (ya con fallback al prefijo del correo),
-    // meta y fullName. Renombramos name→authName para usarlo como respaldo.
     const{id,email:uemail,name:authName,fullName}=safeUser(d)
     if(!id)throw new Error("No se pudo obtener el usuario. Intenta de nuevo.")
     const profileR=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${id}&select=*`,{headers:{apikey:SB_ANON,Authorization:`Bearer ${d.access_token}`}})
@@ -53,23 +49,13 @@ export const sb={
     let profile
     if(Array.isArray(profileData)&&profileData.length>0){
       profile=profileData[0]
-      // Normalize team_ids
       if(typeof profile.team_ids==="string"){try{profile.team_ids=JSON.parse(profile.team_ids)}catch{profile.team_ids=[]}}
       if(!Array.isArray(profile.team_ids))profile.team_ids=[]
-      // Ensure all required fields exist.
-      // ── BUGFIX ──
-      // Antes esta línea usaba `fallbackName`, una variable que NUNCA se
-      // declaró. Cuando el name del perfil venía vacío, JS lanzaba un
-      // ReferenceError aquí y cortaba el resto de la normalización
-      // (initials / avatar_color / role nunca se asignaban), y el name
-      // quedaba vacío → terminaba mostrándose como "Usuario" en el saludo.
-      // Ahora usa authName (full_name del metadata o prefijo del correo).
       if(!profile.name)profile.name=fullName||authName||(uemail?uemail.split("@")[0]:"Usuario")
       if(!profile.initials)profile.initials=getInitials(profile.name)
       if(!profile.avatar_color)profile.avatar_color=getAvatarColor(uemail)
-      if(!profile.role)profile.role="colaborador" // fallback si la BD no tiene rol
+      if(!profile.role)profile.role="colaborador"
     }else{
-      // No profile found — build one and auto-create in DB (best effort)
       const role=getRole(uemail)
       const avatar_color=getAvatarColor(uemail)
       const safeName=fullName||authName||(uemail?uemail.split("@")[0]:"Usuario")
@@ -91,10 +77,6 @@ export const sb={
     const d=await r.json();if(d.error)throw new Error(d.msg||d.error);return d
   },
 
-  // get — maneja 401 (token expirado) y 403 (RLS denegado).
-  // 401 → SESSION_EXPIRED dispara onLogout en Dashboard.
-  // 403 → no debe desloguear, retorna array vacío para no romper
-  //        vistas que esperan un array (tareas, equipos, usuarios).
   async get(table,params,token){
     const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(token)})
     if(r.status===401)throw new Error("SESSION_EXPIRED")
@@ -111,4 +93,29 @@ export const sb={
   async upload(bucket,path,file,token){const r=await fetch(`${SB_URL}/storage/v1/object/${bucket}/${path}`,{method:"POST",headers:{apikey:SB_ANON,Authorization:`Bearer ${token||SB_ANON}`,"Content-Type":file.type,"x-upsert":"true"},body:file});if(!r.ok)throw new Error("Error al subir archivo");return`${SB_URL}/storage/v1/object/public/${bucket}/${path}`},
   async forgotPassword(email){const r=await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({email})});return r.json()},
   async refreshSession(refreshToken){const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({refresh_token:refreshToken})});const d=await r.json();if(d.error||d.error_description)throw new Error("No se pudo renovar la sesion");return d},
+
+  // ── CONTADOR ATÓMICO DE ÓRDENES ──
+  // Llama a la función SQL `next_order_number()` que incrementa el contador
+  // y retorna el nuevo valor en una sola operación atómica. Esto garantiza
+  // que cada orden tenga un número único e irrepetible — el contador NO se
+  // toca cuando se borra una orden, así que los números no se reutilizan
+  // (igual que en una secuencia de facturas).
+  // Si dos personas crean orden al mismo tiempo, Postgres garantiza orden:
+  // cada uno recibe un número distinto sin posibilidad de duplicado.
+  async nextOrderNumber(token){
+    const r=await fetch(`${SB_URL}/rest/v1/rpc/next_order_number`,{
+      method:"POST",
+      headers:hdr(token),
+      body:JSON.stringify({})
+    })
+    if(!r.ok){
+      const j=await r.json().catch(()=>({}))
+      throw new Error(j?.message||j?.error||`Error obteniendo número de orden (${r.status})`)
+    }
+    const val=await r.json()
+    // La función SQL retorna un bigint que llega como número o string
+    const num=typeof val==="number"?val:Number(val)
+    if(!num||isNaN(num))throw new Error("Número de orden inválido recibido del servidor")
+    return num
+  },
 }
