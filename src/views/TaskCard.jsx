@@ -134,6 +134,9 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   const comments=Array.isArray(task.comments)?task.comments:[];
   const isDir=me.role==="director"||me.role==="cuentas";
   const team=teams.find(t=>t.id===task.team_id);
+  // Estado efectivo (incluye el cambio local optimista) — usado para
+  // decidir si la fecha límite debe alertar o no.
+  const effStatus=localStatus||task.status;
 
   const lastActivity=(()=>{
     const hist=task.history||[];const cs=Array.isArray(task.comments)?task.comments:[];
@@ -231,7 +234,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   return(
     <div className="task-card fade-in" style={{
       cursor:"pointer",
-      borderLeft:`3px solid ${statusColor[localStatus||task.status]||"var(--border2)"}`,
+      borderLeft:`3px solid ${statusColor[effStatus]||"var(--border2)"}`,
       paddingLeft:15,
       opacity:(localStatus==="completada"&&me.role!=="director"&&me.role!=="cuentas")?0.6:1,
       transition:"opacity .2s, border-left-color .2s",
@@ -242,7 +245,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:7,alignItems:"center"}}>
             {task.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",fontFamily:"monospace"}}>#{"AC-"+String(task.order_number).padStart(4,"0")}</span>}
             <span className={`pill ${prioPill[task.priority]||"pill-gray"}`}>{task.priority}</span>
-            <span className={`pill ${statusPill[localStatus||task.status]||"pill-gray"}`}>{statusLabel[localStatus||task.status]||task.status}</span>
+            <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}>{statusLabel[effStatus]||task.status}</span>
             {task.changes>0&&<span className="pill pill-purple"><Icon n="cambio" size={10}/> {task.changes}</span>}
             {(()=>{
               const files=Array.isArray(task.files)?task.files:[];if(files.length===0)return null;
@@ -259,7 +262,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
           <h3 style={{fontSize:15,fontWeight:700,marginBottom:6}}>{task.title}</h3>
           <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:12,color:"var(--muted)",alignItems:"center"}}>
             {(()=>{const al=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);return al.map(id=>users.find(u=>u.id===id)).filter(Boolean).map(u=>(<span key={u.id} style={{display:"flex",alignItems:"center",gap:4}}><Av u={u} size={18}/><span>{u.name}</span></span>));})()}
-            {(()=>{const dr=fmtDateRelative(task.due_date);return(<span style={{color:dr.color,fontWeight:dr.urgent?700:400,background:dr.urgent?"rgba(240,107,107,.08)":"transparent",padding:dr.urgent?"2px 6px":"0",borderRadius:5}}><Icon n="tiempo" size={11} style={{marginRight:3}}/>{dr.label}</span>);})()}
+            {(()=>{const dr=fmtDateRelative(task.due_date,effStatus);return(<span style={{color:dr.color,fontWeight:dr.urgent?700:400,background:dr.urgent?"rgba(240,107,107,.08)":"transparent",padding:dr.urgent?"2px 6px":"0",borderRadius:5}}><Icon n="tiempo" size={11} style={{marginRight:3}}/>{dr.label}</span>);})()}
             {localStatus==="en_progreso"&&task.started_at
               ?<ActiveTimer startedAt={task.started_at} hoursReal={task.hours_real}/>
               :task.hours>0&&<span>⏱ {task.hours}h</span>}
@@ -326,7 +329,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
               </div>
               <div style={{background:"var(--bg3)",borderRadius:10,padding:"10px 14px"}}>
                 <p style={{fontSize:11,color:"var(--muted)",marginBottom:4,textTransform:"uppercase",letterSpacing:".4px"}}>Fechas y horas</p>
-                <p style={{fontSize:13}}><Icon n="tiempo" size={12} style={{marginRight:4}}/>{(()=>{const dr=fmtDateRelative(task.due_date);return <span style={{color:dr.color,fontWeight:dr.urgent?700:400}}>{dr.label}</span>;})()}</p>
+                <p style={{fontSize:13}}><Icon n="tiempo" size={12} style={{marginRight:4}}/>{(()=>{const dr=fmtDateRelative(task.due_date,effStatus);return <span style={{color:dr.color,fontWeight:dr.urgent?700:400}}>{dr.label}</span>;})()}</p>
                 <p style={{fontSize:12,color:"var(--muted)",marginTop:2}}>⏱ Est: {task.hours||0}h {task.hours_real>0&&<span style={{color:"var(--green)"}}>· Real: {task.hours_real}h</span>}</p>
               </div>
             </div>
