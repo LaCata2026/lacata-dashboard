@@ -242,6 +242,74 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
         </div>
       )}
 
+      {/* ════════ MIS MARCAS — solo CUENTAS ════════
+         Su trabajo real es por cliente/marca, no por equipo.
+         Agrupa el scope de Cuentas por marca con contadores
+         accionables y los colaboradores que la trabajan. */}
+      {isCuentas&&(()=>{
+        // Agrupar tareas del scope por marca
+        const byBrand={}
+        scopedTasks.forEach(t=>{
+          const marca=t.marca||"Sin marca"
+          if(!byBrand[marca])byBrand[marca]={marca,activas:0,revision:0,vencidas:0,memberIds:new Set()}
+          const g=byBrand[marca]
+          if(t.status!=="completada"){
+            g.activas++
+            const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
+            a.forEach(id=>g.memberIds.add(id))
+          }
+          if(t.status==="en_revision")g.revision++
+          if(t.status==="vencida")g.vencidas++
+        })
+        // Solo marcas con tareas activas; ordenar: vencidas primero, luego volumen
+        const brands=Object.values(byBrand)
+          .filter(b=>b.activas>0)
+          .sort((a,b)=>(b.vencidas-a.vencidas)||(b.activas-a.activas))
+        if(brands.length===0)return null
+        return(
+          <div className="card fade-in" style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <h3 style={{fontSize:15,fontWeight:700}}>🏷️ Mis marcas</h3>
+              <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{brands.length} con trabajo activo</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}>
+              {brands.map(b=>{
+                const members=[...b.memberIds].map(id=>users.find(u=>u.id===id)).filter(Boolean)
+                const hasAlert=b.vencidas>0
+                return(
+                  <div key={b.marca}
+                    onClick={()=>onNavigate&&onNavigate("ordenes")}
+                    style={{padding:"12px 14px",background:"var(--bg3)",borderRadius:10,border:`1px solid ${hasAlert?"rgba(232,93,93,.35)":"var(--border)"}`,cursor:"pointer",transition:".13s",position:"relative",overflow:"hidden"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="var(--bg4)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="var(--bg3)"}>
+                    {hasAlert&&<div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"var(--s-vencida)",opacity:.8}}/>}
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,marginTop:2}}>
+                      <span style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.marca}</span>
+                      <span style={{fontSize:18,fontWeight:800,color:"var(--text)",fontFamily:"var(--font-display)",lineHeight:1}}>{b.activas}</span>
+                    </div>
+                    <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+                      {b.revision>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-revision-bg)",color:"var(--s-revision)",fontWeight:700,fontFamily:"var(--font-mono)"}}>🔍 {b.revision} en revisión</span>}
+                      {b.vencidas>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/> {b.vencidas} vencida{b.vencidas>1?"s":""}</span>}
+                      {b.revision===0&&b.vencidas===0&&<span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Todo al día ✓</span>}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:-4}}>
+                      {members.slice(0,5).map((m,i)=>(
+                        <div key={m.id} title={m.name}
+                          style={{width:22,height:22,borderRadius:"50%",background:m.avatar_color,fontSize:9,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,border:"2px solid var(--bg3)",marginLeft:i>0?-6:0}}>
+                          {m.initials}
+                        </div>
+                      ))}
+                      {members.length>5&&<span style={{fontSize:10,color:"var(--muted)",marginLeft:4,fontFamily:"var(--font-mono)"}}>+{members.length-5}</span>}
+                      {members.length===0&&<span style={{fontSize:10,color:"var(--muted)",fontStyle:"italic"}}>Sin asignar</span>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       {(isDir||isCuentas)&&(
         <>
           <div style={{marginBottom:16}}>
