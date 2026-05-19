@@ -293,18 +293,24 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
                 ...(isDir?[{v:"vencida",label:"Vencida"}]:[])
               ];
               return(
-                <span style={{position:"relative",display:"inline-flex"}}>
+                <span style={{display:"inline-flex"}}>
                   <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}
-                    onClick={e=>{e.stopPropagation();setQuickMenu(q=>!q);}}
+                    onClick={e=>{
+                      e.stopPropagation();
+                      if(quickMenu){setQuickMenu(false);return;}
+                      // Capturar posición del pill para anclar el menú (portal)
+                      const r=e.currentTarget.getBoundingClientRect();
+                      setQuickMenu({x:r.left,y:r.bottom+4});
+                    }}
                     style={{cursor:"pointer",userSelect:"none"}}
                     title="Cambiar estado">
                     {statusLabel[effStatus]||task.status} <span style={{opacity:.5,fontSize:8,marginLeft:2}}>▼</span>
                   </span>
-                  {quickMenu&&(
-                    <>
-                      <span onClick={e=>{e.stopPropagation();setQuickMenu(false);}}
-                        style={{position:"fixed",inset:0,zIndex:50}}/>
-                      <span style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:51,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:8,padding:4,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,.4)",display:"flex",flexDirection:"column",gap:1}}>
+                  {quickMenu&&ReactDOM.createPortal(
+                    <div style={{position:"fixed",inset:0,zIndex:600}}
+                      onClick={e=>{e.stopPropagation();setQuickMenu(false);}}>
+                      <div onClick={e=>e.stopPropagation()}
+                        style={{position:"fixed",top:quickMenu.y,left:quickMenu.x,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:8,padding:4,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,.4)",display:"flex",flexDirection:"column",gap:1}}>
                         {opts.map(o=>(
                           <span key={o.v}
                             onClick={e=>{e.stopPropagation();setQuickMenu(false);if(o.v!==effStatus)changeStatus(o.v);}}
@@ -314,8 +320,9 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
                             {o.label}{o.v===effStatus&&" ✓"}
                           </span>
                         ))}
-                      </span>
-                    </>
+                      </div>
+                    </div>,
+                    document.body
                   )}
                 </span>
               );
