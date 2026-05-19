@@ -12,121 +12,117 @@ function ModalPortal({children}){const el=useRef(document.createElement("div"));
 const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
 
 /* ═══════════════════════════════════════════
-   SEMANA ACTUAL — lunes 00:00 a domingo 23:59
+   TARJETA "TU SEMANA" — COLABORADOR
+   Fila 1: métricas de logro (completadas/eficiencia/racha)
+   Fila 2: contadores operativos (activas/revisión/vencidas)
+   Es el ÚNICO bloque de métricas del colaborador — todo lo
+   demás se eliminó por redundante. Tono de logro, no vigilancia.
 ═══════════════════════════════════════════ */
-function currentWeekRange(){
+function MyWeekCard({me,tasks,onNavigate}){
+  // Rango de la semana actual (lunes 00:00 → domingo 23:59)
   const now=new Date()
   const day=now.getDay()
-  const diff=now.getDate()-day+(day===0?-6:1) // lunes como inicio de semana
-  const from=new Date(now);from.setDate(diff);from.setHours(0,0,0,0)
-  const to=new Date(from);to.setDate(to.getDate()+6);to.setHours(23,59,59,999)
-  return{from,to}
-}
+  const diffToMon=now.getDate()-day+(day===0?-6:1)
+  const weekStart=new Date(now);weekStart.setDate(diffToMon);weekStart.setHours(0,0,0,0)
+  const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+6);weekEnd.setHours(23,59,59,999)
 
-// ¿La tarea tuvo actividad dentro de la semana? (history / started_at / created_at)
-function taskInWeek(t,range){
-  const inR=d=>d&&d>=range.from&&d<=range.to
-  const hist=Array.isArray(t.history)?t.history:[]
-  if(hist.some(e=>{
-    const iso=e.match(/\d{4}-\d{2}-\d{2}T[\d:.-]+Z?/);if(iso)return inR(new Date(iso[0]))
-    const loc=e.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(loc)return inR(new Date(`${loc[3]}-${loc[2].padStart(2,"0")}-${loc[1].padStart(2,"0")}`))
-    return false
-  }))return true
-  if(inR(t.started_at?new Date(t.started_at):null))return true
-  if(inR(t.created_at?new Date(t.created_at):null))return true
-  return false
-}
-
-const effPct=(est,real)=>{const e=Number(est),r=Number(real);if(!e||!r)return null;return Math.min(999,Math.round(e/r*100))}
-
-/* ═══════════════════════════════════════════
-   TARJETA DE DESEMPEÑO PERSONAL — COLABORADOR
-   Semana actual · completadas + eficiencia + racha
-   Tono motivador, no de vigilancia.
-═══════════════════════════════════════════ */
-function MyPerfCard({me,tasks}){
-  const week=currentWeekRange()
   const mine=tasks.filter(t=>assignedOf(t).includes(me.id))
 
-  // Completadas esta semana
-  const doneThisWeek=mine.filter(t=>t.status==="completada"&&taskInWeek(t,week))
-
-  // Eficiencia: sobre las completadas de la semana con horas registradas
-  const withHrs=doneThisWeek.filter(t=>Number(t.hours)>0&&Number(t.hours_real)>0)
-  const totalEst=withHrs.reduce((s,t)=>s+Number(t.hours||0),0)
-  const totalReal=withHrs.reduce((s,t)=>s+Number(t.hours_real||0),0)
-  const eff=effPct(totalEst,totalReal)
-
-  // Racha: días consecutivos (hasta hoy) sin tareas vencidas.
-  // Si ahora mismo tengo alguna vencida, racha = 0.
+  // ── Métricas de logro (semana actual) ──
+  const doneThisWeek=mine.filter(t=>{
+    if(t.status!=="completada")return false
+    const ref=t.updated_at?new Date(t.updated_at):(t.created_at?new Date(t.created_at):null)
+    return ref&&ref>=weekStart&&ref<=weekEnd
+  })
+  const effBase=doneThisWeek.filter(t=>Number(t.hours)>0&&Number(t.hours_real)>0)
+  const totalEst=effBase.reduce((s,t)=>s+Number(t.hours),0)
+  const totalReal=effBase.reduce((s,t)=>s+Number(t.hours_real),0)
+  const efic=totalReal>0?Math.min(999,Math.round(totalEst/totalReal*100)):null
   const streak=(()=>{
-    const hasOverdueNow=mine.some(t=>t.status==="vencida")
-    if(hasOverdueNow)return 0
-    // Fecha más reciente en que algo mío estuvo "vencida" (según history).
-    let lastBad=null
-    mine.forEach(t=>{
-      const hist=Array.isArray(t.history)?t.history:[]
-      hist.forEach(e=>{
-        if(/vencid/i.test(e)){
-          const iso=e.match(/\d{4}-\d{2}-\d{2}T[\d:.-]+Z?/)
-          const loc=e.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-          let d=null
-          if(iso)d=new Date(iso[0])
-          else if(loc)d=new Date(`${loc[3]}-${loc[2].padStart(2,"0")}-${loc[1].padStart(2,"0")}`)
-          if(d&&(!lastBad||d>lastBad))lastBad=d
-        }
-      })
-    })
-    const firstTaskTime=mine.length>0
-      ?Math.min(...mine.map(t=>new Date(t.created_at||Date.now()).getTime()))
-      :Date.now()
-    const base=lastBad||new Date(firstTaskTime)
-    return Math.max(0,Math.floor((Date.now()-base.getTime())/(24*3600000)))
+    const overdue=mine.filter(t=>t.status==="vencida"&&t.due_date)
+    if(overdue.length===0){
+      const oldest=mine.reduce((min,t)=>{
+        const c=t.created_at?new Date(t.created_at):null
+        return c&&(!min||c<min)?c:min
+      },null)
+      if(!oldest)return 0
+      return Math.min(99,Math.floor((now-oldest)/(1000*60*60*24)))
+    }
+    const lastOverdue=overdue.reduce((max,t)=>{
+      const d=new Date(t.due_date+"T00:00:00")
+      return(!max||d>max)?d:max
+    },null)
+    if(!lastOverdue)return 0
+    return Math.max(0,Math.min(99,Math.floor((now-lastOverdue)/(1000*60*60*24))))
   })()
 
-  const effColor=eff==null?"var(--muted)":eff>=90?"var(--green)":eff>=70?"var(--yellow)":"var(--orange)"
+  // ── Contadores operativos (estado actual, no por semana) ──
+  const activas=mine.filter(t=>t.status!=="completada").length
+  const enRevision=mine.filter(t=>t.status==="en_revision").length
+  const vencidas=mine.filter(t=>t.status==="vencida").length
 
-  // Mensaje motivador según resultados
   const cheer=(()=>{
-    if(doneThisWeek.length===0&&streak>=3)return"Vas bien — sin vencidas esta semana 👏"
-    if(doneThisWeek.length===0)return"Nueva semana, nuevas metas 💪"
+    if(doneThisWeek.length===0&&streak===0)return"Nueva semana, nuevas metas 💪"
     if(doneThisWeek.length>=5)return"¡Semana imparable! 🔥"
-    if(eff!=null&&eff>=90)return"Excelente ritmo esta semana ⭐"
-    return"Buen avance, sigue así 🚀"
+    if(efic!=null&&efic>=90)return"Excelente ritmo de trabajo ✨"
+    if(streak>=7)return`${streak} días sin atrasos, ¡sigue así! 🎯`
+    if(vencidas===0&&doneThisWeek.length>0)return"Buen avance, todo al día 👏"
+    if(vencidas===0)return"Vas bien — sin vencidas esta semana 👏"
+    return"Vamos a ponernos al día 💪"
   })()
+
+  const Metric=({val,label,color})=>(
+    <div style={{textAlign:"center",padding:"12px 8px",background:"var(--bg3)",borderRadius:10}}>
+      <div style={{fontSize:26,fontWeight:800,color,fontFamily:"var(--font-display)",lineHeight:1}}>{val}</div>
+      <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5,textTransform:"uppercase",letterSpacing:".06em"}}>{label}</div>
+    </div>
+  )
+
+  const OpCount=({val,label,color,onClick})=>(
+    <div onClick={onClick}
+      style={{flex:1,textAlign:"center",padding:"8px 6px",borderRadius:8,cursor:onClick?"pointer":"default",transition:".13s"}}
+      onMouseEnter={e=>{if(onClick)e.currentTarget.style.background="var(--bg3)"}}
+      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+      <span style={{fontSize:16,fontWeight:800,color,fontFamily:"var(--font-display)"}}>{val}</span>
+      <span style={{fontSize:11,color:"var(--muted)",marginLeft:6}}>{label}</span>
+      {onClick&&<span style={{fontSize:10,color:"var(--muted)",opacity:.4,marginLeft:4}}>→</span>}
+    </div>
+  )
 
   return(
-    <div style={{
-      background:"linear-gradient(135deg, rgba(232,197,71,.10), rgba(46,196,160,.06))",
-      border:"1px solid rgba(232,197,71,.22)",borderRadius:16,
-      padding:"18px 20px",marginBottom:20
+    <div className="card fade-in" style={{
+      marginBottom:20,
+      background:"linear-gradient(135deg, rgba(232,197,71,.08), rgba(155,127,232,.06))",
+      border:"1px solid rgba(232,197,71,.18)"
     }}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-        <Av u={me} size={34}/>
-        <div>
-          <div style={{fontSize:14,fontWeight:700}}>Tu semana</div>
-          <div style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{cheer}</div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <Av u={me} size={32}/>
+          <div>
+            <h3 style={{fontSize:14,fontWeight:700}}>Tu semana</h3>
+            <p style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{cheer}</p>
+          </div>
         </div>
+        <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",background:"var(--bg3)",borderRadius:6,padding:"3px 8px"}}>
+          {weekStart.toLocaleDateString("es-GT",{day:"2-digit",month:"short"})} – {weekEnd.toLocaleDateString("es-GT",{day:"2-digit",month:"short"})}
+        </span>
       </div>
+
+      {/* Fila 1 — métricas de logro */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-        <div style={{textAlign:"center",padding:"10px 8px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
-          <div style={{fontSize:26,fontWeight:800,color:"var(--green)",fontFamily:"var(--font-display)",lineHeight:1}}>{doneThisWeek.length}</div>
-          <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5}}>COMPLETADAS</div>
-        </div>
-        <div style={{textAlign:"center",padding:"10px 8px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
-          <div style={{fontSize:26,fontWeight:800,color:effColor,fontFamily:"var(--font-display)",lineHeight:1}}>{eff==null?"—":eff+"%"}</div>
-          <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5}}>EFICIENCIA</div>
-        </div>
-        <div style={{textAlign:"center",padding:"10px 8px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
-          <div style={{fontSize:26,fontWeight:800,color:streak>=3?"var(--accent)":"var(--muted2)",fontFamily:"var(--font-display)",lineHeight:1}}>{streak}{streak>=7?" 🔥":""}</div>
-          <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5}}>DÍAS SIN VENCIDAS</div>
-        </div>
+        <Metric val={doneThisWeek.length} label="Completadas" color="var(--s-completada)"/>
+        <Metric val={efic==null?"—":efic+"%"} label="Eficiencia" color={efic==null?"var(--muted)":efic>=90?"var(--s-completada)":efic>=70?"var(--yellow)":"var(--accent)"}/>
+        <Metric val={`${streak}${streak>=7?" 🔥":""}`} label="Días sin atraso" color={streak>=7?"var(--accent)":"var(--text)"}/>
       </div>
-      {eff==null&&doneThisWeek.length>0&&(
-        <p style={{fontSize:10,color:"var(--muted)",marginTop:10,fontFamily:"var(--font-mono)",textAlign:"center"}}>
-          La eficiencia aparece cuando registres horas en tus tareas
-        </p>
-      )}
+
+      {/* Fila 2 — contadores operativos (clickeables) */}
+      <div style={{display:"flex",alignItems:"center",gap:4,marginTop:12,paddingTop:12,borderTop:"1px solid var(--border)"}}>
+        <OpCount val={activas} label={activas===1?"activa":"activas"} color="var(--blue)" onClick={()=>onNavigate&&onNavigate("ordenes")}/>
+        <div style={{width:1,height:24,background:"var(--border)"}}/>
+        <OpCount val={enRevision} label="en revisión" color="var(--s-revision)" onClick={()=>onNavigate&&onNavigate("ordenes","en_revision")}/>
+        <div style={{width:1,height:24,background:"var(--border)"}}/>
+        <OpCount val={vencidas} label={vencidas===1?"vencida":"vencidas"} color={vencidas>0?"var(--s-vencida)":"var(--s-completada)"} onClick={()=>onNavigate&&onNavigate("ordenes","vencida")}/>
+      </div>
     </div>
   )
 }
@@ -139,13 +135,11 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
   // ── CUENTAS SCOPE ──
   const myTeamIds=isCuentas?(Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:[me.team_id].filter(Boolean)):null
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
-  // For cuentas: only show tasks from their teams
   const scopedTasks=isCuentas&&myTeamIds?tasks.filter(t=>myTeamIds.includes(t.team_id)):tasks
 
   const pendingApproval=scopedTasks.filter(t=>t.status==="en_revision")
 
   // My tasks — colaborador sees ONLY tasks assigned to them directly
-  const myCollabTeamIds=Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:(me.team_id?[me.team_id]:[])
   const myTasks=tasks.filter(t=>{
     const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
     return a.includes(me.id)
@@ -165,7 +159,6 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
   const completedLastWeek=scopedTasks.filter(t=>t.status==="completada"&&t.updated_at&&(now-new Date(t.updated_at).getTime())<day7*2&&(now-new Date(t.updated_at).getTime())>=day7).length
   const trend=completedLastWeek===0?null:Math.round(((completedThisWeek-completedLastWeek)/completedLastWeek)*100)
 
-  // Workload — filter collabs by visible teams for cuentas
   const collabs=users.filter(u=>{
     if(u.role!=="colaborador")return false
     if(!isCuentas||!myTeamIds)return true
@@ -181,7 +174,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
 
   return(
     <div className="fade-in">
-      {/* COLLABORATOR VIEW */}
+      {/* ════════ COLLABORATOR VIEW — máximo foco ════════ */}
       {isCollab&&(
         <>
           <div style={{marginBottom:20}}>
@@ -189,19 +182,10 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             <p style={{color:"var(--muted)",fontSize:14}}>Tienes {myActive.length} tarea{myActive.length!==1?"s":""} activa{myActive.length!==1?"s":""}</p>
           </div>
 
-          {/* ── TARJETA DE DESEMPEÑO PERSONAL ── */}
-          <MyPerfCard me={me} tasks={tasks}/>
+          {/* Único bloque de métricas — todo fusionado aquí */}
+          <MyWeekCard me={me} tasks={myTasks} onNavigate={onNavigate}/>
 
-          <div style={{display:"flex",gap:8,marginBottom:20}}>
-            <button className="quick-action" onClick={()=>onNavigate("ordenes")}><div className="quick-action-icon" style={{background:"rgba(77,157,224,.12)"}}><Icon n="ordenes" size={18} color="var(--s-progreso)"/></div><span style={{fontSize:11,fontWeight:600}}>Mis órdenes</span></button>
-            <button className="quick-action" onClick={()=>onNavigate("ordenes","en_revision")}><div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}><Icon n="revision" size={18} color="var(--s-revision)"/></div><span style={{fontSize:11,fontWeight:600}}>En revisión</span></button>
-            {myCollabTeamIds.length>0&&<button className="quick-action" onClick={()=>onNavigate("equipo_"+myCollabTeamIds[0])}><div className="quick-action-icon" style={{background:"rgba(46,196,160,.12)"}}><Icon n="equipos" size={18} color="var(--s-completada)"/></div><span style={{fontSize:11,fontWeight:600}}>Mi equipo</span></button>}
-          </div>
-          <div className="stat-grid" style={{marginBottom:20}}>
-            <div className="stat-card clickable" style={{"--ac":"var(--blue)"}} onClick={()=>onNavigate("ordenes")}><div className="stat-label">Mis tareas activas</div><div className="stat-value" style={{color:"var(--blue)"}}>{myActive.length}</div><div className="stat-sub">Ver todas →</div></div>
-            <div className="stat-card clickable" style={{"--ac":"var(--red)"}} onClick={()=>onNavigate("ordenes","vencida")}><div className="stat-label">Urgentes / Vencidas</div><div className="stat-value" style={{color:myUrgent.length>0?"var(--red)":"var(--green)"}}>{myUrgent.length}</div><div className="stat-sub">{myUrgent.length>0?"Atención requerida →":"Todo al día ✓"}</div></div>
-            <div className="stat-card clickable" style={{"--ac":"var(--green)"}} onClick={()=>onNavigate("ordenes","completada")}><div className="stat-label">Completadas</div><div className="stat-value" style={{color:"var(--green)"}}>{myTasks.filter(t=>t.status==="completada").length}</div><div className="stat-sub">Ver historial →</div></div>
-          </div>
+          {/* Alerta solo si hay algo urgente — si no, no se muestra nada */}
           {myUrgent.length>0&&(
             <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:14,padding:16,marginBottom:16}}>
               <p style={{fontSize:13,fontWeight:700,color:"#fca5a5",marginBottom:10}}><Icon n="vencida" size={13} style={{marginRight:4}}/> Requieren atención inmediata</p>
@@ -214,6 +198,8 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
               ))}
             </div>
           )}
+
+          {/* Lista protagonista */}
           <div>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>Mis tareas activas</h3>
             {myActive.length===0
@@ -235,7 +221,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
         </>
       )}
 
-      {/* DIRECTOR/CUENTAS VIEW */}
+      {/* ════════ DIRECTOR / CUENTAS VIEW (sin cambios) ════════ */}
       {isCuentas&&pendingApproval.length>0&&(
         <div className="card fade-in" style={{marginBottom:16,border:"1px solid var(--s-revision-bg)",background:"rgba(155,127,232,.05)"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
@@ -277,7 +263,6 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             {isDir&&<button className="quick-action" onClick={()=>onNavigate("desempeno")}><div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}><Icon n="desempeno" size={18} color="var(--s-revision)"/></div><span style={{fontSize:11,fontWeight:600}}>Desempeño</span></button>}
           </div>
 
-          {/* HERO: stacked bar por equipo */}
           {(()=>{
             const teamData=visibleTeams.map(t=>({...t,color:teamColor(t),count:allActive.filter(x=>x.team_id===t.id).length})).filter(t=>t.count>0).sort((a,b)=>b.count-a.count)
             const noTeam=allActive.filter(x=>!x.team_id).length
