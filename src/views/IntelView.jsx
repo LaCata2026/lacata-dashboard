@@ -208,9 +208,11 @@ function DonutChart({data,size=180}){
 }
 
 /* ═══════════════════════════════════════════
-   TAB 1 — CARGA ACTUAL → redirige a Inicio
+   TAB 1 — OVERVIEW GENERAL
+   Vista completa: colaboradores, equipos, marcas,
+   alertas — todo clickeable, colores consistentes
 ═══════════════════════════════════════════ */
-function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefresh,initialUser,onNavigateHome}){
+function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefresh,initialUser,onNavigateHome,onSwitchTab,onOpenTask}){
   const[selectedUser,setSelectedUser]=useState(initialUser||null)
 
   const colabs=users.filter(u=>{
@@ -218,12 +220,47 @@ function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefre
     if(!isCuentas||!myTeamIds)return true
     return myTeamIds.includes(u.team_id)||(Array.isArray(u.team_ids)&&u.team_ids.some(id=>myTeamIds.includes(id)))
   })
-  const sorted=[...colabs].sort((a,b)=>{
-    const at=tasks.filter(t=>assignedOf(t).includes(a.id)&&t.status!=="completada").length
-    const bt=tasks.filter(t=>assignedOf(t).includes(b.id)&&t.status!=="completada").length
-    return bt-at
-  })
 
+  // Calcular datos de colaboradores
+  const colabData=colabs.map(u=>{
+    const active=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status!=="completada")
+    const done=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status==="completada")
+    const venc=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status==="vencida")
+    const hrsR=tasks.filter(t=>assignedOf(t).includes(u.id)).reduce((s,t)=>s+Number(t.hours_real||0),0)
+    const team=teams.find(t=>t.id===u.team_id)
+    const loadColor=venc.length>0?"var(--red)":active.length>=7?"var(--red)":active.length>=4?"var(--yellow)":u.avatar_color||"var(--green)"
+    return{u,active,done,venc,hrsR,team,loadColor}
+  }).sort((a,b)=>b.active.length-a.active.length)
+
+  // Calcular datos de equipos
+  const teamData=teams.map(team=>{
+    const mt=tasks.filter(t=>t.team_id===team.id)
+    const comp=mt.filter(t=>t.status==="completada")
+    const venc=mt.filter(t=>t.status==="vencida")
+    const actv=mt.filter(t=>t.status!=="completada"&&t.status!=="vencida")
+    const hrsR=mt.reduce((s,t)=>s+Number(t.hours_real||0),0)
+    const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador")
+    return{team,mt,comp,venc,actv,hrsR,members}
+  }).filter(r=>r.mt.length>0).sort((a,b)=>b.mt.length-a.mt.length)
+
+  // Calcular datos de marcas
+  const marcaMap={}
+  tasks.forEach(t=>{
+    const m=t.marca||"Sin marca"
+    if(!marcaMap[m])marcaMap[m]={marca:m,tasks:[],hrsR:0,colabs:new Set()}
+    marcaMap[m].tasks.push(t)
+    marcaMap[m].hrsR+=Number(t.hours_real||0)
+    assignedOf(t).forEach(id=>marcaMap[m].colabs.add(id))
+  })
+  const marcaData=Object.values(marcaMap).sort((a,b)=>b.hrsR-a.hrsR).slice(0,6)
+  const maxMarcaHrs=Math.max(...marcaData.map(r=>r.hrsR),1)
+  const MARCA_COLORS=["var(--accent)","var(--blue)","var(--green)","var(--s-revision)","var(--orange)","var(--yellow)"]
+
+  // Alertas: vencidas + sobrecargados
+  const vencidasAlerts=tasks.filter(t=>t.status==="vencida").slice(0,4)
+  const sobrecargados=colabData.filter(c=>c.active.length>=7)
+
+  // Vista detalle de colaborador
   if(selectedUser){
     const u=selectedUser
     const team=teams.find(t=>t.id===u.team_id)
@@ -234,7 +271,7 @@ function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefre
     const hrs=uTasks.reduce((s,t)=>s+Number(t.hours_real||0),0)
     return(
       <div>
-        <BackBtn onClick={()=>setSelectedUser(null)} label="← Carga"/>
+        <BackBtn onClick={()=>setSelectedUser(null)} label="← Overview"/>
         <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20,padding:"16px 20px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)",borderLeft:`4px solid ${u.avatar_color||"var(--accent)"}`}}>
           <Av u={u} size={48}/>
           <div style={{flex:1}}>
@@ -262,56 +299,172 @@ function TabCarga({tasks,users,teams,myTeamIds,isCuentas,myProfile,token,onRefre
   }
 
   return(
-    <div>
-      {/* Banner de redirección */}
-      <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-        <div style={{fontSize:28}}>🏠</div>
-        <div style={{flex:1}}>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>La carga en tiempo real está en Inicio</div>
-          <div style={{fontSize:12,color:"var(--muted)"}}>El semáforo de equipos, cola de revisión y carga por colaborador se actualizan en vivo desde la pantalla de Inicio.</div>
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+      {/* ── ALERTAS — solo si hay problemas ── */}
+      {(vencidasAlerts.length>0||sobrecargados.length>0)&&(
+        <div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.2)",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--red)",fontFamily:"var(--font-mono)",marginBottom:10,letterSpacing:".06em"}}>⚠️ REQUIEREN ATENCIÓN</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {sobrecargados.map(({u,active})=>(
+              <div key={u.id} onClick={()=>setSelectedUser(u)}
+                style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"6px 8px",borderRadius:7,transition:".13s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.08)"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <Av u={u} size={24}/>
+                <span style={{fontSize:12,fontWeight:600,flex:1}}>{u.name.split(" ")[0]}</span>
+                <span style={{fontSize:11,color:"var(--red)",fontFamily:"var(--font-mono)",fontWeight:700}}>{active.length} tareas activas</span>
+                <span style={{fontSize:11,color:"var(--muted)"}}>→</span>
+              </div>
+            ))}
+            {vencidasAlerts.map(t=>{
+              const u=users.find(x=>assignedOf(t).includes(x.id))
+              return(
+                <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)}
+                  style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"6px 8px",borderRadius:7,transition:".13s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.08)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  {t.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--red)",fontFamily:"var(--font-mono)",minWidth:52}}>AC-{String(t.order_number).padStart(4,"0")}</span>}
+                  <span style={{fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</span>
+                  {u&&<Av u={u} size={20}/>}
+                  <span style={{fontSize:11,color:"var(--muted)"}}>→</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
-        {onNavigateHome&&(
-          <button onClick={onNavigateHome}
-            style={{padding:"9px 18px",borderRadius:8,border:"none",background:"var(--accent)",color:"#0d0d0d",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"inherit",whiteSpace:"nowrap"}}>
-            Ir a Inicio →
-          </button>
-        )}
+      )}
+
+      {/* ── GRID PRINCIPAL: Colaboradores + Equipos ── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:12}}>
+
+        {/* COLABORADORES — mapa de avatares con color de carga */}
+        <div className="card fade-in">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <h3 style={{fontSize:14,fontWeight:700}}>Colaboradores</h3>
+            <div style={{display:"flex",gap:8,fontSize:10,fontFamily:"var(--font-mono)"}}>
+              <span style={{color:"var(--green)"}}>● OK</span>
+              <span style={{color:"var(--yellow)"}}>● Cargado</span>
+              <span style={{color:"var(--red)"}}>● Crítico</span>
+            </div>
+          </div>
+          {colabData.length===0&&<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:16}}>Sin colaboradores</p>}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {colabData.map(({u,active,done,venc,hrsR,team,loadColor})=>{
+              const pct=Math.min(100,active.length/8*100)
+              return(
+                <div key={u.id} onClick={()=>setSelectedUser(u)}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",border:"1px solid var(--border)",background:"var(--bg3)",transition:".13s"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=loadColor}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
+                  {/* Avatar con indicador de color */}
+                  <div style={{position:"relative",flexShrink:0}}>
+                    <Av u={u} size={36}/>
+                    <div style={{position:"absolute",bottom:-2,right:-2,width:11,height:11,borderRadius:"50%",background:loadColor,border:"2px solid var(--bg3)"}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name.split(" ")[0]}</span>
+                      <div style={{display:"flex",gap:8,fontSize:11,fontFamily:"var(--font-mono)",flexShrink:0}}>
+                        <span style={{color:"var(--green)"}}>✓{done.length}</span>
+                        {venc.length>0&&<span style={{color:"var(--red)"}}>!{venc.length}</span>}
+                        <span style={{color:loadColor,fontWeight:700}}>{active.length}</span>
+                      </div>
+                    </div>
+                    {/* Barra de carga con color del avatar */}
+                    <div style={{height:5,background:"var(--bg2)",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{width:pct+"%",height:"100%",background:loadColor,borderRadius:3,transition:"width .6s cubic-bezier(.4,0,.2,1)"}}/>
+                    </div>
+                    <div style={{fontSize:10,color:"var(--muted)",marginTop:3,fontFamily:"var(--font-mono)"}}>{team?.name||"Sin equipo"} · {fmtH(hrsR)}</div>
+                  </div>
+                  <span style={{fontSize:11,color:"var(--muted)"}}>→</span>
+                </div>
+              )
+            })}
+          </div>
+          {onSwitchTab&&<button onClick={()=>onSwitchTab("desempeno")} style={{marginTop:12,width:"100%",padding:"7px",background:"transparent",border:"1px solid var(--border)",borderRadius:7,color:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"var(--font-body)"}}>Ver análisis histórico →</button>}
+        </div>
+
+        {/* EQUIPOS — barras apiladas con color del equipo */}
+        <div className="card fade-in">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <h3 style={{fontSize:14,fontWeight:700}}>Equipos</h3>
+            <div style={{display:"flex",gap:8,fontSize:10,fontFamily:"var(--font-mono)"}}>
+              <span style={{color:"var(--green)"}}>■ Comp.</span>
+              <span style={{color:"var(--blue)",opacity:.7}}>■ Activas</span>
+              <span style={{color:"var(--red)"}}>■ Venc.</span>
+            </div>
+          </div>
+          {teamData.length===0&&<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:16}}>Sin actividad</p>}
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {teamData.map(({team,mt,comp,venc,actv,hrsR,members})=>{
+              const tc=teamColor(team)
+              const health=venc.length>0?"var(--red)":actv.length/Math.max(members.length,1)>=4?"var(--yellow)":"var(--green)"
+              return(
+                <div key={team.id} onClick={()=>onSwitchTab&&onSwitchTab("equipos")}
+                  style={{cursor:"pointer",padding:"10px 12px",borderRadius:9,border:"1px solid var(--border)",background:"var(--bg3)",transition:".13s"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=tc}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <div style={{width:3,height:28,borderRadius:2,background:tc,flexShrink:0}}/>
+                    <span style={{fontSize:13,fontWeight:700,flex:1}}>{team.name}</span>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:health}}/>
+                    <span style={{fontSize:11,fontFamily:"var(--font-mono)",color:"var(--muted)"}}>{members.length} miembros</span>
+                  </div>
+                  {/* Barra apilada con color del equipo para la parte activa */}
+                  <div style={{display:"flex",height:10,borderRadius:4,overflow:"hidden",background:"var(--bg2)",marginBottom:6}}>
+                    {comp.length>0&&<div style={{width:(comp.length/mt.length*100)+"%",background:"var(--green)",transition:"width .5s"}}/>}
+                    {actv.length>0&&<div style={{width:(actv.length/mt.length*100)+"%",background:tc,opacity:.8,transition:"width .5s"}}/>}
+                    {venc.length>0&&<div style={{width:(venc.length/mt.length*100)+"%",background:"var(--red)",transition:"width .5s"}}/>}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>
+                    <span>✓{comp.length} · {actv.length} activas{venc.length>0?` · ${venc.length} venc.`:""}</span>
+                    <span>{fmtH(hrsR)}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {onSwitchTab&&<button onClick={()=>onSwitchTab("equipos")} style={{marginTop:12,width:"100%",padding:"7px",background:"transparent",border:"1px solid var(--border)",borderRadius:7,color:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"var(--font-body)"}}>Ver análisis histórico →</button>}
+        </div>
       </div>
 
-      {/* Vista rápida de carga — solo lectura, sin click */}
+      {/* ── MARCAS — barras horizontales proporcionales ── */}
       <div className="card fade-in">
-        <h3 style={{fontSize:15,fontWeight:700,marginBottom:4}}>Resumen de carga actual</h3>
-        <p style={{fontSize:11,color:"var(--muted)",marginBottom:16,fontFamily:"var(--font-mono)"}}>Para ver detalle de cada colaborador ve a Inicio</p>
-        <div className="stat-grid" style={{marginBottom:16}}>
-          <SC label="Activas" value={tasks.filter(t=>t.status!=="completada").length} color="var(--blue)"/>
-          <SC label="Completadas" value={tasks.filter(t=>t.status==="completada").length} color="var(--green)"/>
-          <SC label="Vencidas" value={tasks.filter(t=>t.status==="vencida").length} color="var(--red)"/>
-          <SC label="Horas totales" value={fmtH(tasks.reduce((s,t)=>s+Number(t.hours||0),0))} color="var(--accent)"/>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <h3 style={{fontSize:14,fontWeight:700}}>Actividad por marca</h3>
+          <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Todas las órdenes · horas reales</span>
         </div>
-        {sorted.map((u,i)=>{
-          const ut=tasks.filter(t=>assignedOf(t).includes(u.id)&&t.status!=="completada")
-          const team=teams.find(t=>t.id===u.team_id)
-          const pct=Math.min(100,Math.round(ut.length/8*100))
-          const loadColor=ut.length>=7?"var(--s-vencida)":ut.length>=4?"var(--load-warn)":(team?teamColor(team):"var(--load-ok)")
-          return(
-            <div key={u.id} onClick={()=>setSelectedUser(u)}
-              style={{display:"flex",alignItems:"center",gap:12,padding:"10px 8px",borderBottom:"1px solid var(--border)",cursor:"pointer",borderRadius:6,transition:".13s"}}
-              onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span style={{fontSize:12,fontWeight:700,color:"var(--muted)",minWidth:20,fontFamily:"var(--font-mono)"}}>{i+1}</span>
-              <Av u={u} size={30}/>
-              <div style={{flex:1}}>
-                <div style={{fontSize:12,fontWeight:600,marginBottom:4}}>{u.name.split(" ")[0]}{team&&<span style={{color:"var(--muted)",fontWeight:400,fontSize:11,marginLeft:6}}>· {team.name}</span>}</div>
-                <div style={{height:6,background:"var(--bg3)",borderRadius:3,overflow:"hidden"}}>
-                  <div style={{width:pct+"%",height:"100%",background:loadColor,borderRadius:3,transition:"width .5s"}}/>
+        {marcaData.length===0&&<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:16}}>Sin actividad</p>}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {marcaData.map((r,i)=>{
+            const color=MARCA_COLORS[i%MARCA_COLORS.length]
+            const pct=maxMarcaHrs>0?Math.max(r.hrsR/maxMarcaHrs,r.hrsR>0?0.02:0)*100:0
+            const comp=r.tasks.filter(t=>t.status==="completada").length
+            const venc=r.tasks.filter(t=>t.status==="vencida").length
+            return(
+              <div key={r.marca} onClick={()=>onSwitchTab&&onSwitchTab("marcas")}
+                style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 10px",borderRadius:8,transition:".13s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <div style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/>
+                <span style={{fontSize:12,fontWeight:600,minWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.marca}</span>
+                <div style={{flex:1,height:12,background:"var(--bg3)",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{width:pct+"%",height:"100%",background:color,borderRadius:3,transition:"width .6s cubic-bezier(.4,0,.2,1)"}}/>
+                </div>
+                <span style={{fontSize:11,fontWeight:700,color,fontFamily:"var(--font-mono)",minWidth:36,textAlign:"right"}}>{fmtH(r.hrsR)}</span>
+                <div style={{display:"flex",gap:6,fontSize:10,fontFamily:"var(--font-mono)",minWidth:70}}>
+                  <span style={{color:"var(--green)"}}>✓{comp}</span>
+                  {venc>0&&<span style={{color:"var(--red)"}}>!{venc}</span>}
+                  <span style={{color:"var(--muted)"}}>{r.colabs.size}p</span>
                 </div>
               </div>
-              <span style={{fontSize:16,fontWeight:800,color:loadColor,fontFamily:"var(--font-display)",minWidth:24,textAlign:"right"}}>{ut.length}</span>
-              <span style={{fontSize:11,color:"var(--muted)"}}>→</span>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
+        {onSwitchTab&&<button onClick={()=>onSwitchTab("marcas")} style={{marginTop:12,width:"100%",padding:"7px",background:"transparent",border:"1px solid var(--border)",borderRadius:7,color:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"var(--font-body)"}}>Ver análisis por marca →</button>}
       </div>
+
     </div>
   )
 }
@@ -1012,7 +1165,7 @@ function TabOrdenes({tasks,users,teams,range}){
 /* ═══════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
-export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh,onLoadHistory,initialUser,onNavigate}){
+export default function IntelView({tasks,users,teams,onBack,me,profile,token,onRefresh,onLoadHistory,initialUser,onNavigate,onOpenTask}){
   const[tab,setTab]=useState("carga")
   const[period,setPeriod]=useState("semana")
   const[offset,setOffset]=useState(0)
@@ -1093,7 +1246,7 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
         ))}
       </div>
 
-      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas} myProfile={myProfile} token={token} onRefresh={onRefresh} initialUser={initialUser||null} onNavigateHome={onNavigate?()=>onNavigate("home"):null}/>}
+      {tab==="carga"&&<TabCarga tasks={visibleTasks} users={users} teams={teams} myTeamIds={myTeamIds} isCuentas={isCuentas} myProfile={myProfile} token={token} onRefresh={onRefresh} initialUser={initialUser||null} onNavigateHome={onNavigate?()=>onNavigate("home"):null} onSwitchTab={setTab} onOpenTask={onOpenTask}/>}
       {tab==="desempeno"&&<TabDesempeno tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="equipos"&&<TabEquipos tasks={visibleTasks} users={users} teams={teams} range={range}/>}
       {tab==="marcas"&&<TabMarcas tasks={visibleTasks} users={users} teams={teams} range={range}/>}
