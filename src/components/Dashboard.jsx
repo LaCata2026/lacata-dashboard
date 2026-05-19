@@ -71,8 +71,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
 
-  window._openTask=(t)=>setFloatTask(t)
-
   // Carga inicial optimizada: activas SIEMPRE + completadas/vencidas de los últimos 60 días.
   // Las completadas viejas se cargan bajo demanda (loadHistory) solo si se necesitan en reportes.
   const load=useCallback(async()=>{
@@ -209,11 +207,15 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const myTeamIds=isCuentas?(Array.isArray(profile.team_ids)&&profile.team_ids.length>0?profile.team_ids:[profile.team_id].filter(Boolean)):null
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
 
+  // Navega a desempeño y pasa el usuario como pageArg — IntelView lo recibe
+  // como initialUser y lo pasa a TabCarga, eliminando la necesidad de
+  // window._perfSelectUser y el setTimeout con condición de carrera.
   function onViewUser(u){
-    navigate("desempeno")
-    setTimeout(()=>{if(window._perfSelectUser)window._perfSelectUser(u)},150)
+    navigate("desempeno",u)
   }
+
   function onOpenTask(t){setFloatTask(t)}
+
   const shared={tasks,users,teams,token,profile,me:profile,onReload:load,onRefresh:load,onNavigate:navigate,onViewUser,onOpenTask}
 
   const views={
@@ -228,7 +230,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
     calendario:<CalendarView {...shared}/>,
 
-    desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load} onLoadHistory={loadHistory}/>,
+    // initialUser viene de pageArg cuando se navega desde onViewUser
+    desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load} onLoadHistory={loadHistory} initialUser={pageArg}/>,
 
     admin:<AdminView {...shared}/>,
 
@@ -382,7 +385,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
                       :unread.slice(0,5).map(n=>(
 
-                        <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);window._openTask&&window._openTask(n.task)}}
+                        <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);setFloatTask(n.task)}}
 
                           style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer",transition:".13s"}}
 
@@ -447,7 +450,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       </main>
 
       {showDiag&&<DiagnosticPanel session={session} tasks={tasks} users={users} teams={teams} onClose={()=>setShowDiag(false)}/>}
-      {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)}/>}
+      {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)} onOpenTask={setFloatTask}/>}
 
       {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTask(null)}/>}
 
