@@ -43,6 +43,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const[showNotif,setShowNotif]=useState(false)
   const[showDiag,setShowDiag]=useState(false)
   const[showReporte,setShowReporte]=useState(false)
+  const[rtOk,setRtOk]=useState(true)
 
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
 
@@ -89,10 +90,13 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       }
     }
     document.addEventListener("visibilitychange",onVisible)
+    // Chequear estado del WebSocket cada 5s para el badge
+    const rtCheck=setInterval(()=>setRtOk(window._realtimeConnected!==false),5000)
     return()=>{
       clearTimeout(reloadTimer.current)
       unsubs.forEach(u=>u())
       document.removeEventListener("visibilitychange",onVisible)
+      clearInterval(rtCheck)
     }
   },[load,token])
 
@@ -207,7 +211,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
               <Av u={profile} size={28}/>
               <div style={{flex:1,minWidth:0,overflow:"visible"}}>
                 <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div>
-                <div style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</div>
+                <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</span>{!rtOk&&<span className="realtime-badge">sin conexión</span>}</div>
               </div>
               <button onClick={toggleTheme} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}}>
                 <Icon n={isDark?"sol":"luna"} size={15}/>
