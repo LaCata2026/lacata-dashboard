@@ -57,14 +57,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       ])
       if(!Array.isArray(t)||t[0]?.code==="PGRST301")throw new Error("SESSION_EXPIRED")
       setTasks(t);setUsers(u);setTeams(tm)
-
-      // ── AUTO-MARCAR VENCIDAS ──
-      // Corre silenciosamente después de cargar. Si hay tareas con fecha
-      // pasada (en_progreso, pendiente, en_pausa) las marca como "vencida"
-      // en Supabase y dispara un reload vía Realtime automáticamente.
-      // en_revision está excluida (reloj congelado mientras espera cliente).
       autoMarkVencidas(t,token,sb).catch(e=>console.warn("autoMark:",e))
-
     }catch(e){if(e.message==="SESSION_EXPIRED")onLogout()}
     finally{setLoading(false)}
   },[token])
@@ -78,9 +71,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   useEffect(()=>{load()},[load])
 
-  // Realtime — debounced 800ms
-  // El autoMarkVencidas escribe en Supabase → dispara evento realtime →
-  // load() se ejecuta de nuevo → UI muestra el status actualizado.
+  // Realtime — debounced 800ms + wake-up al volver a la pestaña
   const reloadTimer=useRef(null)
   useEffect(()=>{
     function schedule(){
@@ -90,8 +81,20 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     const unsubs=["tareas","usuarios","equipos"].map(table=>
       Realtime.subscribe(table,()=>{schedule()})
     )
-    return()=>{clearTimeout(reloadTimer.current);unsubs.forEach(u=>u())}
-  },[load])
+    // Si el browser suspendió la pestaña, al volver reconecta y refresca
+    function onVisible(){
+      if(document.visibilityState==="visible"){
+        Realtime.connect(token)
+        load()
+      }
+    }
+    document.addEventListener("visibilitychange",onVisible)
+    return()=>{
+      clearTimeout(reloadTimer.current)
+      unsubs.forEach(u=>u())
+      document.removeEventListener("visibilitychange",onVisible)
+    }
+  },[load,token])
 
   useEffect(()=>{
     window._openTask=(t)=>setFloatTaskId(t?.id||null)
