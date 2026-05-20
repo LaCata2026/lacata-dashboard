@@ -268,4 +268,18 @@ button:active:not(:disabled){opacity:.75;transform:scale(.97)}
 }
 @media(max-width:480px){.stat-grid{grid-template-columns:repeat(2,1fr);gap:6px}.page-content{padding:10px}.pill{font-size:10px;padding:2px 7px}}
 @media(max-width:600px){.filter-bar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}.filter-bar::-webkit-scrollbar{display:none}}
+
+/* ── #8 MODO DENSO ── */
+body.dense .card{padding:12px 14px!important}
+body.dense .task-card{padding:8px 12px!important;margin-bottom:4px!important}
+body.dense .task-card h3{font-size:13px!important}
+body.dense .quick-action{padding:10px 8px!important}
+body.dense .quick-action-icon{width:28px!important;height:28px!important}
+body.dense .stat-card{padding:12px!important}
+body.dense .stat-value{font-size:24px!important}
+body.dense .filter-chip{padding:3px 9px!important;font-size:11px!important}
+body.dense h2.section-title,body.dense .section-title{font-size:17px!important}
+body.dense .nav-item{padding:6px 10px!important;font-size:13px!important}
+body.dense .sidebar-inner{padding:14px 12px!important}
+body.dense .main-content{padding:18px 24px!important}
 .mobile-bottom-nav{display:none}@media(max-width:768px){.sidebar{display:none!important}.mobile-topbar{display:none!important}.main-content{margin-left:0!important;padding-bottom:72px!important;padding-top:0!important}.mobile-bottom-nav{display:block}}
