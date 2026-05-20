@@ -187,29 +187,8 @@ function TabOperativo({tasks,users,teams,me,token,onRefresh,onOpenTask,onViewUse
   const scopedTasks=isCollab?tasks.filter(t=>assignedOf(t).includes(me.id)):tasks
   const filteredTeams=selectedTeam==="all"?teams:teams.filter(t=>t.id===selectedTeam)
 
-  // Stats globales de carga actual
-  const totalActive=scopedTasks.filter(t=>t.status!=="completada").length
-  const totalOverdue=scopedTasks.filter(t=>t.status==="vencida").length
-  const totalRevision=scopedTasks.filter(t=>t.status==="en_revision").length
-  const overloadedCount=users.filter(u=>u.role==="colaborador"&&scopedTasks.filter(t=>assignedOf(t).includes(u.id)&&t.status!=="completada").length>=7).length
-
   return(
     <div>
-      {/* Resumen rápido */}
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        {[
-          {l:"ACTIVAS",v:totalActive,c:"var(--accent)"},
-          {l:"EN REVISIÓN",v:totalRevision,c:"var(--s-revision)"},
-          {l:"VENCIDAS",v:totalOverdue,c:totalOverdue>0?"var(--red)":"var(--muted)"},
-          {l:"SOBRECARGADOS",v:overloadedCount,c:overloadedCount>0?"var(--orange)":"var(--muted)"},
-        ].map(({l,v,c})=>(
-          <div key={l} style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",textAlign:"center",flex:1,minWidth:70}}>
-            <div style={{fontSize:17,fontWeight:800,color:c,fontFamily:"var(--font-display)",lineHeight:1.1}}>{v}</div>
-            <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3}}>{l}</div>
-          </div>
-        ))}
-      </div>
-
       {/* Filtro por equipo */}
       <div className="filter-bar" style={{marginBottom:16}}>
         <button className={`filter-chip${selectedTeam==="all"?" active":""}`} onClick={()=>setSelectedTeam("all")}>Todos</button>
