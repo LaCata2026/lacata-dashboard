@@ -189,79 +189,92 @@ function TabOperativo({tasks,users,teams,me,token,onRefresh,onOpenTask,onViewUse
 
   return(
     <div>
-      {/* Filtro por equipo */}
-      <div className="filter-bar" style={{marginBottom:16}}>
-        <button className={`filter-chip${selectedTeam==="all"?" active":""}`} onClick={()=>setSelectedTeam("all")}>Todos</button>
-        {teams.map(t=>{const tc=teamColor(t);return(
-          <button key={t.id} className={`filter-chip${selectedTeam===t.id?" active":""}`}
-            style={selectedTeam===t.id?{background:tc,borderColor:tc,color:"#fff"}:{}}
-            onClick={()=>setSelectedTeam(t.id)}>
-            <Icon n={t.icon||"equipos"} size={13}/> {t.name}
-          </button>
-        )})}
-      </div>
+      {/* Filtro por equipo — solo equipos con miembros */}
+      {(()=>{
+        const teamsWithMembers=teams.filter(team=>users.some(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador"))
+        return(
+          <div className="filter-bar" style={{marginBottom:14}}>
+            <button className={`filter-chip${selectedTeam==="all"?" active":""}`} onClick={()=>setSelectedTeam("all")}>Todos</button>
+            {teamsWithMembers.map(t=>{const tc=teamColor(t);return(
+              <button key={t.id} className={`filter-chip${selectedTeam===t.id?" active":""}`}
+                style={selectedTeam===t.id?{background:tc,borderColor:tc,color:"#fff"}:{}}
+                onClick={()=>setSelectedTeam(t.id)}>
+                {t.name}
+              </button>
+            )})}
+          </div>
+        )
+      })()}
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:16}}>
+      {/* Lista compacta: encabezado de equipo + miembros en filas */}
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {filteredTeams.map(team=>{
           const members=users.filter(u=>(u.team_id===team.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(team.id)))&&u.role==="colaborador")
+          // Ocultar equipos sin miembros
+          if(members.length===0)return null
           const teamTasks=scopedTasks.filter(t=>t.team_id===team.id&&t.status!=="completada")
           const overdueCount=scopedTasks.filter(t=>t.team_id===team.id&&t.status==="vencida").length
           const overloaded=members.filter(u=>scopedTasks.filter(x=>assignedOf(x).includes(u.id)&&x.status!=="completada").length>=7).length
           const avgLoad=members.length>0?teamTasks.length/members.length:0
           const health=overdueCount>0||overloaded>0?"var(--s-vencida)":avgLoad>=4?"var(--load-warn)":"var(--load-ok)"
           const visibleMembers=isCollab?members.filter(m=>m.id===me.id):members
+          const tc=teamColor(team)
           return(
-            <div key={team.id} className="card fade-in">
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <Icon n={team.icon||"equipos"} size={18}/>
-                  <div>
-                    <h3 style={{fontSize:15,fontWeight:700}}>{team.name}</h3>
-                    <p style={{fontSize:11,color:"var(--muted)",marginTop:1,fontFamily:"var(--font-mono)"}}>{members.length} miembros · {teamTasks.length} activas</p>
-                  </div>
-                </div>
-                <div style={{width:10,height:10,borderRadius:"50%",background:health,boxShadow:`0 0 8px ${health}66`}}/>
+            <div key={team.id} style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden"}}>
+              {/* Header de equipo — compacto */}
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:"1px solid var(--border)",borderLeft:`3px solid ${tc}`}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:health,boxShadow:`0 0 6px ${health}88`,flexShrink:0}}/>
+                <span style={{fontSize:13,fontWeight:700,flex:1}}>{team.name}</span>
+                <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{members.length} miembro{members.length!==1?"s":""}</span>
+                <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",marginLeft:8}}>{teamTasks.length} activa{teamTasks.length!==1?"s":""}</span>
+                {overdueCount>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:4,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)",marginLeft:4}}>{overdueCount} venc.</span>}
               </div>
-              {visibleMembers.length===0&&<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:20}}>Sin miembros asignados</p>}
-              {visibleMembers.map(m=>{
-                const mTasks=scopedTasks.filter(t=>assignedOf(t).includes(m.id)&&t.status!=="completada")
-                const mOverdue=mTasks.filter(t=>t.status==="vencida").length
-                const pct=Math.min(100,Math.round(mTasks.length/8*100))
-                const loadColor=mTasks.length>=7?"var(--s-vencida)":mTasks.length>=4?"var(--load-warn)":m.avatar_color
-                const isOpen=!!openMembers[m.id]
-                return(
-                  <div key={m.id} style={{marginBottom:8,background:"var(--bg3)",borderRadius:8,overflow:"hidden",border:"1px solid var(--border)"}}>
-                    <div onClick={()=>setOpenMembers(o=>({...o,[m.id]:!o[m.id]}))}
-                      style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",cursor:"pointer",userSelect:"none",
-                        borderLeft:`3px solid ${m.avatar_color}`,transition:".13s",background:isOpen?"var(--bg4)":"transparent"}}>
-                      <span style={{color:"var(--muted)",fontSize:11,transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(0)":"rotate(-90deg)",flexShrink:0}}>▼</span>
-                      <div onClick={e=>{e.stopPropagation();if(!isCollab&&onViewUser)onViewUser(m)}}
-                        style={{cursor:(!isCollab&&onViewUser)?"pointer":"default"}} title={!isCollab?"Ver en Desempeño":""}>
-                        <Av u={m} size={28}/>
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                          <span style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</span>
-                          {mOverdue>0&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/>{mOverdue}</span>}
+              {/* Miembros */}
+              <div style={{padding:"6px 8px",display:"flex",flexDirection:"column",gap:4}}>
+                {visibleMembers.map(m=>{
+                  const mTasks=scopedTasks.filter(t=>assignedOf(t).includes(m.id)&&t.status!=="completada")
+                  const mOverdue=mTasks.filter(t=>t.status==="vencida").length
+                  const mRevision=mTasks.filter(t=>t.status==="en_revision").length
+                  const pct=Math.min(100,Math.round(mTasks.length/8*100))
+                  const loadColor=mTasks.length>=7?"var(--s-vencida)":mTasks.length>=4?"var(--load-warn)":m.avatar_color
+                  const isOpen=!!openMembers[m.id]
+                  return(
+                    <div key={m.id} style={{borderRadius:7,overflow:"hidden",border:"1px solid var(--border)"}}>
+                      {/* Fila del miembro */}
+                      <div onClick={()=>setOpenMembers(o=>({...o,[m.id]:!o[m.id]}))}
+                        style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",cursor:"pointer",
+                          background:isOpen?"var(--bg3)":"transparent",transition:".12s",
+                          borderLeft:`2px solid ${m.avatar_color}`}}>
+                        <span style={{fontSize:10,color:"var(--muted)",transition:"transform .18s",display:"inline-block",transform:isOpen?"rotate(0)":"rotate(-90deg)",flexShrink:0,lineHeight:1}}>▼</span>
+                        <div onClick={e=>{e.stopPropagation();if(!isCollab&&onViewUser)onViewUser(m)}}
+                          style={{cursor:(!isCollab&&onViewUser)?"pointer":"default"}}>
+                          <Av u={m} size={24}/>
                         </div>
+                        <span style={{fontSize:13,fontWeight:600,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</span>
+                        {/* Mini pills de estado */}
+                        <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+                          {mRevision>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:4,background:"var(--s-revision-bg)",color:"var(--s-revision)",fontWeight:700,fontFamily:"var(--font-mono)"}}>{mRevision} rev.</span>}
+                          {mOverdue>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:4,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}>{mOverdue} venc.</span>}
+                        </div>
+                        {/* Barra de carga inline */}
+                        <div style={{width:60,height:4,background:"var(--bg3)",borderRadius:2,overflow:"hidden",flexShrink:0}}>
+                          <div style={{width:pct+"%",height:"100%",background:loadColor,borderRadius:2,transition:"width .5s"}}/>
+                        </div>
+                        <span style={{fontSize:13,fontWeight:800,color:loadColor,fontFamily:"var(--font-display)",minWidth:18,textAlign:"right",flexShrink:0}}>{mTasks.length}</span>
                       </div>
-                      <span style={{fontSize:14,fontWeight:800,color:loadColor,fontFamily:"var(--font-display)",minWidth:24,textAlign:"right"}}>{mTasks.length}</span>
-                      <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{mTasks.length===1?"tarea":"tareas"}</span>
+                      {/* Tareas expandidas */}
+                      {isOpen&&(
+                        <div style={{padding:"6px 8px",background:"var(--bg3)",borderTop:"1px solid var(--border)"}}>
+                          {mTasks.length===0
+                            ?<p style={{fontSize:11,color:"var(--muted)",padding:"4px 6px",textAlign:"center"}}>Sin tareas activas 🎉</p>
+                            :mTasks.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh} onOpenTask={onOpenTask}/>)
+                          }
+                        </div>
+                      )}
                     </div>
-                    <div style={{height:2,background:"var(--bg2)",overflow:"hidden"}}>
-                      <div style={{width:`${pct}%`,height:"100%",background:loadColor,transition:"width .6s cubic-bezier(.4,0,.2,1)"}}/>
-                    </div>
-                    {isOpen&&(
-                      <div style={{padding:"8px 10px",background:"var(--bg3)"}}>
-                        {mTasks.length===0
-                          ?<p style={{fontSize:11,color:"var(--muted)",padding:6,textAlign:"center"}}>Sin tareas activas 🎉</p>
-                          :mTasks.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh} onOpenTask={onOpenTask}/>)
-                        }
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )
         })}
@@ -647,30 +660,10 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:12}}>
         <h2 style={{fontSize:18,fontWeight:800,fontFamily:"var(--font-display)"}}>Reportes</h2>
-        {!isOperativo&&<PeriodBar period={period} offset={offset} onChange={handlePeriod}/>}
       </div>
 
-      {/* Stats globales — solo en tabs de reportería histórica */}
-      {!isOperativo&&(
-        <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-          {[
-            {l:"ÓRDENES",v:filtered.length,c:"var(--accent)"},
-            {l:"COMPLETADAS",v:comp,c:"var(--green)"},
-            {l:"VENCIDAS",v:venc,c:venc>0?"var(--red)":"var(--muted)"},
-            {l:"HRS REALES",v:fmtH(hrsR),c:"var(--blue)"},
-            {l:"HRS EST.",v:fmtH(hrsE),c:"var(--muted)"},
-            {l:"EFICIENCIA",v:effLabel(globalEff),c:effColor(globalEff)},
-          ].map(({l,v,c})=>(
-            <div key={l} style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",textAlign:"center",flex:1,minWidth:70}}>
-              <div style={{fontSize:17,fontWeight:800,color:c,fontFamily:"var(--font-display)",lineHeight:1.1}}>{v}</div>
-              <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3}}>{l}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div style={{display:"flex",gap:3,background:"var(--bg3)",borderRadius:10,padding:4,marginBottom:20,overflowX:"auto"}}>
+      {/* Tabs — siempre en la misma posición, fijos arriba */}
+      <div style={{display:"flex",gap:3,background:"var(--bg3)",borderRadius:10,padding:4,marginBottom:16,overflowX:"auto"}}>
         {TABS.map(t=>(
           <button key={t.v} onClick={()=>setTab(t.v)}
             style={{flex:1,padding:"8px 4px",borderRadius:7,fontSize:12,cursor:"pointer",border:"none",fontFamily:"inherit",whiteSpace:"nowrap",minWidth:80,
@@ -681,6 +674,30 @@ export default function IntelView({tasks,users,teams,onBack,me,profile,token,onR
           </button>
         ))}
       </div>
+
+      {/* PeriodBar + stats — solo en tabs históricos, debajo de los tabs */}
+      {!isOperativo&&(
+        <>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+            <PeriodBar period={period} offset={offset} onChange={handlePeriod}/>
+          </div>
+          <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+            {[
+              {l:"ÓRDENES",v:filtered.length,c:"var(--accent)"},
+              {l:"COMPLETADAS",v:comp,c:"var(--green)"},
+              {l:"VENCIDAS",v:venc,c:venc>0?"var(--red)":"var(--muted)"},
+              {l:"HRS REALES",v:fmtH(hrsR),c:"var(--blue)"},
+              {l:"HRS EST.",v:fmtH(hrsE),c:"var(--muted)"},
+              {l:"EFICIENCIA",v:effLabel(globalEff),c:effColor(globalEff)},
+            ].map(({l,v,c})=>(
+              <div key={l} style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",textAlign:"center",flex:1,minWidth:70}}>
+                <div style={{fontSize:17,fontWeight:800,color:c,fontFamily:"var(--font-display)",lineHeight:1.1}}>{v}</div>
+                <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {tab==="operativo"&&<TabOperativo tasks={visibleTasks} users={users} teams={visibleTeams} me={myProfile} token={token} onRefresh={onRefresh} onOpenTask={onOpenTask} onViewUser={onViewUser}/>}
       {tab==="desempeno"&&<TabDesempeno tasks={visibleTasks} users={users} teams={teams} range={range} onOpenTask={onOpenTask}/>}
