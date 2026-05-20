@@ -161,6 +161,10 @@ function DailySignal({tasks,users,collabs,onNavigate,onOpenTask,onViewUser}){
     green:{border:"rgba(46,196,160,.25)",bg:"rgba(46,196,160,.04)",dot:"var(--s-completada)",label:"Todo bajo control",labelColor:"var(--s-completada)"},
   }[level]
   const topItem=hasVencidas?vencidas[0]:hasDueSoon?dueSoon[0]:null
+
+  // Órdenes sin marca — solo activas para no saturar con completadas viejas
+  const sinMarca=tasks.filter(t=>(!t.marca||!t.marca.trim())&&t.status!=="completada")
+
   return(
     <div className="card fade-in" style={{marginBottom:16,padding:"14px 18px",border:`1px solid ${levelStyles.border}`,background:levelStyles.bg,position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:levelStyles.dot,opacity:.9}}/>
@@ -183,6 +187,19 @@ function DailySignal({tasks,users,collabs,onNavigate,onOpenTask,onViewUser}){
             </div>
           )}
         </div>
+        {/* Badge sin marca — clickeable, navega a Órdenes */}
+        {sinMarca.length>0&&(
+          <button onClick={()=>onNavigate("ordenes")} style={{
+            display:"inline-flex",alignItems:"center",gap:4,
+            fontSize:12,fontWeight:700,
+            background:"rgba(232,197,71,.1)",border:"1px solid rgba(232,197,71,.25)",
+            color:"var(--yellow)",borderRadius:6,padding:"3px 9px",cursor:"pointer",
+            fontFamily:"var(--font-body)",flexShrink:0
+          }}>
+            <Icon n="alerta" size={11}/>
+            {sinMarca.length} sin marca →
+          </button>
+        )}
         {topItem&&(
           <div onClick={()=>onOpenTask&&onOpenTask(topItem)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:7,background:"var(--bg3)",cursor:"pointer",border:"1px solid var(--border)",transition:".12s",maxWidth:240,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg4)"} onMouseLeave={e=>e.currentTarget.style.background="var(--bg3)"}>
             {topItem.order_number&&<span style={{fontSize:10,fontWeight:700,color:"var(--muted)",fontFamily:"var(--font-mono)",flexShrink:0}}>AC-{String(topItem.order_number).padStart(4,"0")}</span>}
