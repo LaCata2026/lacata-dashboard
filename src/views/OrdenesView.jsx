@@ -235,7 +235,7 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
 
       {effectiveView==="lista"&&visible.length>0&&(()=>{
         const order=["vencida","en_revision","en_progreso","pendiente","en_pausa","completada"];
-        const sorted=[...visible].sort((a,b)=>order.indexOf(a.status)-order.indexOf(b.status));
+        const sorted=[...visible].sort((a,b)=>{const si=order.indexOf(a.status)-order.indexOf(b.status);if(si!==0)return si;return new Date(b.created_at)-new Date(a.created_at);});
         const active=sorted.filter(t=>t.status!=="completada");
         const done=sorted.filter(t=>t.status==="completada");
         return(
