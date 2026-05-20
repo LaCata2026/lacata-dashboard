@@ -43,6 +43,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const[showNotif,setShowNotif]=useState(false)
   const[showDiag,setShowDiag]=useState(false)
   const[showReporte,setShowReporte]=useState(false)
+  const[dense,setDense]=useState(()=>localStorage.getItem("lc_dense")==="1")
   const[rtOk,setRtOk]=useState(true)
 
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
@@ -213,6 +214,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
                 <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div>
                 <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:10,color:"var(--muted)",textTransform:"capitalize"}}>{profile.role}</span>{!rtOk&&<span className="realtime-badge">sin conexión</span>}</div>
               </div>
+              <button onClick={()=>setDense(d=>!d)} title={dense?"Vista normal":"Vista densa"} style={{background:dense?"var(--accent-dim)":"none",border:"none",cursor:"pointer",color:dense?"var(--accent)":"var(--muted2)",padding:4,borderRadius:6}}><Icon n="lista" size={15}/></button>
               <button onClick={toggleTheme} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted2)",padding:4,borderRadius:6}}>
                 <Icon n={isDark?"sol":"luna"} size={15}/>
               </button>
@@ -261,7 +263,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
         <div className="page-content">
           {loading
             ?<div style={{padding:40,textAlign:"center",color:"var(--muted)"}}><div className="skeleton skeleton-title" style={{width:200,margin:"0 auto 12px"}}/><div className="skeleton skeleton-text" style={{width:300,margin:"0 auto"}}/></div>
-            :(views[page]||views.home)
+            :(<div key={page} className="page-enter">{views[page]||views.home}</div>)
           }
         </div>
       </main>
