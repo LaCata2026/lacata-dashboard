@@ -11,22 +11,9 @@ export const COLLAB_COLORS = ["#e85d4a","#f0924a","#e8c547","#4ade80","#3ecf8e",
 export const COLORS = ["#e85d4a","#e8a23a","#4ade80","#3ecf8e","#5b9cf6","#a78bfa","#f472b6","#fb923c","#34d399","#60a5fa","#c084fc","#f87171"]
 export const MARCAS_PREDEFINIDAS = ["Novex","Painsa","Sombrela Y Rabinal","Purina","Seguros GyT","CIAM","Digital"]
 
-// ════════════════════════════════════════════════
-// MARCAS — funciones localStorage (LEGACY)
-// Se mantienen para que código viejo no rompa, pero la app
-// ahora usa sb.getMarcasDB / sb.addMarcaDB que viven en Supabase.
-// La primera vez que se carga la app después del cambio,
-// sb.migrateMarcasFromLS() sube las marcas locales y limpia LS.
-// ════════════════════════════════════════════════
-export function getMarcas(){
-  try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");return[...new Set([...MARCAS_PREDEFINIDAS,...custom])].sort()}catch{return MARCAS_PREDEFINIDAS}
-}
-export function addMarca(name){
-  try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");if(!custom.includes(name)){custom.push(name);localStorage.setItem("lc_custom_marcas",JSON.stringify(custom))}}catch{}
-}
-export function removeMarca(name){
-  try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");localStorage.setItem("lc_custom_marcas",JSON.stringify(custom.filter(m=>m!==name)))}catch{}
-}
+export function getMarcas(){try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");return[...new Set([...MARCAS_PREDEFINIDAS,...custom])].sort()}catch{return MARCAS_PREDEFINIDAS}}
+export function addMarca(name){try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");if(!custom.includes(name)){custom.push(name);localStorage.setItem("lc_custom_marcas",JSON.stringify(custom))}}catch{}}
+export function removeMarca(name){try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");localStorage.setItem("lc_custom_marcas",JSON.stringify(custom.filter(m=>m!==name)))}catch{}}
 export function getRole(e){const em=(e||"").toLowerCase();if(DIRECTOR_EMAILS.includes(em))return"director";if(CUENTAS_EMAILS.includes(em))return"cuentas";return"colaborador"}
 export function getInitials(name){if(!name)return"?";return name.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase()}
 export function getAvatarColor(email){let h=0;for(let c of (email||""))h=(h*31+c.charCodeAt(0))%COLLAB_COLORS.length;return COLLAB_COLORS[Math.abs(h)]}
@@ -45,18 +32,56 @@ function safeUser(d){
   return{id:u.id,email,name,meta,fullName}
 }
 
+// Fetch perfil desde BD con reintentos — devuelve la fila o null
+async function fetchProfile(id, token, retries=2){
+  for(let i=0;i<=retries;i++){
+    try{
+      const r=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${id}&select=*`,{
+        headers:{apikey:SB_ANON,Authorization:`Bearer ${token}`}
+      })
+      // Si el status no es 200, loguear y reintentar
+      if(!r.ok){
+        console.warn(`[fetchProfile] status ${r.status} intento ${i+1}`)
+        if(i<retries){await new Promise(res=>setTimeout(res,400*(i+1)));continue}
+        return null
+      }
+      const data=await r.json()
+      // Verificar que sea array con datos — si Supabase devuelve error JSON, data no es array
+      if(Array.isArray(data)&&data.length>0)return data[0]
+      // Si es array vacío, el usuario no tiene fila — no reintentar
+      if(Array.isArray(data)&&data.length===0)return null
+      // Si no es array (error object de Supabase), loguear y reintentar
+      console.warn(`[fetchProfile] respuesta inesperada:`,JSON.stringify(data))
+      if(i<retries){await new Promise(res=>setTimeout(res,400*(i+1)));continue}
+      return null
+    }catch(e){
+      console.warn(`[fetchProfile] excepción intento ${i+1}:`,e.message)
+      if(i<retries){await new Promise(res=>setTimeout(res,400*(i+1)));continue}
+      return null
+    }
+  }
+  return null
+}
+
 export const sb={
   async signIn(email,pw){
-    const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({email,password:pw})})
+    // ── PASO 1: Autenticar en Supabase Auth ──
+    const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json",apikey:SB_ANON},
+      body:JSON.stringify({email,password:pw})
+    })
     const d=await r.json()
     if(d.error||d.error_description)throw new Error("Correo o contraseña incorrectos")
+
     const{id,email:uemail,name:authName,fullName}=safeUser(d)
     if(!id)throw new Error("No se pudo obtener el usuario. Intenta de nuevo.")
-    const profileR=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${id}&select=*`,{headers:{apikey:SB_ANON,Authorization:`Bearer ${d.access_token}`}})
-    const profileData=await profileR.json()
-    let profile
-    if(Array.isArray(profileData)&&profileData.length>0){
-      profile=profileData[0]
+
+    // ── PASO 2: Buscar perfil en BD con reintentos ──
+    let profile=await fetchProfile(id,d.access_token)
+
+    if(profile){
+      // Perfil encontrado — normalizar campos
       if(typeof profile.team_ids==="string"){try{profile.team_ids=JSON.parse(profile.team_ids)}catch{profile.team_ids=[]}}
       if(!Array.isArray(profile.team_ids))profile.team_ids=[]
       if(!profile.name)profile.name=fullName||authName||(uemail?uemail.split("@")[0]:"Usuario")
@@ -64,21 +89,47 @@ export const sb={
       if(!profile.avatar_color)profile.avatar_color=getAvatarColor(uemail)
       if(!profile.role)profile.role="colaborador"
     }else{
-      const role=getRole(uemail)
+      // ── PASO 3: Perfil no existe — crear en BD ──
+      // IMPORTANTE: NO asumir rol desde email — usar "colaborador" como base
+      // El director puede cambiar el rol desde AdminView después
       const avatar_color=getAvatarColor(uemail)
       const safeName=fullName||authName||(uemail?uemail.split("@")[0]:"Usuario")
       const initials=getInitials(safeName)
-      profile={id,email:uemail,name:safeName,role,avatar_color,initials,team_ids:[],team_id:null}
+      // Solo director se auto-detecta por email — el resto siempre colaborador
+      const role=DIRECTOR_EMAILS.includes((uemail||"").toLowerCase())?"director":"colaborador"
+
+      const newProfile={id,email:uemail,name:safeName,role,avatar_color,initials,team_ids:[],team_id:null}
+
       try{
-        await fetch(`${SB_URL}/rest/v1/usuarios`,{
+        const insertR=await fetch(`${SB_URL}/rest/v1/usuarios`,{
           method:"POST",
-          headers:{apikey:SB_ANON,Authorization:`Bearer ${d.access_token}`,"Content-Type":"application/json",Prefer:"return=minimal"},
-          body:JSON.stringify({id,email:uemail,name:safeName,role,avatar_color,initials,team_ids:[],team_id:null})
+          headers:{
+            apikey:SB_ANON,
+            Authorization:`Bearer ${d.access_token}`,
+            "Content-Type":"application/json",
+            // ignore-duplicates: si ya existe por race condition, no falla
+            Prefer:"resolution=ignore-duplicates,return=representation"
+          },
+          body:JSON.stringify(newProfile)
         })
-      }catch(err){console.warn("Auto-create profile failed:",err)}
+        const insertData=await insertR.json()
+        if(Array.isArray(insertData)&&insertData.length>0){
+          profile=insertData[0]
+        }else{
+          // Insert ignoró duplicado — releer el perfil que ya existía
+          profile=await fetchProfile(id,d.access_token)||newProfile
+        }
+      }catch(err){
+        console.warn("Auto-create profile failed:",err)
+        profile=newProfile
+      }
+
+      if(!Array.isArray(profile.team_ids))profile.team_ids=[]
     }
+
     return{profile,access_token:d.access_token,refresh_token:d.refresh_token}
   },
+
   async inviteUser(email,name){
     const SB_SERVICE=import.meta.env.VITE_SB_SERVICE
     const r=await fetch(`${SB_URL}/auth/v1/invite`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_SERVICE,Authorization:`Bearer ${SB_SERVICE}`},body:JSON.stringify({email,data:{full_name:name}})})
@@ -88,10 +139,7 @@ export const sb={
   async get(table,params,token){
     const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:hdr(token)})
     if(r.status===401)throw new Error("SESSION_EXPIRED")
-    if(r.status===403){
-      console.warn(`RLS 403 en ${table} — retornando array vacío`)
-      return[]
-    }
+    if(r.status===403){console.warn(`RLS 403 en ${table} — retornando array vacío`);return[]}
     return r.json()
   },
 
@@ -103,78 +151,41 @@ export const sb={
   async refreshSession(refreshToken){const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({refresh_token:refreshToken})});const d=await r.json();if(d.error||d.error_description)throw new Error("No se pudo renovar la sesion");return d},
 
   async nextOrderNumber(token){
-    const r=await fetch(`${SB_URL}/rest/v1/rpc/next_order_number`,{
-      method:"POST",
-      headers:hdr(token),
-      body:JSON.stringify({})
-    })
-    if(!r.ok){
-      const j=await r.json().catch(()=>({}))
-      throw new Error(j?.message||j?.error||`Error obteniendo número de orden (${r.status})`)
-    }
+    const r=await fetch(`${SB_URL}/rest/v1/rpc/next_order_number`,{method:"POST",headers:hdr(token),body:JSON.stringify({})})
+    if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j?.message||j?.error||`Error obteniendo número de orden (${r.status})`)}
     const val=await r.json()
     const num=typeof val==="number"?val:Number(val)
     if(!num||isNaN(num))throw new Error("Número de orden inválido recibido del servidor")
     return num
   },
 
-  // ════════════════════════════════════════════════
-  // MARCAS EN BD — fuente única compartida entre todos
-  // ════════════════════════════════════════════════
-
-  // Lee marcas custom de la BD y las une con las predefinidas
   async getMarcasDB(token){
     try{
       const rows=await this.get("marcas","select=name&order=name.asc",token)
       const custom=Array.isArray(rows)?rows.map(r=>r.name).filter(Boolean):[]
       return[...new Set([...MARCAS_PREDEFINIDAS,...custom])].sort()
-    }catch(e){
-      console.warn("getMarcasDB error, fallback a predefinidas:",e)
-      return[...MARCAS_PREDEFINIDAS].sort()
-    }
+    }catch(e){console.warn("getMarcasDB error, fallback a predefinidas:",e);return[...MARCAS_PREDEFINIDAS].sort()}
   },
 
-  // Inserta una marca nueva. Si ya existe (unique constraint), ignora el error.
   async addMarcaDB(name,token,userId){
     const trimmed=(name||"").trim()
-    if(!trimmed)return
-    // No guardar las predefinidas (ya viven en código)
-    if(MARCAS_PREDEFINIDAS.includes(trimmed))return
-    const r=await fetch(`${SB_URL}/rest/v1/marcas`,{
-      method:"POST",
-      headers:hdrWrite(token),
-      body:JSON.stringify({name:trimmed,created_by:userId||null})
-    })
-    // 409 = ya existe (unique constraint), no es error
-    if(!r.ok&&r.status!==409){
-      const j=await r.json().catch(()=>({}))
-      console.warn("addMarcaDB falló:",j)
-    }
+    if(!trimmed||MARCAS_PREDEFINIDAS.includes(trimmed))return
+    const r=await fetch(`${SB_URL}/rest/v1/marcas`,{method:"POST",headers:hdrWrite(token),body:JSON.stringify({name:trimmed,created_by:userId||null})})
+    if(!r.ok&&r.status!==409){const j=await r.json().catch(()=>({}));console.warn("addMarcaDB falló:",j)}
   },
 
-  // Borra una marca por nombre
   async removeMarcaDB(name,token){
     const safe=encodeURIComponent(name)
     await fetch(`${SB_URL}/rest/v1/marcas?name=eq.${safe}`,{method:"DELETE",headers:hdr(token)})
   },
 
-  // Migra marcas custom del localStorage a la BD UNA SOLA VEZ.
-  // Pone un flag en LS para no repetir. Si falla algún add, no aborta —
-  // mejor migrar parcialmente que perder todo.
   async migrateMarcasFromLS(token,userId){
     const FLAG="lc_marcas_migrated_v1"
     if(localStorage.getItem(FLAG))return
     try{
       const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]")
-      if(Array.isArray(custom)&&custom.length>0){
-        for(const m of custom){
-          try{await this.addMarcaDB(m,token,userId)}catch{}
-        }
-      }
+      if(Array.isArray(custom)&&custom.length>0){for(const m of custom){try{await this.addMarcaDB(m,token,userId)}catch{}}}
       localStorage.setItem(FLAG,"1")
-      // No borramos lc_custom_marcas — queda como backup en LS por si algo sale mal
-    }catch(e){
-      console.warn("migrateMarcasFromLS error:",e)
-    }
+    }catch(e){console.warn("migrateMarcasFromLS error:",e)}
   },
 }
