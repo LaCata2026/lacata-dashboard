@@ -356,11 +356,23 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
                     <div style={{padding:"6px 12px 10px"}}>
                       {/* Activas ordenadas por urgencia */}
                       {[...activeTasks].sort((a,b)=>{
-                        const order=["vencida","en_revision","en_progreso","pendiente","en_pausa"]
+                        // 1. Vencidas primero
+                        if(a.status==="vencida"&&b.status!=="vencida")return -1
+                        if(b.status==="vencida"&&a.status!=="vencida")return 1
+                        // 2. Vence hoy o mañana (cualquier status activo)
+                        const in48h=new Date(now.getTime()+48*3600000)
+                        const aUrgent=a.due_date&&new Date(a.due_date+"T23:59:59")<=in48h
+                        const bUrgent=b.due_date&&new Date(b.due_date+"T23:59:59")<=in48h
+                        if(aUrgent&&!bUrgent)return -1
+                        if(bUrgent&&!aUrgent)return 1
+                        // 3. En progreso antes que en revisión
+                        const order=["en_progreso","en_revision","pendiente","en_pausa"]
                         const si=order.indexOf(a.status)-order.indexOf(b.status);if(si!==0)return si
+                        // 4. Prioridad
                         const pa=a.priority==="Urgente"?0:a.priority==="Alta"?1:2
                         const pb=b.priority==="Urgente"?0:b.priority==="Alta"?1:2
                         if(pa!==pb)return pa-pb
+                        // 5. Fecha límite más próxima
                         if(a.due_date&&b.due_date)return new Date(a.due_date)-new Date(b.due_date)
                         if(a.due_date)return -1;if(b.due_date)return 1
                         return new Date(b.created_at)-new Date(a.created_at)
