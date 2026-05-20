@@ -16,14 +16,10 @@ export const fmtDate=d=>{if(!d)return"—";const[y,m,dd]=d.split("-");return`${d
 
 /**
  * fmtDateRelative — etiqueta de fecha límite relativa al hoy.
- *
- * Statuses "congelados" (en_revision, completada): la fecha límite no genera
- * alerta. En revisión = está en manos del cliente, el reloj se pausa.
- * Completada = ya terminó, no importa si venció.
+ * Statuses congelados (en_revision, completada): no genera alerta.
  */
 export const fmtDateRelative=(d,status)=>{
   if(!d)return{label:"—",color:"var(--muted)",urgent:false}
-  // Statuses donde la fecha límite no genera alerta
   if(status==="completada"||status==="en_revision")
     return{label:fmtDate(d),color:"var(--muted)",urgent:false}
   const today=new Date();today.setHours(0,0,0,0)
@@ -45,28 +41,58 @@ export function useSessionFilters(key,defaults){
 }
 
 /**
- * autoMarkVencidas — marca tareas como vencidas cuando su due_date ya pasó.
- * Excluye: completada, vencida, en_revision (está en manos del cliente —
- * el reloj se pausa hasta que regrese a en_progreso o pendiente).
+ * syncVencidas — sincroniza el status "vencida" con la realidad de due_date.
+ *
+ * MARCA como vencida:
+ *   - due_date ya pasó (< hoy)
+ *   - status activo: pendiente, en_progreso, en_pausa
+ *   - NO toca: en_revision (reloj congelado), completada, ya vencida
+ *
+ * REVIERTE a pendiente:
+ *   - status === "vencida" (fue marcada antes)
+ *   - due_date ahora es hoy o futuro (alguien actualizó la fecha)
+ *   - Excepción: si due_date es null, no revertir (sin fecha = sin criterio)
+ *
+ * Corre silenciosamente en cada load(). Si no hay nada que cambiar, no
+ * hace ninguna escritura a la BD.
  */
-export async function autoMarkVencidas(tasks, token, sb) {
-  const today = new Date(); today.setHours(0,0,0,0);
+export async function syncVencidas(tasks, token, sb) {
+  const today = new Date(); today.setHours(0,0,0,0)
+
   const toMark = tasks.filter(t =>
     t.due_date &&
     t.status !== "completada" &&
     t.status !== "vencida" &&
     t.status !== "en_revision" &&
     new Date(t.due_date + "T00:00:00") < today
-  );
-  if (toMark.length === 0) return false;
-  await Promise.all(toMark.map(t =>
-    sb.update("tareas", t.id, {
+  )
+
+  const toRevert = tasks.filter(t =>
+    t.status === "vencida" &&
+    t.due_date &&
+    new Date(t.due_date + "T00:00:00") >= today
+  )
+
+  if (toMark.length === 0 && toRevert.length === 0) return false
+
+  await Promise.all([
+    ...toMark.map(t => sb.update("tareas", t.id, {
       status: "vencida",
-      history: [...(t.history||[]), `⚠️ Marcada como vencida automáticamente — ${new Date().toLocaleString("es-GT")}`]
-    }, token)
-  ));
-  return true;
+      history: [...(t.history||[]),
+        `⚠️ Marcada como vencida automáticamente — ${new Date().toLocaleString("es-GT")}`]
+    }, token)),
+    ...toRevert.map(t => sb.update("tareas", t.id, {
+      status: "pendiente",
+      history: [...(t.history||[]),
+        `✅ Reactivada automáticamente — fecha actualizada a ${fmtDate(t.due_date)} — ${new Date().toLocaleString("es-GT")}`]
+    }, token)),
+  ])
+
+  return true
 }
+
+// Alias para compatibilidad con el nombre anterior
+export const autoMarkVencidas = syncVencidas
 
 export const assignedOf = t =>
   Array.isArray(t.assigned_to)
