@@ -1,41 +1,24 @@
 import{useState,useEffect,useCallback,useMemo,useRef}from'react'
-
 import{sb}from'../lib/supabase'
-
 import{Realtime}from'../lib/realtime'
-
 import{NAV}from'../lib/utils'
-
 import{useNotifications}from'../lib/notifications'
-
 import Icon from'./Icon'
-
 import{Av}from'./Shared'
-
 import Spotlight from'./Spotlight'
-
 import TaskCard from'../views/TaskCard'
-
 import HomeView from'../views/HomeView'
-
 import OrdenesView from'../views/OrdenesView'
-
 import CreateTask from'../views/CreateTask'
-
 import TeamsView from'../views/TeamsView'
-
 import CalendarView from'../views/CalendarView'
-
 import IntelView from'../views/IntelView'
-
 import AdminView from'../views/AdminView'
-
 import BottomNav from'./BottomNav'
 import DiagnosticPanel from'./DiagnosticPanel'
 import ReporteExcel from'../views/ReporteExcel'
 
 export default function Dashboard({session,isDark,toggleTheme,onLogout}){
-
   const{token}=session
   const profile=useMemo(()=>({
     id:session.profile?.id||"",
@@ -49,23 +32,15 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   }),[session.profile])
 
   const[page,setPage]=useState("home")
-
   const[pageArg,setPageArg]=useState(null)
-
   const[tasks,setTasks]=useState([])
-
   const[users,setUsers]=useState([])
-
   const[teams,setTeams]=useState([])
-
   const[loading,setLoading]=useState(true)
-
   const[sidebarOpen,setSidebarOpen]=useState(false)
-
   const[spotlight,setSpotlight]=useState(false)
-
-  const[floatTask,setFloatTask]=useState(null)
-
+  // floatTaskId: guardamos el ID, no el objeto — así siempre mostramos datos frescos
+  const[floatTaskId,setFloatTaskId]=useState(null)
   const[showNotif,setShowNotif]=useState(false)
   const[showDiag,setShowDiag]=useState(false)
   const[showReporte,setShowReporte]=useState(false)
@@ -73,48 +48,31 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
 
   const load=useCallback(async()=>{
-
     try{
-
       const cutoff=new Date(Date.now()-60*24*3600000).toISOString()
+      // order=created_at.desc garantiza que las más nuevas llegan primero
       const taskQuery="select=*&order=created_at.desc&or=(status.neq.completada,created_at.gte."+cutoff+")"
-
       const[t,u,tm]=await Promise.all([
         sb.get("tareas",taskQuery,token),
         sb.get("usuarios","select=*&order=name.asc",token),
         sb.get("equipos","select=*&order=name.asc",token),
       ])
-
       if(!Array.isArray(t)||t[0]?.code==="PGRST301")throw new Error("SESSION_EXPIRED")
-
       setTasks(t);setUsers(u);setTeams(tm)
-
     }catch(e){if(e.message==="SESSION_EXPIRED")onLogout()}
-
     finally{setLoading(false)}
-
   },[token])
 
   const loadHistory=useCallback(async()=>{
-
     try{
       const all=await sb.get("tareas","select=*&order=created_at.desc",token)
       if(Array.isArray(all))setTasks(all)
     }catch(e){console.warn("loadHistory:",e)}
-
   },[token])
 
   useEffect(()=>{load()},[load])
 
-  // ════════════════════════════════════════════════
-  // REALTIME — Refetch debounced (800ms).
-  // Cualquier cambio en tareas/usuarios/equipos dispara un re-load
-  // único después de 800ms de quietud. Si llegan 10 eventos seguidos,
-  // se ejecuta UNA sola recarga al final. Imposible que cause loop:
-  // - No hace setState directo desde el callback (no cascadea props)
-  // - El timer se reinicia con cada evento (efecto trailing)
-  // - Cleanup al desmontar elimina timer y suscripciones
-  // ════════════════════════════════════════════════
+  // Realtime — debounced 800ms
   const reloadTimer=useRef(null)
   useEffect(()=>{
     function schedule(){
@@ -124,18 +82,18 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     const unsubs=["tareas","usuarios","equipos"].map(table=>
       Realtime.subscribe(table,()=>{schedule()})
     )
-    return()=>{
-      clearTimeout(reloadTimer.current)
-      unsubs.forEach(u=>u())
-    }
+    return()=>{clearTimeout(reloadTimer.current);unsubs.forEach(u=>u())}
   },[load])
 
+  // Exponer _openTask globalmente (para PushNotif callbacks)
   useEffect(()=>{
+    window._openTask=(t)=>setFloatTaskId(t?.id||null)
+    return()=>{delete window._openTask}
+  },[])
 
+  useEffect(()=>{
     function onKey(e){if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setSpotlight(s=>!s)};if(e.key==="Escape")setSpotlight(false)}
-
     window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)
-
   },[])
 
   const navigate=useCallback((id,arg=null)=>{
@@ -144,6 +102,9 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     }
     setPage(id);setPageArg(arg);setSidebarOpen(false)
   },[])
+
+  // floatTask siempre fresco: buscamos en tasks por ID en cada render
+  const floatTask=useMemo(()=>floatTaskId?tasks.find(t=>t.id===floatTaskId)||null:null,[floatTaskId,tasks])
 
   const navItems=NAV.filter(n=>n.roles.includes(profile.role))
   const isCuentas=profile.role==="cuentas"
@@ -160,7 +121,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     :teams,[isCuentas,isCollab,myScopedTeamIds,teams])
 
   const onViewUser=useCallback((u)=>{navigate("desempeno",u)},[navigate])
-  const onOpenTask=useCallback((t)=>{setFloatTask(t)},[])
+  const onOpenTask=useCallback((t)=>{setFloatTaskId(t?.id||null)},[])
 
   const shared=useMemo(()=>({
     tasks,users,teams,token,profile,me:profile,
@@ -259,7 +220,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
                     {unread.length===0
                       ?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"12px 0"}}>Sin menciones nuevas</p>
                       :unread.slice(0,5).map(n=>(
-                        <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);setFloatTask(n.task)}}
+                        <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);setFloatTaskId(n.task.id)}}
                           style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer",transition:".13s"}}
                           onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
                           onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -293,8 +254,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       </main>
       {showDiag&&<DiagnosticPanel session={session} tasks={tasks} users={users} teams={teams} onClose={()=>setShowDiag(false)}/>}
       {showReporte&&<ReporteExcel tasks={tasks} users={users} teams={teams} isOpen={showReporte} onClose={()=>setShowReporte(false)}/>}
-      {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)} onOpenTask={setFloatTask}/>}
-      {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTask(null)}/>}
+      {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)} onOpenTask={onOpenTask}/>}
+      {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTaskId(null)}/>}
       <div className="mobile-bottom-nav"><BottomNav page={page} navigate={navigate} profile={profile} isDark={isDark} toggleTheme={toggleTheme} onLogout={onLogout} unread={unread.length} onNotif={()=>setShowNotif(s=>!s)} onReporte={()=>setShowReporte(true)}/></div>
     </div>
   )
