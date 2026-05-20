@@ -10,6 +10,14 @@ export const CUENTAS_EMAILS  = []
 export const COLLAB_COLORS = ["#e85d4a","#f0924a","#e8c547","#4ade80","#3ecf8e","#5b9cf6","#60a5fa","#a78bfa","#c084fc","#f472b6","#fb923c","#f87171","#34d399","#38bdf8","#818cf8","#e879f9"]
 export const COLORS = ["#e85d4a","#e8a23a","#4ade80","#3ecf8e","#5b9cf6","#a78bfa","#f472b6","#fb923c","#34d399","#60a5fa","#c084fc","#f87171"]
 export const MARCAS_PREDEFINIDAS = ["Novex","Painsa","Sombrela Y Rabinal","Purina","Seguros GyT","CIAM","Digital"]
+
+// ════════════════════════════════════════════════
+// MARCAS — funciones localStorage (LEGACY)
+// Se mantienen para que código viejo no rompa, pero la app
+// ahora usa sb.getMarcasDB / sb.addMarcaDB que viven en Supabase.
+// La primera vez que se carga la app después del cambio,
+// sb.migrateMarcasFromLS() sube las marcas locales y limpia LS.
+// ════════════════════════════════════════════════
 export function getMarcas(){
   try{const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]");return[...new Set([...MARCAS_PREDEFINIDAS,...custom])].sort()}catch{return MARCAS_PREDEFINIDAS}
 }
@@ -94,14 +102,6 @@ export const sb={
   async forgotPassword(email){const r=await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({email})});return r.json()},
   async refreshSession(refreshToken){const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_ANON},body:JSON.stringify({refresh_token:refreshToken})});const d=await r.json();if(d.error||d.error_description)throw new Error("No se pudo renovar la sesion");return d},
 
-  // ── CONTADOR ATÓMICO DE ÓRDENES ──
-  // Llama a la función SQL `next_order_number()` que incrementa el contador
-  // y retorna el nuevo valor en una sola operación atómica. Esto garantiza
-  // que cada orden tenga un número único e irrepetible — el contador NO se
-  // toca cuando se borra una orden, así que los números no se reutilizan
-  // (igual que en una secuencia de facturas).
-  // Si dos personas crean orden al mismo tiempo, Postgres garantiza orden:
-  // cada uno recibe un número distinto sin posibilidad de duplicado.
   async nextOrderNumber(token){
     const r=await fetch(`${SB_URL}/rest/v1/rpc/next_order_number`,{
       method:"POST",
@@ -113,9 +113,68 @@ export const sb={
       throw new Error(j?.message||j?.error||`Error obteniendo número de orden (${r.status})`)
     }
     const val=await r.json()
-    // La función SQL retorna un bigint que llega como número o string
     const num=typeof val==="number"?val:Number(val)
     if(!num||isNaN(num))throw new Error("Número de orden inválido recibido del servidor")
     return num
+  },
+
+  // ════════════════════════════════════════════════
+  // MARCAS EN BD — fuente única compartida entre todos
+  // ════════════════════════════════════════════════
+
+  // Lee marcas custom de la BD y las une con las predefinidas
+  async getMarcasDB(token){
+    try{
+      const rows=await this.get("marcas","select=name&order=name.asc",token)
+      const custom=Array.isArray(rows)?rows.map(r=>r.name).filter(Boolean):[]
+      return[...new Set([...MARCAS_PREDEFINIDAS,...custom])].sort()
+    }catch(e){
+      console.warn("getMarcasDB error, fallback a predefinidas:",e)
+      return[...MARCAS_PREDEFINIDAS].sort()
+    }
+  },
+
+  // Inserta una marca nueva. Si ya existe (unique constraint), ignora el error.
+  async addMarcaDB(name,token,userId){
+    const trimmed=(name||"").trim()
+    if(!trimmed)return
+    // No guardar las predefinidas (ya viven en código)
+    if(MARCAS_PREDEFINIDAS.includes(trimmed))return
+    const r=await fetch(`${SB_URL}/rest/v1/marcas`,{
+      method:"POST",
+      headers:hdrWrite(token),
+      body:JSON.stringify({name:trimmed,created_by:userId||null})
+    })
+    // 409 = ya existe (unique constraint), no es error
+    if(!r.ok&&r.status!==409){
+      const j=await r.json().catch(()=>({}))
+      console.warn("addMarcaDB falló:",j)
+    }
+  },
+
+  // Borra una marca por nombre
+  async removeMarcaDB(name,token){
+    const safe=encodeURIComponent(name)
+    await fetch(`${SB_URL}/rest/v1/marcas?name=eq.${safe}`,{method:"DELETE",headers:hdr(token)})
+  },
+
+  // Migra marcas custom del localStorage a la BD UNA SOLA VEZ.
+  // Pone un flag en LS para no repetir. Si falla algún add, no aborta —
+  // mejor migrar parcialmente que perder todo.
+  async migrateMarcasFromLS(token,userId){
+    const FLAG="lc_marcas_migrated_v1"
+    if(localStorage.getItem(FLAG))return
+    try{
+      const custom=JSON.parse(localStorage.getItem("lc_custom_marcas")||"[]")
+      if(Array.isArray(custom)&&custom.length>0){
+        for(const m of custom){
+          try{await this.addMarcaDB(m,token,userId)}catch{}
+        }
+      }
+      localStorage.setItem(FLAG,"1")
+      // No borramos lc_custom_marcas — queda como backup en LS por si algo sale mal
+    }catch(e){
+      console.warn("migrateMarcasFromLS error:",e)
+    }
   },
 }
