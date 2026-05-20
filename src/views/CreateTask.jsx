@@ -1,6 +1,6 @@
 import{useState,useEffect,useRef,useCallback}from'react'
 import ReactDOM from'react-dom'
-import{sb,teamColor,COLLAB_COLORS,COLORS,MARCAS_PREDEFINIDAS,getMarcas,getInitials,autoColor}from'../lib/supabase'
+import{sb,teamColor,COLLAB_COLORS,COLORS,MARCAS_PREDEFINIDAS,getInitials,autoColor}from'../lib/supabase'
 import{showToast}from'../components/Toast'
 import{showConfirm}from'../components/ConfirmDialog'
 import Icon from'../components/Icon'
@@ -17,12 +17,32 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
   const [loading,setLoading]=useState(false);
   const [showOtra,setShowOtra]=useState(false);
   const [errors,setErrors]=useState({});
+  // ── MARCAS desde BD (antes era localStorage) ──
+  // marcasDB: lista de marcas que vienen de la BD (incluye predefinidas + custom)
+  // Se carga al montar el componente y se refresca si hay cambios.
+  const [marcasDB,setMarcasDB]=useState([...MARCAS_PREDEFINIDAS].sort())
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
 
   // Filter teams visible to cuentas
   const isCuentas=me?.role==="cuentas"
   const myTeamIds=isCuentas?(Array.isArray(me?.team_ids)&&me.team_ids.length>0?me.team_ids:[me?.team_id].filter(Boolean)):null
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
+
+  // ── Cargar marcas desde BD al montar + migrar localStorage si aplica ──
+  useEffect(()=>{
+    let cancelled=false
+    async function loadMarcas(){
+      try{
+        // Primero migra (si nunca se ha hecho) — solo corre 1 vez por dispositivo
+        await sb.migrateMarcasFromLS(token,me?.id)
+        // Luego trae la lista actualizada
+        const list=await sb.getMarcasDB(token)
+        if(!cancelled&&Array.isArray(list))setMarcasDB(list)
+      }catch(e){console.warn("loadMarcas:",e)}
+    }
+    loadMarcas()
+    return()=>{cancelled=true}
+  },[token,me?.id])
 
   function validate(){
     const e={};
@@ -45,15 +65,16 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
     }
     setLoading(true);
     try{
-      // ── NÚMERO DE ORDEN ATÓMICO ──
-      // Antes: MAX(order_number)+1 sobre la tabla → si borrabas la orden
-      // más alta, el siguiente número se REUTILIZABA (bug de auditoría).
-      // Ahora: contador persistente en Supabase que solo sube, nunca
-      // disminuye. Los números no se reutilizan jamás, igual que facturas.
       const orderNum=await sb.nextOrderNumber(token);
       const{_teamFilter,...formData}={...form,team_id:finalTeamId};
 
-      // Upload files — use sb.upload (correct method name)
+      // ── Si el usuario escribió una marca nueva (no estaba en la lista),
+      // guardarla en la BD para que todos la vean a futuro ──
+      const marcaFinal=(formData.marca||"").trim()
+      if(marcaFinal&&!marcasDB.includes(marcaFinal)){
+        try{await sb.addMarcaDB(marcaFinal,token,me?.id)}catch(err){console.warn("addMarcaDB:",err)}
+      }
+
       let fileData=[];
       for(const file of files){
         if(file.size>MAX_SIZE){showToast("Archivo muy grande (max 50MB): "+file.name,"error");continue;}
@@ -70,7 +91,7 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
       const taskData={
         title:       formData.title.trim(),
         description: formData.description.trim(),
-        marca:       formData.marca||"",
+        marca:       marcaFinal,
         materials:   formData.materials||"",
         priority:    formData.priority||"Normal",
         status:      formData.status||"pendiente",
@@ -110,8 +131,9 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
           </div>
           <div><label className="form-label">Marca / Cliente *</label>
             {(()=>{
+              // Fuente única: marcas de BD + marcas que existen en tareas (por si quedaron viejas)
               const existing=[...new Set(tasks.map(t=>t.marca).filter(Boolean))];
-              const allMarcas=[...new Set([...getMarcas(),...existing])].sort();
+              const allMarcas=[...new Set([...marcasDB,...existing])].sort();
               return(
                 <>
                   <select value={showOtra?"__otra__":form.marca||""} onChange={e=>{
@@ -158,7 +180,6 @@ export default function CreateTask({users,teams,tasks,me,token,onCreated,onBack}
                 {users.filter(u=>{
                   if(u.role!=="colaborador")return false;
                   if(!form._teamFilter||form._teamFilter==="todos"){
-                    // cuentas: only show users from their teams
                     if(isCuentas&&myTeamIds)return myTeamIds.includes(u.team_id)||(Array.isArray(u.team_ids)&&u.team_ids.some(id=>myTeamIds.includes(id)))
                     return true;
                   }
