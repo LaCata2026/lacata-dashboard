@@ -11,7 +11,6 @@ import TaskCard from'./TaskCard'
 import CalendarView from'./CalendarView'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
 
-
 export function exportExcel(tasks,users,teams){
   const statusMap={pendiente:"Pendiente",en_progreso:"En progreso",en_pausa:"En pausa",en_revision:"En revision",completada:"Completada",vencida:"Vencida"};
   function buildRows(taskList){
@@ -42,6 +41,25 @@ export function exportExcel(tasks,users,teams){
   XLSX.writeFile(wb,"LaCata_Reporte_"+new Date().toISOString().split("T")[0]+".xlsx");showToast("Excel descargado con "+marcas.length+" tabs de marca","success");
 }
 
+// Calcula prioridad de urgencia del equipo para ordenar
+function teamUrgencyScore(tTasks){
+  const now=new Date(),in24h=new Date(now.getTime()+24*3600000)
+  const venc=tTasks.filter(t=>t.status==="vencida").length
+  const hoy=tTasks.filter(t=>{
+    if(t.status==="completada"||t.status==="vencida"||!t.due_date)return false
+    const d=new Date(t.due_date+"T23:59:59")
+    return d>=now&&d<=in24h
+  }).length
+  const rev=tTasks.filter(t=>t.status==="en_revision").length
+  const act=tTasks.filter(t=>t.status!=="completada"&&t.status!=="vencida").length
+  // Mayor score = más urgente = va primero
+  if(venc>0)return 1000+venc
+  if(hoy>0)return 500+hoy
+  if(rev>0)return 100+rev
+  if(act>0)return 10+act
+  return 0 // solo completadas → al final
+}
+
 export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter,initialView}){
   const [viewMode,setViewMode]=useSessionFilters("ordenes_view",initialView||"lista");
   const [sf,setSf]=useSessionFilters("ordenes_status",initialFilter||"todas");
@@ -65,6 +83,11 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
     const sm=!search||t.title?.toLowerCase().includes(search.toLowerCase())||(t.order_number&&("AC-"+String(t.order_number).padStart(4,"0")).toLowerCase().includes(search.toLowerCase()))||(t.marca||"").toLowerCase().includes(search.toLowerCase());
     return canSee&&(sf==="todas"||t.status===sf)&&(tf==="todas"||t.team_id===tf)&&sm;
   });
+
+  // Contadores por status para la barra de filtros unificada
+  const statusCounts=["vencida","en_progreso","en_revision","pendiente","en_pausa","completada"].reduce((acc,s)=>{
+    acc[s]=visible.filter(t=>t.status===s).length;return acc
+  },{})
 
   const COLS=[
     {s:"vencida",label:"Vencidas",color:"var(--s-vencida)"},
@@ -113,6 +136,34 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
     );
   }
 
+  // ── BARRA DE FILTROS UNIFICADA — filtro + leyenda + contadores ──
+  function UnifiedFilterBar(){
+    const items=[
+      {s:"todas",label:"Todas",color:null,count:visible.length},
+      {s:"vencida",label:"Vencida",color:"var(--s-vencida)",count:statusCounts.vencida},
+      {s:"en_progreso",label:"En progreso",color:"var(--s-progreso)",count:statusCounts.en_progreso},
+      {s:"en_revision",label:"En revisión",color:"var(--s-revision)",count:statusCounts.en_revision},
+      {s:"pendiente",label:"Pendiente",color:"var(--s-pendiente)",count:statusCounts.pendiente},
+      {s:"en_pausa",label:"En pausa",color:"var(--s-pausa)",count:statusCounts.en_pausa},
+      {s:"completada",label:"Completada",color:"var(--s-completada)",count:statusCounts.completada},
+    ]
+    return(
+      <div className="filter-bar" style={{marginBottom:12}}>
+        {items.map(({s,label,color,count})=>{
+          const isActive=sf===s
+          const baseStyle={display:"inline-flex",alignItems:"center",gap:6,padding:"4px 11px",borderRadius:6,fontSize:11.5,fontWeight:isActive?700:500,cursor:"pointer",border:`1px solid ${isActive&&s!=="todas"?color:"var(--border)"}`,transition:".13s",background:isActive&&s!=="todas"?color:isActive?"var(--accent)":s==="todas"?"var(--bg3)":"var(--bg3)",color:isActive&&s!=="todas"?"#fff":isActive?"#0d0d0d":"var(--muted2)",fontFamily:"var(--font-body)"}
+          return(
+            <button key={s} style={baseStyle} onClick={()=>setSf(s)}>
+              {color&&<span style={{width:7,height:7,borderRadius:"50%",background:isActive?"#fff":color,flexShrink:0,display:"inline-block"}}/>}
+              {label}
+              <span style={{fontSize:10,padding:"0px 5px",borderRadius:8,background:isActive&&s!=="todas"?"rgba(255,255,255,.25)":isActive?"rgba(0,0,0,.15)":"var(--bg4)",color:"inherit",fontFamily:"var(--font-mono)",fontWeight:700}}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   return(
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
@@ -145,17 +196,8 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
         </div>
       )}
 
-      {(effectiveView==="lista"||effectiveView==="equipo")&&(
-        <div className="filter-bar" style={{marginBottom:12}}>
-          {["todas","vencida","en_progreso","en_revision","pendiente","en_pausa","completada"].map(s=>(
-            <button key={s} className={`filter-chip${sf===s?" active":""}`}
-              style={sf===s&&s!=="todas"?{background:statusColor[s],borderColor:statusColor[s],color:"#fff"}:{}}
-              onClick={()=>setSf(s)}>
-              {s==="todas"?"Todas":statusLabel[s]}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Barra unificada: reemplaza filter-bar + StatusLegend */}
+      {(effectiveView==="lista"||effectiveView==="equipo")&&<UnifiedFilterBar/>}
 
       {effectiveView==="kanban"&&(isDir||isCuentas)&&(
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 12px",background:"var(--bg3)",borderRadius:7,border:"1px solid var(--border)",width:"fit-content"}}>
@@ -163,8 +205,6 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
           <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Arrastra las tarjetas entre columnas para cambiar el estado</span>
         </div>
       )}
-
-      {effectiveView!=="calendario"&&!isCollab&&<StatusLegend/>}
 
       {effectiveView==="calendario"&&(<CalendarView tasks={tasks} users={users} teams={teams} me={me}/>)}
 
@@ -248,45 +288,99 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
       })()}
 
       {effectiveView==="equipo"&&visible.length>0&&(()=>{
-        const teamsWithTasks=visibleTeams.filter(t=>visible.some(x=>x.team_id===t.id));
-        const noTeam=visible.filter(t=>!t.team_id);
+        const now=new Date(),in24h=new Date(now.getTime()+24*3600000)
+        const teamsWithTasks=visibleTeams
+          .filter(t=>visible.some(x=>x.team_id===t.id))
+          .sort((a,b)=>{
+            const aTasks=visible.filter(x=>x.team_id===a.id)
+            const bTasks=visible.filter(x=>x.team_id===b.id)
+            return teamUrgencyScore(bTasks)-teamUrgencyScore(aTasks)
+          })
+        const noTeam=visible.filter(t=>!t.team_id)
+
+        // Color del borde del equipo según urgencia
+        function teamBorderColor(tTasks){
+          const venc=tTasks.filter(t=>t.status==="vencida").length
+          const hoy=tTasks.filter(t=>{if(t.status==="completada"||t.status==="vencida"||!t.due_date)return false;const d=new Date(t.due_date+"T23:59:59");return d>=now&&d<=in24h}).length
+          const rev=tTasks.filter(t=>t.status==="en_revision").length
+          const act=tTasks.filter(t=>t.status!=="completada").length
+          if(venc>0)return"var(--s-vencida)"
+          if(hoy>0)return"var(--yellow)"
+          if(rev>0)return"var(--s-revision)"
+          if(act>0)return teamColor(visibleTeams.find(t=>t.id===tTasks[0]?.team_id)||{})
+          return"var(--s-completada)"
+        }
+
         return(
           <>
             {teamsWithTasks.map(team=>{
-              const tTasks=visible.filter(t=>t.team_id===team.id);
-              const isOpen=collapsed[team.id]!==true;
-              const overdue=tTasks.filter(t=>t.status==="vencida").length;
-              const inProg=tTasks.filter(t=>t.status==="en_progreso").length;
-              const inRev=tTasks.filter(t=>t.status==="en_revision").length;
+              const tTasks=visible.filter(t=>t.team_id===team.id)
+              const activeTasks=tTasks.filter(t=>t.status!=="completada")
+              const doneTasks=tTasks.filter(t=>t.status==="completada")
+              const isOnlyDone=activeTasks.length===0
+              // Por defecto: equipos con solo completadas van colapsados
+              const isOpen=collapsed[team.id]!==undefined?!collapsed[team.id]:!isOnlyDone
+              const overdue=tTasks.filter(t=>t.status==="vencida").length
+              const inRev=tTasks.filter(t=>t.status==="en_revision").length
+              const inProg=tTasks.filter(t=>t.status==="en_progreso").length
+              const inPend=tTasks.filter(t=>t.status==="pendiente").length
+              const inPausa=tTasks.filter(t=>t.status==="en_pausa").length
+              const hoyCount=tTasks.filter(t=>{if(t.status==="completada"||t.status==="vencida"||!t.due_date)return false;const d=new Date(t.due_date+"T23:59:59");return d>=now&&d<=in24h}).length
+              const bc=teamBorderColor(tTasks)
+              const dotColor=overdue>0?"var(--s-vencida)":hoyCount>0?"var(--yellow)":inRev>0?"var(--s-revision)":activeTasks.length>0?teamColor(team):"var(--s-completada)"
+
               return(
-                <div key={team.id} style={{marginBottom:8,background:"var(--bg2)",borderRadius:10,border:"1px solid var(--border)",overflow:"hidden"}}>
-                  <div onClick={()=>setCollapsed(c=>({...c,[team.id]:!c[team.id]}))}
-                    style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",cursor:"pointer",borderLeft:`4px solid ${teamColor(team)}`,background:isOpen?"var(--bg3)":"var(--bg2)"}}>
-                    <span style={{fontSize:16}}>{<Icon n={team.icon||"equipos"} size={18} style={{display:"inline-block"}}/>}</span>
+                <div key={team.id} style={{marginBottom:8,background:"var(--bg2)",borderRadius:10,border:"1px solid var(--border)",overflow:"hidden",opacity:isOnlyDone?.75:1}}>
+                  {/* Header del equipo */}
+                  <div onClick={()=>setCollapsed(c=>({...c,[team.id]:isOpen}))}
+                    style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderLeft:`3px solid ${bc}`,background:isOpen?"var(--bg3)":"var(--bg2)",transition:".13s"}}>
+                    {/* Semáforo */}
+                    <div style={{width:9,height:9,borderRadius:"50%",background:dotColor,boxShadow:isOnlyDone?"none":`0 0 7px ${dotColor}88`,flexShrink:0}}/>
                     <span style={{fontWeight:700,fontSize:14,flex:1}}>{team.name}</span>
-                    <div style={{display:"flex",gap:4}}>
-                      {overdue>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/>{overdue}</span>}
-                      {inRev>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-revision-bg)",color:"var(--s-revision)",fontWeight:700,fontFamily:"var(--font-mono)"}}>🔍{inRev}</span>}
-                      {inProg>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:"var(--s-progreso-bg)",color:"var(--s-progreso)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="progreso" size={9}/>{inProg}</span>}
-                      <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",marginLeft:4}}>{tTasks.length}</span>
+                    {/* Contadores por estado — compactos */}
+                    <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                      {overdue>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)",display:"flex",alignItems:"center",gap:3}}><span style={{width:5,height:5,borderRadius:"50%",background:"var(--s-vencida)",display:"inline-block"}}/>{overdue}</span>}
+                      {hoyCount>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"rgba(232,197,71,.12)",color:"var(--yellow)",fontWeight:700,fontFamily:"var(--font-mono)",display:"flex",alignItems:"center",gap:3}}><span style={{width:5,height:5,borderRadius:"50%",background:"var(--yellow)",display:"inline-block"}}/>hoy</span>}
+                      {inRev>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-revision-bg)",color:"var(--s-revision)",fontWeight:700,fontFamily:"var(--font-mono)",display:"flex",alignItems:"center",gap:3}}><span style={{width:5,height:5,borderRadius:"50%",background:"var(--s-revision)",display:"inline-block"}}/>{inRev}</span>}
+                      {inProg>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-progreso-bg)",color:"var(--s-progreso)",fontWeight:700,fontFamily:"var(--font-mono)",display:"flex",alignItems:"center",gap:3}}><span style={{width:5,height:5,borderRadius:"50%",background:"var(--s-progreso)",display:"inline-block"}}/>{inProg}</span>}
+                      {inPend>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-pendiente-bg)",color:"var(--s-pendiente)",fontWeight:700,fontFamily:"var(--font-mono)",display:"flex",alignItems:"center",gap:3}}><span style={{width:5,height:5,borderRadius:"50%",background:"var(--s-pendiente)",display:"inline-block"}}/>{inPend}</span>}
+                      {inPausa>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-pausa-bg)",color:"var(--s-pausa)",fontWeight:700,fontFamily:"var(--font-mono)",display:"flex",alignItems:"center",gap:3}}><span style={{width:5,height:5,borderRadius:"50%",background:"var(--s-pausa)",display:"inline-block"}}/>{inPausa}</span>}
+                      {isOnlyDone&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-completada-bg)",color:"var(--s-completada)",fontWeight:700,fontFamily:"var(--font-mono)"}}>Al día ✓</span>}
+                      <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",marginLeft:2}}>{tTasks.length}</span>
                     </div>
-                    <span style={{color:"var(--muted)",transition:"transform .2s",transform:isOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block"}}>▼</span>
+                    <span style={{color:"var(--muted)",transition:"transform .2s",transform:isOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block",fontSize:12}}>▼</span>
                   </div>
+
+                  {/* Órdenes expandidas */}
                   {isOpen&&(
-                    <div style={{padding:"6px 12px 12px"}}>
-                      {[...tTasks].sort((a,b)=>{
-                        const order=["vencida","en_revision","en_progreso","pendiente","en_pausa","completada"]
+                    <div style={{padding:"6px 12px 10px"}}>
+                      {/* Activas ordenadas por urgencia */}
+                      {[...activeTasks].sort((a,b)=>{
+                        const order=["vencida","en_revision","en_progreso","pendiente","en_pausa"]
                         const si=order.indexOf(a.status)-order.indexOf(b.status);if(si!==0)return si
                         const pa=a.priority==="Urgente"?0:a.priority==="Alta"?1:2
                         const pb=b.priority==="Urgente"?0:b.priority==="Alta"?1:2
                         if(pa!==pb)return pa-pb
                         if(a.due_date&&b.due_date)return new Date(a.due_date)-new Date(b.due_date)
-                        if(a.due_date)return -1;if(b.due_date)return 1;return 0
+                        if(a.due_date)return -1;if(b.due_date)return 1
+                        return new Date(b.created_at)-new Date(a.created_at)
                       }).map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
+
+                      {/* Completadas separadas con divisor */}
+                      {doneTasks.length>0&&(
+                        <>
+                          <div style={{display:"flex",alignItems:"center",gap:10,margin:"10px 0 6px",opacity:.4}}>
+                            <div style={{flex:1,height:1,background:"var(--border)"}}/>
+                            <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)"}}><Icon n="completada" size={10} style={{marginRight:3}}/> Completadas ({doneTasks.length})</span>
+                            <div style={{flex:1,height:1,background:"var(--border)"}}/>
+                          </div>
+                          {doneTasks.map(t=><TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>)}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
-              );
+              )
             })}
             {noTeam.length>0&&(
               <div style={{marginTop:8}}>
