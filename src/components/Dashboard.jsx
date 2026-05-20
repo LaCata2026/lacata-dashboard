@@ -1,4 +1,4 @@
-import{useState,useEffect,useCallback,useMemo}from'react'
+import{useState,useEffect,useCallback,useMemo,useRef}from'react'
 
 import{sb}from'../lib/supabase'
 
@@ -37,10 +37,6 @@ import ReporteExcel from'../views/ReporteExcel'
 export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const{token}=session
-  // Profile memoizado para que su referencia no cambie en cada render —
-  // sin esto, `shared` (que lo incluye) se recreaba y cascadeaba re-renders
-  // a TODAS las vistas. Posible causa del "Maximum update depth" cuando
-  // Realtime dispara setStates seguidos.
   const profile=useMemo(()=>({
     id:session.profile?.id||"",
     name:session.profile?.name||"Usuario",
@@ -76,7 +72,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const{unread,markAllSeen,markSeen}=useNotifications(tasks,profile)
 
-  // Carga inicial optimizada
   const load=useCallback(async()=>{
 
     try{
@@ -112,44 +107,28 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   useEffect(()=>{load()},[load])
 
   // ════════════════════════════════════════════════
-  // DIAGNÓSTICO TEMPORAL: Realtime DESHABILITADO.
-  // Si el bucle "Maximum update depth" desaparece con este cambio,
-  // confirmamos que el problema está en la suscripción Realtime
-  // (eventos en cascada o setter(prev=>...) creando referencias nuevas
-  // que disparan otros effects). Reactivar después de arreglar la causa.
+  // REALTIME — Refetch debounced (800ms).
+  // Cualquier cambio en tareas/usuarios/equipos dispara un re-load
+  // único después de 800ms de quietud. Si llegan 10 eventos seguidos,
+  // se ejecuta UNA sola recarga al final. Imposible que cause loop:
+  // - No hace setState directo desde el callback (no cascadea props)
+  // - El timer se reinicia con cada evento (efecto trailing)
+  // - Cleanup al desmontar elimina timer y suscripciones
   // ════════════════════════════════════════════════
-  /*
+  const reloadTimer=useRef(null)
   useEffect(()=>{
-    const setters={tareas:setTasks,usuarios:setUsers,equipos:setTeams}
-    function applyChange(table,payload){
-      const setter=setters[table]
-      if(!setter)return
-      const evType=payload.eventType||payload.type||payload.event
-      const rec=payload.new||payload.record||payload.new_record
-      const oldRec=payload.old||payload.old_record
-      const recId=rec?.id||oldRec?.id
-      if(!recId){load();return}
-      setter(prev=>{
-        const arr=Array.isArray(prev)?prev:[]
-        if(evType==="DELETE"||evType==="delete"){
-          return arr.filter(x=>x.id!==recId)
-        }
-        if(evType==="INSERT"||evType==="insert"){
-          if(arr.some(x=>x.id===recId))return arr.map(x=>x.id===recId?{...x,...rec}:x)
-          return [rec,...arr]
-        }
-        if(arr.some(x=>x.id===recId))return arr.map(x=>x.id===recId?{...x,...rec}:x)
-        return [rec,...arr]
-      })
+    function schedule(){
+      clearTimeout(reloadTimer.current)
+      reloadTimer.current=setTimeout(()=>{load()},800)
     }
     const unsubs=["tareas","usuarios","equipos"].map(table=>
-      Realtime.subscribe(table,(payload)=>{
-        try{applyChange(table,payload)}catch(e){console.warn("realtime apply error:",e);load()}
-      })
+      Realtime.subscribe(table,()=>{schedule()})
     )
-    return()=>unsubs.forEach(u=>u())
+    return()=>{
+      clearTimeout(reloadTimer.current)
+      unsubs.forEach(u=>u())
+    }
   },[load])
-  */
 
   useEffect(()=>{
 
@@ -159,7 +138,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   },[])
 
-  // navigate memoizado para que `shared` no se recree
   const navigate=useCallback((id,arg=null)=>{
     if(id&&id.startsWith("equipo_")){
       setPage("equipos");setPageArg(id.replace("equipo_",""));setSidebarOpen(false);return
@@ -184,8 +162,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const onViewUser=useCallback((u)=>{navigate("desempeno",u)},[navigate])
   const onOpenTask=useCallback((t)=>{setFloatTask(t)},[])
 
-  // shared MEMOIZADO — sin esto se recreaba en cada render y cascadeaba
-  // re-renders a todas las vistas
   const shared=useMemo(()=>({
     tasks,users,teams,token,profile,me:profile,
     onReload:load,onRefresh:load,onNavigate:navigate,onViewUser,onOpenTask
