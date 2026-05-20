@@ -4,20 +4,15 @@ export const statusPill={pendiente:"pill-pendiente",en_progreso:"pill-progreso",
 export const statusColor={pendiente:"var(--s-pendiente)",en_progreso:"var(--s-progreso)",en_pausa:"var(--s-pausa)",en_revision:"var(--s-revision)",completada:"var(--s-completada)",vencida:"var(--s-vencida)"}
 export const prioPill={Normal:"pill-prio-normal",Alta:"pill-prio-alta",Urgente:"pill-prio-urgente"}
 export const NAV=[
-  {id:"home",icon:"home",label:"Inicio",section:"trabajo",roles:["director","colaborador","cuentas"]},
-  {id:"ordenes",icon:"ordenes",label:"Órdenes",section:"trabajo",roles:["director","colaborador","cuentas"]},
-  {id:"crear",icon:"nueva",label:"Nueva orden",section:"trabajo",roles:["director","cuentas"]},
-  {id:"equipos",icon:"equipos",label:"Equipos",section:"trabajo",roles:["director","cuentas"]},
+  {id:"home",     icon:"home",     label:"Inicio",    section:"trabajo", roles:["director","colaborador","cuentas"]},
+  {id:"ordenes",  icon:"ordenes",  label:"Órdenes",   section:"trabajo", roles:["director","colaborador","cuentas"]},
+  {id:"crear",    icon:"nueva",    label:"Nueva orden",section:"trabajo", roles:["director","cuentas"]},
   {id:"calendario",icon:"calendario",label:"Calendario",section:"trabajo",roles:["director","cuentas"]},
-  {id:"desempeno",icon:"desempeno",label:"Desempeño & Reportes",section:"trabajo",roles:["director","cuentas"]},
-  {id:"admin",icon:"admin",label:"Administración",section:"admin",roles:["director"]},
+  {id:"desempeno",icon:"desempeno",label:"Reportes",  section:"trabajo", roles:["director","cuentas"]},
+  {id:"admin",    icon:"admin",    label:"Administración",section:"admin",roles:["director"]},
 ]
 export const fmtDate=d=>{if(!d)return"—";const[y,m,dd]=d.split("-");return`${dd}/${m}/${y}`}
 
-/**
- * fmtDateRelative — etiqueta de fecha límite relativa al hoy.
- * Statuses congelados (en_revision, completada): no genera alerta.
- */
 export const fmtDateRelative=(d,status)=>{
   if(!d)return{label:"—",color:"var(--muted)",urgent:false}
   if(status==="completada"||status==="en_revision")
@@ -40,61 +35,17 @@ export function useSessionFilters(key,defaults){
   return[state,set]
 }
 
-/**
- * syncVencidas — sincroniza el status "vencida" con la realidad de due_date.
- *
- * MARCA como vencida:
- *   - due_date ya pasó (< hoy)
- *   - status activo: pendiente, en_progreso, en_pausa
- *   - NO toca: en_revision (reloj congelado), completada, ya vencida
- *
- * REVIERTE a pendiente:
- *   - status === "vencida" (fue marcada antes)
- *   - due_date ahora es hoy o futuro (alguien actualizó la fecha)
- *   - Excepción: si due_date es null, no revertir (sin fecha = sin criterio)
- *
- * Corre silenciosamente en cada load(). Si no hay nada que cambiar, no
- * hace ninguna escritura a la BD.
- */
-export async function syncVencidas(tasks, token, sb) {
-  const today = new Date(); today.setHours(0,0,0,0)
-
-  const toMark = tasks.filter(t =>
-    t.due_date &&
-    t.status !== "completada" &&
-    t.status !== "vencida" &&
-    t.status !== "en_revision" &&
-    new Date(t.due_date + "T00:00:00") < today
-  )
-
-  const toRevert = tasks.filter(t =>
-    t.status === "vencida" &&
-    t.due_date &&
-    new Date(t.due_date + "T00:00:00") >= today
-  )
-
-  if (toMark.length === 0 && toRevert.length === 0) return false
-
+export async function syncVencidas(tasks,token,sb){
+  const today=new Date();today.setHours(0,0,0,0)
+  const toMark=tasks.filter(t=>t.due_date&&t.status!=="completada"&&t.status!=="vencida"&&t.status!=="en_revision"&&new Date(t.due_date+"T00:00:00")<today)
+  const toRevert=tasks.filter(t=>t.status==="vencida"&&t.due_date&&new Date(t.due_date+"T00:00:00")>=today)
+  if(toMark.length===0&&toRevert.length===0)return false
   await Promise.all([
-    ...toMark.map(t => sb.update("tareas", t.id, {
-      status: "vencida",
-      history: [...(t.history||[]),
-        `⚠️ Marcada como vencida automáticamente — ${new Date().toLocaleString("es-GT")}`]
-    }, token)),
-    ...toRevert.map(t => sb.update("tareas", t.id, {
-      status: "pendiente",
-      history: [...(t.history||[]),
-        `✅ Reactivada automáticamente — fecha actualizada a ${fmtDate(t.due_date)} — ${new Date().toLocaleString("es-GT")}`]
-    }, token)),
+    ...toMark.map(t=>sb.update("tareas",t.id,{status:"vencida",history:[...(t.history||[]),`⚠️ Marcada como vencida automáticamente — ${new Date().toLocaleString("es-GT")}`]},token)),
+    ...toRevert.map(t=>sb.update("tareas",t.id,{status:"pendiente",history:[...(t.history||[]),`✅ Reactivada automáticamente — fecha actualizada a ${fmtDate(t.due_date)} — ${new Date().toLocaleString("es-GT")}`]},token)),
   ])
-
   return true
 }
+export const autoMarkVencidas=syncVencidas
 
-// Alias para compatibilidad con el nombre anterior
-export const autoMarkVencidas = syncVencidas
-
-export const assignedOf = t =>
-  Array.isArray(t.assigned_to)
-    ? t.assigned_to
-    : [t.assigned_to].filter(Boolean)
+export const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
