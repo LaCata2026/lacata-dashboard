@@ -38,36 +38,46 @@ function buildExcel(tasks,users,teams,period,customFrom,customTo){
   const filtered=filterTasks(tasks,period,customFrom,customTo)
   const wb=XLSX.utils.book_new()
 
-  // ── RESUMEN ──
+  // Agrupar por marca — solo órdenes CON marca real para pestañas individuales
   const marcasMap={}
   filtered.forEach(t=>{
-    const m=t.marca||"Sin marca"
-    if(!marcasMap[m])marcasMap[m]={marca:m,tasks:[],hrsE:0,hrsR:0,colabs:new Set()}
-    marcasMap[m].tasks.push(t)
-    marcasMap[m].hrsE+=Number(t.hours||0)
-    marcasMap[m].hrsR+=Number(t.hours_real||0)
-    assignedOf(t).forEach(id=>marcasMap[m].colabs.add(id))
+    const m=t.marca&&t.marca.trim()?t.marca.trim():null
+    const key=m||"Sin marca"
+    if(!marcasMap[key])marcasMap[key]={marca:key,tasks:[],hrsE:0,hrsR:0,colabs:new Set(),hasMarca:!!m}
+    marcasMap[key].tasks.push(t)
+    marcasMap[key].hrsE+=Number(t.hours||0)
+    marcasMap[key].hrsR+=Number(t.hours_real||0)
+    assignedOf(t).forEach(id=>marcasMap[key].colabs.add(id))
   })
-  const marcas=Object.values(marcasMap).sort((a,b)=>b.hrsR-a.hrsR)
+  const allMarcas=Object.values(marcasMap).sort((a,b)=>b.hrsR-a.hrsR)
+  // Solo marcas reales para pestañas individuales
+  const marcasConNombre=allMarcas.filter(r=>r.hasMarca)
+  const sinMarca=marcasMap["Sin marca"]
   const periodStr=period==="custom"?`${customFrom} al ${customTo}`:period==="semana"?"Semana actual":"Mes actual"
 
+  // ── RESUMEN — incluye Sin marca para no perder el dato ──
   const resumenRows=[
     [`REPORTE LA CATA — ${periodStr.toUpperCase()}`],
     [],
     ["Marca","Órdenes","Colaboradores","Hrs Estimadas","Hrs Reales","Eficiencia","Completadas","Vencidas"],
-    ...marcas.map(r=>[
+    ...allMarcas.map(r=>[
       r.marca,r.tasks.length,r.colabs.size,
       fmtH(r.hrsE),fmtH(r.hrsR),eff(r.hrsE,r.hrsR),
       r.tasks.filter(t=>t.status==="completada").length,
       r.tasks.filter(t=>t.status==="vencida").length,
     ])
   ]
+  // Si hay órdenes sin marca, agregar nota al resumen
+  if(sinMarca&&sinMarca.tasks.length>0){
+    resumenRows.push([])
+    resumenRows.push([`⚠️ ${sinMarca.tasks.length} orden(es) sin marca asignada — asigna marca en cada orden para verlas en su pestaña correspondiente`])
+  }
   const wsResumen=XLSX.utils.aoa_to_sheet(resumenRows)
   wsResumen["!cols"]=[{wch:24},{wch:10},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:10}]
   XLSX.utils.book_append_sheet(wb,wsResumen,"Resumen")
 
-  // ── PESTAÑA POR MARCA ──
-  marcas.forEach(({marca,tasks:mt})=>{
+  // ── PESTAÑA POR MARCA — solo marcas con nombre real ──
+  marcasConNombre.forEach(({marca,tasks:mt})=>{
     const header=["No. Orden","Nombre de Orden","Colaborador(es)","Equipo","Estado","Prioridad","Hrs Est.","Hrs Reales","Eficiencia","Fecha Creación","Fecha Límite","Cambios"]
     const rows=mt.map(t=>{
       const assigned=assignedOf(t).map(id=>users.find(u=>u.id===id)?.name||"?").join(", ")
@@ -92,7 +102,7 @@ function buildExcel(tasks,users,teams,period,customFrom,customTo){
     assignedOf(t).forEach(id=>{
       if(!colabMap[id])colabMap[id]={id,tasks:[],marcas:new Set()}
       colabMap[id].tasks.push(t)
-      if(t.marca)colabMap[id].marcas.add(t.marca)
+      if(t.marca&&t.marca.trim())colabMap[id].marcas.add(t.marca.trim())
     })
   })
   const colabHeader=["Colaborador","Equipo","Marca(s)","Total Órdenes","Completadas","Vencidas","Hrs Est.","Hrs Reales","Eficiencia"]
@@ -111,7 +121,7 @@ function buildExcel(tasks,users,teams,period,customFrom,customTo){
 
   const periodLabel=period==="custom"?`${customFrom}_${customTo}`:period
   XLSX.writeFile(wb,`LaCata_Reporte_${periodLabel}_${new Date().toISOString().split("T")[0]}.xlsx`)
-  showToast("Reporte descargado","success")
+  showToast(`Reporte descargado${sinMarca?.tasks.length?` · ${sinMarca.tasks.length} órdenes sin marca`:""}`, sinMarca?.tasks.length?"warning":"success")
 }
 
 export default function ReporteExcel({tasks,users,teams,isOpen,onClose}){
@@ -121,6 +131,11 @@ export default function ReporteExcel({tasks,users,teams,isOpen,onClose}){
   const[loading,setLoading]=useState(false)
 
   if(!isOpen)return null
+
+  // Conteo de órdenes sin marca para mostrar advertencia en el modal
+  const{semFrom,semTo,mesFrom,mesTo}=getRanges()
+  const filtered=filterTasks(tasks,period,customFrom,customTo)
+  const sinMarcaCount=filtered.filter(t=>!t.marca||!t.marca.trim()).length
 
   function handleDownload(){
     if(period==="custom"&&(!customFrom||!customTo)){showToast("Selecciona el rango de fechas","error");return}
@@ -164,12 +179,20 @@ export default function ReporteExcel({tasks,users,teams,isOpen,onClose}){
           </div>
         )}
 
-        <div style={{background:"var(--bg3)",borderRadius:8,padding:"10px 12px",marginBottom:20,fontSize:11,color:"var(--muted)",lineHeight:1.8}}>
+        <div style={{background:"var(--bg3)",borderRadius:8,padding:"10px 12px",marginBottom:sinMarcaCount>0?12:20,fontSize:11,color:"var(--muted)",lineHeight:1.8}}>
           Pestañas incluidas:<br/>
           <strong style={{color:"var(--text)"}}>Resumen</strong> → totales por marca<br/>
           <strong style={{color:"var(--text)"}}>Una pestaña por marca</strong> → órdenes detalladas<br/>
           <strong style={{color:"var(--text)"}}>Colaboradores</strong> → rendimiento individual
         </div>
+
+        {/* Advertencia si hay órdenes sin marca */}
+        {sinMarcaCount>0&&(
+          <div style={{background:"rgba(232,140,46,.1)",border:"1px solid rgba(232,140,46,.3)",borderRadius:8,padding:"8px 12px",marginBottom:16,fontSize:11,color:"var(--p-alta)",display:"flex",gap:8,alignItems:"flex-start"}}>
+            <Icon n="alerta" size={13} style={{flexShrink:0,marginTop:1}}/>
+            <span><strong>{sinMarcaCount} orden{sinMarcaCount!==1?"es":""} sin marca</strong> — no aparecerán en pestañas individuales. Asigna marca en cada orden para incluirlas.</span>
+          </div>
+        )}
 
         <div style={{display:"flex",gap:8}}>
           <button onClick={onClose}
