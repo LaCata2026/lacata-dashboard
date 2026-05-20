@@ -216,8 +216,7 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
   .hamburger{background:none;border:none;cursor:pointer;color:var(--text);font-size:20px;padding:6px;line-height:1;-webkit-tap-highlight-color:transparent}
   .page-content{padding:14px}
   .stat-grid{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
-  .stat-card{padding:14px 12px;border-radius:10px}.stat-value{font-size:26px}.stat-label{font-size:9px}.stat-sub{font-size:10px}
-  .task-card{padding:12px;border-radius:9px;margin-bottom:7px}
+  .stat-card{padding:14px 12px;border-radius:10px}.stat-value{font-size:26px}.stat-label{font-size:9px}.stat-sub{font-size:9px}
   .section-title{font-size:17px}.filter-bar{gap:5px;margin-bottom:10px}.filter-chip{padding:4px 10px;font-size:11px}
   .card{padding:14px;border-radius:10px}.modal{border-radius:14px 14px 0 0;padding:18px;max-height:90vh}
   .modal-overlay{align-items:flex-end;padding:0}.modal{border-radius:14px 14px 0 0;max-width:100%}
@@ -227,6 +226,67 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
   .cal-cell{min-height:60px;padding:3px}.cal-event{display:none}
   .cal-cell.has-events::after{content:'●';position:absolute;bottom:3px;right:3px;font-size:8px;color:var(--accent)}
   .quick-action{padding:10px 6px}.quick-action-icon{width:30px;height:30px}
+
+  /* ════════════════════════════════════════════════
+     COMPACT MÓVIL AGRESIVO — task-card como lista de email
+     Una sola línea por tarea. Oculta avatar, fechas relativas,
+     horas, "hace Nd" y botón "Ver detalle". Solo muestra:
+     · número de orden (chico)
+     · título (truncado)
+     · pill de estado (compacto)
+     Toda la tarjeta sigue clickeable.
+  ════════════════════════════════════════════════ */
+
+  /* Tarjeta compacta: padding mínimo, sin margen entre items */
+  .task-card{
+    padding:9px 12px;
+    margin-bottom:4px;
+    border-radius:7px;
+    transform:none!important;
+  }
+  .task-card:hover,.task-card:active{transform:none!important}
+  .task-card::after{display:none}
+
+  /* Reducir gap interno para que quepa más texto en una línea */
+  .task-card > div{gap:8px!important}
+
+  /* Truncar el título a una sola línea con ellipsis */
+  .task-card p{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    font-size:13px!important;
+  }
+
+  /* Avatar dentro de la tarjeta: ocultar para ganar espacio */
+  .task-card .avatar{display:none}
+
+  /* Pill compacta dentro de tarjeta */
+  .task-card .pill{
+    font-size:9px;
+    padding:2px 6px;
+    flex-shrink:0;
+  }
+
+  /* Ocultar "Ver detalle" / task-open-hint en móvil — la tarjeta entera es clickeable */
+  .task-card .task-open-hint{display:none}
+
+  /* Ocultar elementos secundarios marcados (la app los renderiza con esta class si los queremos esconder, pero como no las tienen, usamos selectores genéricos abajo) */
+
+  /* Texto secundario / fechas (segundo párrafo dentro de tarjeta): truncar más */
+  .task-card p:nth-of-type(2){
+    font-size:10px!important;
+    color:var(--muted)!important;
+  }
+
+  /* Status legend (la leyenda de colores arriba): ocultar para ganar vertical */
+  .status-legend{display:none}
+
+  /* Card containers internos: reducir su padding también */
+  .card{padding:12px}
+
+  /* Pills generales un poco más compactas */
+  .pill{font-size:9px;padding:2px 7px}
 }
 @media(max-width:480px){.stat-grid{grid-template-columns:repeat(2,1fr);gap:6px}.page-content{padding:10px}.pill{font-size:10px;padding:2px 7px}}
 @media(max-width:600px){.filter-bar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}.filter-bar::-webkit-scrollbar{display:none}}
