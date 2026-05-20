@@ -7,14 +7,12 @@ import Icon from'../components/Icon'
 import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
 import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
 import TaskCard from'./TaskCard'
-import{useIsMobile,CompactRow}from'./OrdenesView'
 function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
 
 // assignedOf — normaliza assigned_to a array (array | string | null → array)
 const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
 
 export default function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTask,me,token,onRefresh}){
-  const isMobile=useIsMobile();
   const [selectedTeam,setSelectedTeam]=useState("all");
   const [openMembers,setOpenMembers]=useState({});
   const filteredTeams=selectedTeam==="all"?teams:teams.filter(t=>t.id===selectedTeam);
@@ -110,9 +108,7 @@ export default function TeamsView({tasks,users,teams,onBack,onViewUser,onOpenTas
                         {mTasks.length===0
                           ?<p style={{fontSize:11,color:"var(--muted)",padding:6,textAlign:"center"}}>Sin tareas activas 🎉</p>
                           :mTasks.map(t=>(
-                            isMobile
-                              ?<CompactRow key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>
-                              :<TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>
+                            <TaskCard key={t.id} task={t} users={users} teams={teams} me={me} token={token} onRefresh={onRefresh}/>
                           ))
                         }
                       </div>
