@@ -89,9 +89,6 @@ export function AddChangeModal({task,token,onClose,onRefresh,me}){
 
 export async function duplicateTask(task,token,onRefresh){
   try{
-    // ── NÚMERO DE ORDEN ATÓMICO ──
-    // Antes: MAX(order_number)+1 → reutilizaba números si se borraban
-    // órdenes. Ahora: contador persistente en Supabase. Ver supabase.js.
     const orderNum=await sb.nextOrderNumber(token);
     const assigned=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
     await sb.insert("tareas",{
@@ -106,9 +103,6 @@ export async function duplicateTask(task,token,onRefresh){
   }catch(e){showToast("Error al duplicar: "+e.message,"error");}
 }
 
-// Campo "Otro motivo" para el diálogo de pausa: input + botón.
-// Se mantiene como componente aparte para tener su propio estado
-// sin re-renderizar el TaskCard completo en cada tecla.
 function OtherReasonInput({onSubmit}){
   const [open,setOpen]=useState(false);
   const [txt,setTxt]=useState("");
@@ -133,7 +127,6 @@ function OtherReasonInput({onSubmit}){
 
 export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=false,onForceClose=null}){
   const [modal,setModal]=useState(forceOpen);
-  // ── LOCAL STATUS for immediate visual feedback ──
   const [localStatus,setLocalStatus]=useState(task.status);
   useEffect(()=>setLocalStatus(task.status),[task.status]);
   const [editing,setEditing]=useState(false);
@@ -144,8 +137,8 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   const [mentionState,setMentionState]=useState({open:false,query:"",pos:0});
   const [showReassign,setShowReassign]=useState(false);
   const [showAddChange,setShowAddChange]=useState(false);
-  const [pausePrompt,setPausePrompt]=useState(false); // diálogo motivo de pausa
-  const [quickMenu,setQuickMenu]=useState(false); // menú rápido del pill de estado
+  const [pausePrompt,setPausePrompt]=useState(false);
+  const [quickMenu,setQuickMenu]=useState(false);
   const [imgPreview,setImgPreview]=useState(null);
   const textareaRef=useRef(null);
   const commentsEndRef=useRef(null);
@@ -162,8 +155,6 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   const comments=Array.isArray(task.comments)?task.comments:[];
   const isDir=me.role==="director"||me.role==="cuentas";
   const team=teams.find(t=>t.id===task.team_id);
-  // Estado efectivo (incluye el cambio local optimista) — usado para
-  // decidir si la fecha límite debe alertar o no.
   const effStatus=localStatus||task.status;
 
   const lastActivity=(()=>{
@@ -177,13 +168,21 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   })();
 
   async function changeStatus(s,pauseReason){
-    // Si se pausa y aún no hay motivo, abrir el diálogo en vez de ejecutar.
-    // El diálogo vuelve a llamar changeStatus("en_pausa", motivo).
-    if(s==="en_pausa"&&!pauseReason){
-      setPausePrompt(true);
-      return;
+    if(s==="en_pausa"&&!pauseReason){setPausePrompt(true);return;}
+
+    // ── ALERTA: sale de en_revision con fecha vencida ──
+    // Si la orden vuelve a un estado activo y su due_date ya pasó,
+    // avisar para que asignen nueva fecha. No bloquea el cambio.
+    const reactivating=task.status==="en_revision"&&(s==="en_progreso"||s==="pendiente")
+    if(reactivating&&task.due_date){
+      const today=new Date();today.setHours(0,0,0,0)
+      const due=new Date(task.due_date+"T00:00:00")
+      if(due<today){
+        showToast("⚠️ La fecha límite ya venció — asigna una nueva antes de continuar","warning")
+      }
     }
-    setLocalStatus(s); // ── immediate visual update ──
+
+    setLocalStatus(s);
     const btn=document.querySelector(`[data-status="${s}"]`);
     if(btn){btn.style.transform="scale(0.95)";setTimeout(()=>{btn.style.transform=""},200);}
     const now=new Date();const nowStr=now.toLocaleString("es-GT");const prev=task.status;
@@ -207,7 +206,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
       showToast("Estado: "+statusLabel[s],"success");
       onRefresh();
     }catch(e){
-      setLocalStatus(prev); // revert on error
+      setLocalStatus(prev);
       showToast("Error al cambiar estado: "+e.message,"error");
     }
   }
@@ -281,8 +280,6 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
             {task.order_number&&<span style={{fontSize:11,fontWeight:700,color:"var(--accent)",fontFamily:"monospace"}}>#{"AC-"+String(task.order_number).padStart(4,"0")}</span>}
             <span className={`pill ${prioPill[task.priority]||"pill-gray"}`}>{task.priority}</span>
             {(()=>{
-              // Mismos permisos que el modal: director/cuentas todo,
-              // colaborador solo si está asignado a la tarea.
               const canChange=isDir||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id);
               if(!canChange)return <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}>{statusLabel[effStatus]||task.status}</span>;
               const opts=[
@@ -299,7 +296,6 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
                     onClick={e=>{
                       e.stopPropagation();
                       if(quickMenu){setQuickMenu(false);return;}
-                      // Capturar posición del pill para anclar el menú (portal)
                       const r=e.currentTarget.getBoundingClientRect();
                       setQuickMenu({x:r.left,y:r.bottom+4});
                     }}
@@ -355,7 +351,6 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
         <span className="task-open-hint">Ver detalle <Icon n="flecha_der" size={11}/></span>
       </div>
 
-      {/* TASK DETAIL MODAL */}
       {modal&&(
         <ModalPortal>
         <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget){setModal(false);if(onForceClose)onForceClose();}}}>
@@ -381,7 +376,6 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
               </div>
             </div>
 
-            {/* STATUS BUTTONS */}
             {(isDir||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id))&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
                 {[
@@ -486,7 +480,6 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
               </div>
             )}
 
-            {/* TABS */}
             <div style={{display:"flex",gap:0,borderBottom:"1px solid var(--border)",marginBottom:14,marginTop:6}}>
               {[{v:"detalles",icon:"detalles",c:(task.history||[]).length},{v:"conversacion",icon:"comentar",c:comments.length}].map(t=>(
                 <button key={t.v} onClick={()=>setActiveTab(t.v)}
