@@ -17,20 +17,15 @@ export const fmtDate=d=>{if(!d)return"—";const[y,m,dd]=d.split("-");return`${d
 /**
  * fmtDateRelative — etiqueta de fecha límite relativa al hoy.
  *
- * @param {string} d       fecha límite (YYYY-MM-DD)
- * @param {string} status  estado de la tarea (opcional). Si la tarea ya está
- *                          "completada", NO se muestra alerta de vencimiento —
- *                          una tarea terminada no debe generar pánico aunque
- *                          su fecha límite haya pasado. Se muestra la fecha
- *                          plana en color neutro.
- *
- * Retorna {label, color, urgent}.
+ * Statuses "congelados" (en_revision, completada): la fecha límite no genera
+ * alerta. En revisión = está en manos del cliente, el reloj se pausa.
+ * Completada = ya terminó, no importa si venció.
  */
 export const fmtDateRelative=(d,status)=>{
   if(!d)return{label:"—",color:"var(--muted)",urgent:false}
-  // Tarea completada: la fecha límite ya no es relevante como alerta.
-  // Mostramos solo la fecha en gris, sin "Venció hace" ni urgencia.
-  if(status==="completada")return{label:fmtDate(d),color:"var(--muted)",urgent:false}
+  // Statuses donde la fecha límite no genera alerta
+  if(status==="completada"||status==="en_revision")
+    return{label:fmtDate(d),color:"var(--muted)",urgent:false}
   const today=new Date();today.setHours(0,0,0,0)
   const due=new Date(d+"T00:00:00")
   const diff=Math.round((due-today)/(1000*60*60*24))
@@ -41,6 +36,7 @@ export const fmtDateRelative=(d,status)=>{
   if(diff<=7)return{label:`${diff} días`,color:"var(--muted2)",urgent:false}
   return{label:fmtDate(d),color:"var(--muted)",urgent:false}
 }
+
 export function useSessionFilters(key,defaults){
   const stored=(()=>{try{const v=sessionStorage.getItem("sf_"+key);return v?JSON.parse(v):defaults}catch{return defaults}})()
   const[state,setState]=useState(stored)
@@ -48,12 +44,18 @@ export function useSessionFilters(key,defaults){
   return[state,set]
 }
 
+/**
+ * autoMarkVencidas — marca tareas como vencidas cuando su due_date ya pasó.
+ * Excluye: completada, vencida, en_revision (está en manos del cliente —
+ * el reloj se pausa hasta que regrese a en_progreso o pendiente).
+ */
 export async function autoMarkVencidas(tasks, token, sb) {
   const today = new Date(); today.setHours(0,0,0,0);
   const toMark = tasks.filter(t =>
     t.due_date &&
     t.status !== "completada" &&
     t.status !== "vencida" &&
+    t.status !== "en_revision" &&
     new Date(t.due_date + "T00:00:00") < today
   );
   if (toMark.length === 0) return false;
@@ -66,19 +68,6 @@ export async function autoMarkVencidas(tasks, token, sb) {
   return true;
 }
 
-/**
- * assignedOf — helper único para normalizar el campo assigned_to.
- *
- * La BD puede guardar assigned_to como:
- *   - array:  ["uuid1","uuid2"]   (asignación múltiple)
- *   - string: "uuid1"             (asignación simple, legacy)
- *   - null/undefined              (sin asignar)
- *
- * Siempre devuelve un array de strings (puede ser vacío), nunca null.
- *
- * Uso:  assignedOf(task).includes(userId)
- *       assignedOf(task).map(id => users.find(u => u.id === id))
- */
 export const assignedOf = t =>
   Array.isArray(t.assigned_to)
     ? t.assigned_to
