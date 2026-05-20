@@ -13,7 +13,21 @@ export const Realtime={
       ;["tareas","usuarios","equipos"].forEach(table=>{this.ws.send(JSON.stringify({topic:"realtime:public:"+table,event:"phx_join",payload:{config:{broadcast:{self:false},presence:{key:""},postgres_changes:[{event:"*",schema:"public",table}]}},ref:"join_"+table}))})
       this._heartbeat=setInterval(()=>{if(this.ws.readyState===WebSocket.OPEN)this.ws.send(JSON.stringify({topic:"phoenix",event:"heartbeat",payload:{},ref:"hb"}))},20000)
     }
-    this.ws.onmessage=(e)=>{try{const msg=JSON.parse(e.data);if(msg.payload?.data?.table){const ev=msg.payload.data;if(this.callbacks[ev.table])this.callbacks[ev.table].forEach(fn=>fn(ev))};if(msg.event==="postgres_changes"&&msg.payload){const table=msg.payload.data?.table;if(table&&this.callbacks[table])this.callbacks[table].forEach(fn=>fn(msg.payload.data||msg.payload))}}catch{}}
+    // ── FIX: antes este handler disparaba los callbacks DOS VECES por evento.
+    // Tenía dos `if` separados que matcheaban el mismo mensaje (uno por
+    // msg.payload?.data?.table y otro por msg.event==="postgres_changes").
+    // Ahora se procesa UNA sola vez: extraemos el event data y disparamos.
+    this.ws.onmessage=(e)=>{
+      try{
+        const msg=JSON.parse(e.data)
+        // Supabase Realtime envía el cambio en msg.payload.data, ya sea como
+        // mensaje suelto o envuelto en event:"postgres_changes". Lo unificamos.
+        const ev=msg?.payload?.data
+        if(!ev||!ev.table)return
+        const cbs=this.callbacks[ev.table]
+        if(cbs&&cbs.length)cbs.forEach(fn=>fn(ev))
+      }catch{}
+    }
     this.ws.onerror=()=>{window._realtimeConnected=false}
     this.ws.onclose=()=>{clearInterval(this._heartbeat);window._realtimeConnected=false;if(!this._manualClose){this._reconnectTimer=setTimeout(()=>{this._reconnectDelay=Math.min(this._reconnectDelay*1.5,30000);this.connect(this._token)},this._reconnectDelay)}}
   },
