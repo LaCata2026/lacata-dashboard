@@ -3,8 +3,6 @@
   --bg:#0d0d0d;--bg2:#141414;--bg3:#1c1c1c;--bg4:#242424;
   --border:#2a2a2a;--border2:#383838;
   --text:#f0ede8;
-  /* --muted antes era #5a5a5a (ratio 3.5:1, falla WCAG AA).
-     Subido a #7a7a7a para texto secundario legible (ratio 4.6:1, AA OK). */
   --muted:#7a7a7a;--muted2:#9a9a9a;
   --accent:#e8c547;--accent2:#f0d060;
   --accent-dim:rgba(232,197,71,.1);--accent-glow:rgba(232,197,71,.22);
@@ -29,7 +27,6 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
 body.light{
   --bg:#f5f4f0;--bg2:#ffffff;--bg3:#f0efe9;--bg4:#e8e6df;
   --border:#dddad0;--border2:#c8c4b8;--text:#1a1915;
-  /* Modo claro: --muted ya era 8a8880 (OK para AA). Lo dejamos. */
   --muted:#8a8880;--muted2:#5a5850;
   --accent:#c49a0a;--accent2:#d4aa1a;--accent-dim:rgba(196,154,10,.1);--accent-glow:rgba(196,154,10,.2);
   --s-pendiente:#4a67b0;--s-pendiente-bg:rgba(74,103,176,.1);
@@ -63,12 +60,21 @@ select option{background:var(--bg3)}
 textarea{resize:vertical;min-height:80px;line-height:1.6}
 input[type="file"]{display:none}input[type="date"]{color-scheme:dark}
 button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;font-size:14px;-webkit-tap-highlight-color:transparent}
+/* ── #4 ACTIVE STATE — feedback táctil en móvil ── */
+button:active:not(:disabled){opacity:.75;transform:scale(.97)}
 .btn{padding:9px 18px;border-radius:8px;font-weight:500;letter-spacing:.01em}
 .btn-primary{background:var(--accent);color:#0d0d0d;font-weight:700}.btn-primary:hover{background:var(--accent2);transform:translateY(-1px);box-shadow:0 4px 16px var(--accent-glow)}
+.btn-primary:active{transform:translateY(0)!important;box-shadow:none!important}
 .btn-ghost{background:transparent;color:var(--muted2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.btn-ghost:active{background:var(--bg4)!important}
 .btn-danger{background:rgba(240,107,107,.1);color:#f06b6b;border:1px solid rgba(240,107,107,.2)}.btn-danger:hover{background:rgba(240,107,107,.2)}
+.btn-danger:active{background:rgba(240,107,107,.3)!important}
 .btn-green{background:rgba(62,207,142,.1);color:#3ecf8e;border:1px solid rgba(62,207,142,.2)}.btn-green:hover{background:rgba(62,207,142,.2)}
 .btn-sm{padding:5px 12px;font-size:12px;border-radius:6px}
+.filter-chip:active{opacity:.7;transform:scale(.96)}
+.nav-item:active{background:var(--bg4)!important;transform:scale(.98)}
+.quick-action:active{transform:translateY(0) scale(.97)!important}
+.task-card:active{transform:translateX(1px)!important}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;letter-spacing:.05em;text-transform:uppercase}
 .pill-pendiente{background:var(--s-pendiente-bg);color:var(--s-pendiente)}
@@ -141,6 +147,18 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes slideInLeft{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
 @keyframes scaleIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+/* ── #5 REALTIME BADGE — parpadeo lento cuando está desconectado ── */
+@keyframes realtimePulse{0%,100%{opacity:1}50%{opacity:.35}}
+.realtime-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:9px;font-family:var(--font-mono);font-weight:700;
+  padding:2px 6px;border-radius:4px;
+  background:rgba(232,93,93,.15);color:var(--s-vencida);
+  border:1px solid rgba(232,93,93,.25);
+  animation:realtimePulse 2s ease-in-out infinite;
+  letter-spacing:.04em;
+}
+.realtime-badge::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--s-vencida);flex-shrink:0}
 .fade-in{animation:fadeIn .22s cubic-bezier(.4,0,.2,1)}
 .task-card.fade-in{animation:fadeInOpacity .22s ease}
 .page-enter{animation:slideInLeft .2s cubic-bezier(.4,0,.2,1)}
@@ -206,7 +224,7 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
 .av-clickable:hover{transform:scale(1.1);box-shadow:0 0 0 2px var(--accent)}
 .collab-profile-btn{display:flex;align-items:center;gap:8px;background:transparent;border:none;cursor:pointer;padding:4px 8px;border-radius:7px;transition:.13s;font-family:var(--font-body);width:100%;text-align:left}
 .collab-profile-btn:hover{background:var(--bg3)}
-.color-swatch{width:26px;height:26px;border-radius:5px;cursor:pointer;border:2px solid transparent;transition:.15s;flex-shrink:0}
+.color-swatch{width:26px;height:26px;border-radius:5px;cursor:pointer;border:2px solid transparent;transition:.15px;flex-shrink:0}
 .color-swatch.selected{border-color:#f2f0eb;transform:scale(1.15)}
 .color-swatch:hover{transform:scale(1.1)}
 .modal-title{font-size:18px;font-weight:700;margin-bottom:18px;font-family:var(--font-display);letter-spacing:-.02em}
@@ -250,5 +268,4 @@ button{border:none;cursor:pointer;font-family:var(--font-body);transition:.15s;f
 }
 @media(max-width:480px){.stat-grid{grid-template-columns:repeat(2,1fr);gap:6px}.page-content{padding:10px}.pill{font-size:10px;padding:2px 7px}}
 @media(max-width:600px){.filter-bar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}.filter-bar::-webkit-scrollbar{display:none}}
-
 .mobile-bottom-nav{display:none}@media(max-width:768px){.sidebar{display:none!important}.mobile-topbar{display:none!important}.main-content{margin-left:0!important;padding-bottom:72px!important;padding-top:0!important}.mobile-bottom-nav{display:block}}
