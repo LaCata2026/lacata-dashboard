@@ -1,7 +1,7 @@
 import{useState,useEffect,useCallback,useMemo,useRef}from'react'
 import{sb}from'../lib/supabase'
 import{Realtime}from'../lib/realtime'
-import{NAV}from'../lib/utils'
+import{NAV,autoMarkVencidas}from'../lib/utils'
 import{useNotifications}from'../lib/notifications'
 import Icon from'./Icon'
 import{Av}from'./Shared'
@@ -39,7 +39,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const[loading,setLoading]=useState(true)
   const[sidebarOpen,setSidebarOpen]=useState(false)
   const[spotlight,setSpotlight]=useState(false)
-  // floatTaskId: guardamos el ID, no el objeto — así siempre mostramos datos frescos
   const[floatTaskId,setFloatTaskId]=useState(null)
   const[showNotif,setShowNotif]=useState(false)
   const[showDiag,setShowDiag]=useState(false)
@@ -50,7 +49,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const load=useCallback(async()=>{
     try{
       const cutoff=new Date(Date.now()-60*24*3600000).toISOString()
-      // order=created_at.desc garantiza que las más nuevas llegan primero
       const taskQuery="select=*&order=created_at.desc&or=(status.neq.completada,created_at.gte."+cutoff+")"
       const[t,u,tm]=await Promise.all([
         sb.get("tareas",taskQuery,token),
@@ -59,6 +57,14 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       ])
       if(!Array.isArray(t)||t[0]?.code==="PGRST301")throw new Error("SESSION_EXPIRED")
       setTasks(t);setUsers(u);setTeams(tm)
+
+      // ── AUTO-MARCAR VENCIDAS ──
+      // Corre silenciosamente después de cargar. Si hay tareas con fecha
+      // pasada (en_progreso, pendiente, en_pausa) las marca como "vencida"
+      // en Supabase y dispara un reload vía Realtime automáticamente.
+      // en_revision está excluida (reloj congelado mientras espera cliente).
+      autoMarkVencidas(t,token,sb).catch(e=>console.warn("autoMark:",e))
+
     }catch(e){if(e.message==="SESSION_EXPIRED")onLogout()}
     finally{setLoading(false)}
   },[token])
@@ -73,6 +79,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   useEffect(()=>{load()},[load])
 
   // Realtime — debounced 800ms
+  // El autoMarkVencidas escribe en Supabase → dispara evento realtime →
+  // load() se ejecuta de nuevo → UI muestra el status actualizado.
   const reloadTimer=useRef(null)
   useEffect(()=>{
     function schedule(){
@@ -85,7 +93,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     return()=>{clearTimeout(reloadTimer.current);unsubs.forEach(u=>u())}
   },[load])
 
-  // Exponer _openTask globalmente (para PushNotif callbacks)
   useEffect(()=>{
     window._openTask=(t)=>setFloatTaskId(t?.id||null)
     return()=>{delete window._openTask}
@@ -103,7 +110,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     setPage(id);setPageArg(arg);setSidebarOpen(false)
   },[])
 
-  // floatTask siempre fresco: buscamos en tasks por ID en cada render
   const floatTask=useMemo(()=>floatTaskId?tasks.find(t=>t.id===floatTaskId)||null:null,[floatTaskId,tasks])
 
   const navItems=NAV.filter(n=>n.roles.includes(profile.role))
