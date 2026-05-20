@@ -43,9 +43,6 @@ export function exportExcel(tasks,users,teams){
 }
 
 export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter,initialView}){
-  // Default = lista para todos los roles. La lista permite escanear
-  // urgencia de un vistazo (el Kanban obliga a scroll horizontal y
-  // columnas vacías). El Kanban sigue disponible como opción.
   const [viewMode,setViewMode]=useSessionFilters("ordenes_view",initialView||"lista");
   const [sf,setSf]=useSessionFilters("ordenes_status",initialFilter||"todas");
   const [tf,setTf]=useSessionFilters("ordenes_team","todas");
@@ -56,10 +53,7 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
   const isDir=me.role==="director";
   const isCuentas=me.role==="cuentas";
   const isCollab=me.role==="colaborador";
-  // El colaborador SIEMPRE ve lista — no necesita Kanban/Equipos/Calendario.
-  // Forzamos el modo sin importar lo que tenga guardado en sesión.
   const effectiveView=isCollab?"lista":viewMode;
-  // ── CUENTAS SCOPE ──
   const myTeamIds=isCuentas?(Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:[me.team_id].filter(Boolean)):null;
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams;
 
@@ -95,8 +89,6 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
 
   function KanbanCard({t}){
     const assigned=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);
-    // Pasamos t.status: si la orden está completada, fmtDateRelative no
-    // genera alerta de vencimiento (no debe crear pánico una tarea ya hecha).
     const dr=fmtDateRelative(t.due_date,t.status);
     const canDrag=(isDir||isCuentas||assigned.includes(me.id));
     return(
@@ -190,7 +182,7 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
                 ?<p>Aún no tienes órdenes asignadas. Cuando te asignen una, aparecerá aquí.</p>
                 :<>
                    <p>Todavía no hay órdenes de trabajo.</p>
-                   {isDir&&<p style={{fontSize:12,color:"var(--muted)",marginTop:6}}>Usa “Nueva orden” en el menú lateral para crear la primera.</p>}
+                   {isDir&&<p style={{fontSize:12,color:"var(--muted)",marginTop:6}}>Usa "Nueva orden" en el menú lateral para crear la primera.</p>}
                  </>
             }
           </div>
