@@ -125,7 +125,7 @@ function OtherReasonInput({onSubmit}){
   );
 }
 
-export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=false,onForceClose=null}){
+export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=false,onForceClose=null,allTasks=[],...props}){
   const [modal,setModal]=useState(forceOpen);
   const [localStatus,setLocalStatus]=useState(task.status);
   useEffect(()=>setLocalStatus(task.status),[task.status]);
@@ -140,8 +140,44 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   const [pausePrompt,setPausePrompt]=useState(false);
   const [quickMenu,setQuickMenu]=useState(false);
   const [imgPreview,setImgPreview]=useState(null);
+  // Para asignar marca inline
+  const [marcaInput,setMarcaInput]=useState("");
+  const [savingMarca,setSavingMarca]=useState(false);
+  const [marcasDB,setMarcasDB]=useState([...MARCAS_PREDEFINIDAS].sort());
   const textareaRef=useRef(null);
   const commentsEndRef=useRef(null);
+
+  const sinMarca=!task.marca||!task.marca.trim()
+  const isDir=me.role==="director"||me.role==="cuentas";
+
+  // Cargar marcas disponibles cuando se abre el modal en una orden sin marca
+  useEffect(()=>{
+    if(!modal||!sinMarca||!isDir)return
+    async function load(){
+      try{
+        const list=await sb.getMarcasDB(token)
+        if(Array.isArray(list))setMarcasDB(list)
+      }catch{}
+    }
+    load()
+  },[modal,sinMarca,isDir,token])
+
+  async function saveMarca(){
+    const m=(marcaInput||"").trim()
+    if(!m)return
+    setSavingMarca(true)
+    try{
+      const h=[...(task.history||[]),`Marca asignada: "${m}" por ${me.name} — ${new Date().toLocaleString("es-GT")}`]
+      await sb.update("tareas",task.id,{marca:m,history:h},token)
+      // Si es marca nueva, guardarla en BD
+      if(!marcasDB.includes(m)){
+        try{await sb.addMarcaDB(m,token,me?.id)}catch{}
+      }
+      showToast("Marca asignada: "+m,"success")
+      onRefresh()
+    }catch(e){showToast("Error: "+e.message,"error")}
+    setSavingMarca(false)
+  }
 
   useEffect(()=>{
     function onKey(e){if(e.key==="Escape"){setModal(false);setEditing(false);setImgPreview(null);}}
@@ -153,12 +189,11 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
   },[activeTab,task.comments?.length]);
 
   const comments=Array.isArray(task.comments)?task.comments:[];
-  const isDir=me.role==="director"||me.role==="cuentas";
   const team=teams.find(t=>t.id===task.team_id);
   const effStatus=localStatus||task.status;
 
   const lastActivity=(()=>{
-    const hist=task.history||[];const cs=Array.isArray(task.comments)?task.comments:[];
+    const cs=Array.isArray(task.comments)?task.comments:[];
     let latest=task.created_at?new Date(task.created_at):null;
     cs.forEach(c=>{const d=new Date(c.created_at);if(!latest||d>latest)latest=d;});
     if(!latest)return null;
@@ -169,19 +204,12 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
 
   async function changeStatus(s,pauseReason){
     if(s==="en_pausa"&&!pauseReason){setPausePrompt(true);return;}
-
-    // ── ALERTA: sale de en_revision con fecha vencida ──
-    // Si la orden vuelve a un estado activo y su due_date ya pasó,
-    // avisar para que asignen nueva fecha. No bloquea el cambio.
     const reactivating=task.status==="en_revision"&&(s==="en_progreso"||s==="pendiente")
     if(reactivating&&task.due_date){
       const today=new Date();today.setHours(0,0,0,0)
       const due=new Date(task.due_date+"T00:00:00")
-      if(due<today){
-        showToast("⚠️ La fecha límite ya venció — asigna una nueva antes de continuar","warning")
-      }
+      if(due<today)showToast("⚠️ La fecha límite ya venció — asigna una nueva antes de continuar","warning")
     }
-
     setLocalStatus(s);
     const btn=document.querySelector(`[data-status="${s}"]`);
     if(btn){btn.style.transform="scale(0.95)";setTimeout(()=>{btn.style.transform=""},200);}
@@ -203,18 +231,12 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
       started_at:s==="en_progreso"?now.toISOString():(prev==="en_progreso"?null:task.started_at||null)};
     try{
       await sb.update("tareas",task.id,updates,token);
-      showToast("Estado: "+statusLabel[s],"success");
-      onRefresh();
-    }catch(e){
-      setLocalStatus(prev);
-      showToast("Error al cambiar estado: "+e.message,"error");
-    }
+      showToast("Estado: "+statusLabel[s],"success");onRefresh();
+    }catch(e){setLocalStatus(prev);showToast("Error al cambiar estado: "+e.message,"error");}
   }
 
   async function del(){
-    const ok=await showConfirm(`¿Eliminar "${task.title}"?`,{
-      title:"Eliminar orden",confirmLabel:"Sí, eliminar",confirmColor:"var(--s-vencida)",
-      detail:`Esta acción no se puede deshacer. AC-${String(task.order_number||0).padStart(4,"0")}`});
+    const ok=await showConfirm(`¿Eliminar "${task.title}"?`,{title:"Eliminar orden",confirmLabel:"Sí, eliminar",confirmColor:"var(--s-vencida)",detail:`Esta acción no se puede deshacer. AC-${String(task.order_number||0).padStart(4,"0")}`});
     if(!ok)return;
     const files=Array.isArray(task.files)?task.files:[];
     for(const f of files){if(typeof f==="object"&&f.path){try{await sb.deleteFile(f.path);}catch(e){console.warn("No se pudo borrar archivo:",f.path);}}}
@@ -265,10 +287,13 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
     if(e.key==="Escape"&&mentionState.open){e.preventDefault();setMentionState({open:false,query:"",pos:0});}
   }
 
+  // Marcas disponibles: BD + las que existen en tareas
+  const existingMarcas=[...new Set([...marcasDB,...(allTasks||[]).map(t=>t.marca).filter(Boolean)])].sort()
+
   return(
     <div className="task-card fade-in" style={{
       cursor:"pointer",
-      borderLeft:`3px solid ${statusColor[effStatus]||"var(--border2)"}`,
+      borderLeft:`3px solid ${sinMarca&&isDir?"var(--yellow)":(statusColor[effStatus]||"var(--border2)")}`,
       paddingLeft:15,
       opacity:localStatus==="completada"?0.5:1,
       transition:"opacity .2s, border-left-color .2s",
@@ -283,34 +308,23 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
               const canChange=isDir||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id);
               if(!canChange)return <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}>{statusLabel[effStatus]||task.status}</span>;
               const opts=[
-                {v:"pendiente",label:"Pendiente"},
-                {v:"en_progreso",label:"En progreso"},
-                {v:"en_pausa",label:"En pausa"},
-                {v:"en_revision",label:"Revisión"},
+                {v:"pendiente",label:"Pendiente"},{v:"en_progreso",label:"En progreso"},
+                {v:"en_pausa",label:"En pausa"},{v:"en_revision",label:"Revisión"},
                 {v:"completada",label:"Completada"},
                 ...(isDir?[{v:"vencida",label:"Vencida"}]:[])
               ];
               return(
                 <span style={{display:"inline-flex"}}>
                   <span className={`pill ${statusPill[effStatus]||"pill-gray"}`}
-                    onClick={e=>{
-                      e.stopPropagation();
-                      if(quickMenu){setQuickMenu(false);return;}
-                      const r=e.currentTarget.getBoundingClientRect();
-                      setQuickMenu({x:r.left,y:r.bottom+4});
-                    }}
-                    style={{cursor:"pointer",userSelect:"none"}}
-                    title="Cambiar estado">
+                    onClick={e=>{e.stopPropagation();if(quickMenu){setQuickMenu(false);return;}const r=e.currentTarget.getBoundingClientRect();setQuickMenu({x:r.left,y:r.bottom+4});}}
+                    style={{cursor:"pointer",userSelect:"none"}} title="Cambiar estado">
                     {statusLabel[effStatus]||task.status} <span style={{opacity:.5,fontSize:8,marginLeft:2}}>▼</span>
                   </span>
                   {quickMenu&&ReactDOM.createPortal(
-                    <div style={{position:"fixed",inset:0,zIndex:600}}
-                      onClick={e=>{e.stopPropagation();setQuickMenu(false);}}>
-                      <div onClick={e=>e.stopPropagation()}
-                        style={{position:"fixed",top:quickMenu.y,left:quickMenu.x,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:8,padding:4,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,.4)",display:"flex",flexDirection:"column",gap:1}}>
+                    <div style={{position:"fixed",inset:0,zIndex:600}} onClick={e=>{e.stopPropagation();setQuickMenu(false);}}>
+                      <div onClick={e=>e.stopPropagation()} style={{position:"fixed",top:quickMenu.y,left:quickMenu.x,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:8,padding:4,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,.4)",display:"flex",flexDirection:"column",gap:1}}>
                         {opts.map(o=>(
-                          <span key={o.v}
-                            onClick={e=>{e.stopPropagation();setQuickMenu(false);if(o.v!==effStatus)changeStatus(o.v);}}
+                          <span key={o.v} onClick={e=>{e.stopPropagation();setQuickMenu(false);if(o.v!==effStatus)changeStatus(o.v);}}
                             style={{padding:"7px 12px",borderRadius:5,fontSize:12,cursor:"pointer",color:o.v===effStatus?"var(--accent)":"var(--text)",fontWeight:o.v===effStatus?700:400,background:o.v===effStatus?"var(--accent-dim)":"transparent",fontFamily:"var(--font-body)",whiteSpace:"nowrap",transition:".1s"}}
                             onMouseEnter={ev=>{if(o.v!==effStatus)ev.currentTarget.style.background="var(--bg3)";}}
                             onMouseLeave={ev=>{if(o.v!==effStatus)ev.currentTarget.style.background="transparent";}}>
@@ -324,6 +338,8 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
                 </span>
               );
             })()}
+            {/* Badge sin marca — solo para director/cuentas */}
+            {sinMarca&&isDir&&<span className="pill" style={{background:"rgba(232,197,71,.15)",color:"var(--yellow)",border:"1px solid rgba(232,197,71,.3)"}}><Icon n="alerta" size={9}/> Sin marca</span>}
             {task.changes>0&&<span className="pill pill-purple"><Icon n="cambio" size={10}/> {task.changes}</span>}
             {(()=>{
               const files=Array.isArray(task.files)?task.files:[];if(files.length===0)return null;
@@ -341,9 +357,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
           <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:12,color:"var(--muted)",alignItems:"center"}}>
             {(()=>{const al=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);return al.map(id=>users.find(u=>u.id===id)).filter(Boolean).map(u=>(<span key={u.id} style={{display:"flex",alignItems:"center",gap:4}}><Av u={u} size={18}/><span>{u.name}</span></span>));})()}
             {(()=>{const dr=fmtDateRelative(task.due_date,effStatus);return(<span style={{color:dr.color,fontWeight:dr.urgent?700:400,background:dr.urgent?"rgba(240,107,107,.08)":"transparent",padding:dr.urgent?"2px 6px":"0",borderRadius:5}}><Icon n="tiempo" size={11} style={{marginRight:3}}/>{dr.label}</span>);})()}
-            {localStatus==="en_progreso"&&task.started_at
-              ?<ActiveTimer startedAt={task.started_at} hoursReal={task.hours_real}/>
-              :task.hours>0&&<span>⏱ {task.hours}h</span>}
+            {localStatus==="en_progreso"&&task.started_at?<ActiveTimer startedAt={task.started_at} hoursReal={task.hours_real}/>:task.hours>0&&<span>⏱ {task.hours}h</span>}
             {task.hours_real>0&&localStatus!=="en_progreso"&&<span style={{color:"var(--s-completada)"}}>✓ {task.hours_real}h real</span>}
             {lastActivity&&<span style={{color:"var(--muted)",fontSize:11}}>{lastActivity}</span>}
           </div>
@@ -375,6 +389,31 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
                 <button onClick={(e)=>{e.stopPropagation();setModal(false);setEditing(false);if(onForceClose)onForceClose();}} style={{background:"var(--bg3)",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"4px 10px",borderRadius:8}}>✕</button>
               </div>
             </div>
+
+            {/* ── ALERTA MARCA FALTANTE — solo director/cuentas, solo si no tiene marca ── */}
+            {sinMarca&&isDir&&(
+              <div style={{background:"rgba(232,197,71,.08)",border:"1px solid rgba(232,197,71,.3)",borderRadius:10,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <Icon n="alerta" size={14} color="var(--yellow)"/>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--yellow)",flex:1}}>Esta orden no tiene marca asignada</span>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <select value={marcaInput} onChange={e=>setMarcaInput(e.target.value)}
+                    style={{fontSize:12,padding:"5px 10px",borderRadius:7,border:"1px solid rgba(232,197,71,.4)",background:"var(--bg3)",color:"var(--text)",width:"auto",minWidth:160}}>
+                    <option value="">— Seleccionar marca —</option>
+                    {existingMarcas.map(m=><option key={m} value={m}>{m}</option>)}
+                    <option value="__nueva__">✏️ Escribir nueva…</option>
+                  </select>
+                  {marcaInput==="__nueva__"&&(
+                    <input autoFocus placeholder="Nombre de la marca" value={marcaInput==="__nueva__"?"":marcaInput}
+                      onChange={e=>setMarcaInput(e.target.value)}
+                      style={{fontSize:12,padding:"5px 10px",borderRadius:7,border:"1px solid rgba(232,197,71,.4)",background:"var(--bg3)",color:"var(--text)",width:160}}/>
+                  )}
+                  <button onClick={saveMarca} disabled={!marcaInput||marcaInput==="__nueva__"||savingMarca}
+                    style={{fontSize:12,fontWeight:700,padding:"5px 14px",borderRadius:7,border:"none",background:"var(--accent)",color:"#0d0d0d",cursor:(!marcaInput||marcaInput==="__nueva__")?"not-allowed":"pointer",opacity:(!marcaInput||marcaInput==="__nueva__")?.5:1,fontFamily:"var(--font-body)"}}>
+                    {savingMarca?"...":"Asignar"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {(isDir||(Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to]).includes(me.id))&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
