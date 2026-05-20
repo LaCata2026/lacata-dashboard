@@ -270,7 +270,7 @@ export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=
       cursor:"pointer",
       borderLeft:`3px solid ${statusColor[effStatus]||"var(--border2)"}`,
       paddingLeft:15,
-      opacity:(localStatus==="completada"&&me.role!=="director"&&me.role!=="cuentas")?0.6:1,
+      opacity:localStatus==="completada"?0.5:1,
       transition:"opacity .2s, border-left-color .2s",
       outline:task.priority==="Urgente"?`1px solid ${statusColor.vencida}33`:"none",
     }} onClick={()=>setModal(true)}>
