@@ -13,13 +13,8 @@ const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].f
 
 /* ═══════════════════════════════════════════
    TARJETA "TU SEMANA" — COLABORADOR
-   Fila 1: métricas de logro (completadas/eficiencia/racha)
-   Fila 2: contadores operativos (activas/revisión/vencidas)
-   Es el ÚNICO bloque de métricas del colaborador — todo lo
-   demás se eliminó por redundante. Tono de logro, no vigilancia.
 ═══════════════════════════════════════════ */
 function MyWeekCard({me,tasks,onNavigate}){
-  // Rango de la semana actual (lunes 00:00 → domingo 23:59)
   const now=new Date()
   const day=now.getDay()
   const diffToMon=now.getDate()-day+(day===0?-6:1)
@@ -28,7 +23,6 @@ function MyWeekCard({me,tasks,onNavigate}){
 
   const mine=tasks.filter(t=>assignedOf(t).includes(me.id))
 
-  // ── Métricas de logro (semana actual) ──
   const doneThisWeek=mine.filter(t=>{
     if(t.status!=="completada")return false
     const ref=t.updated_at?new Date(t.updated_at):(t.created_at?new Date(t.created_at):null)
@@ -56,8 +50,7 @@ function MyWeekCard({me,tasks,onNavigate}){
     return Math.max(0,Math.min(99,Math.floor((now-lastOverdue)/(1000*60*60*24))))
   })()
 
-  // ── Contadores operativos (estado actual, no por semana) ──
-  const activas=mine.filter(t=>t.status!=="completada").length
+  const activas=mine.filter(t=>!["completada"].includes(t.status)).length
   const enRevision=mine.filter(t=>t.status==="en_revision").length
   const vencidas=mine.filter(t=>t.status==="vencida").length
 
@@ -108,14 +101,12 @@ function MyWeekCard({me,tasks,onNavigate}){
         </span>
       </div>
 
-      {/* Fila 1 — métricas de logro */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
         <Metric val={doneThisWeek.length} label="Completadas" color="var(--s-completada)" tip="Órdenes que terminaste esta semana (lunes a domingo)"/>
         <Metric val={efic==null?"—":efic+"%"} label="Eficiencia" color={efic==null?"var(--muted)":efic>=90?"var(--s-completada)":efic>=70?"var(--yellow)":"var(--accent)"} tip="Horas estimadas vs. horas reales. 100% = trabajaste justo lo previsto"/>
         <Metric val={`${streak}${streak>=7?" 🔥":""}`} label="Días sin atraso" color={streak>=7?"var(--accent)":"var(--text)"} tip="Días seguidos sin que se te venza ninguna tarea"/>
       </div>
 
-      {/* Fila 2 — contadores operativos (clickeables) */}
       <div style={{display:"flex",alignItems:"center",gap:4,marginTop:12,paddingTop:12,borderTop:"1px solid var(--border)"}}>
         <OpCount val={activas} label={activas===1?"activa":"activas"} color="var(--blue)" onClick={()=>onNavigate&&onNavigate("ordenes")}/>
         <div style={{width:1,height:24,background:"var(--border)"}}/>
@@ -127,20 +118,152 @@ function MyWeekCard({me,tasks,onNavigate}){
   )
 }
 
+/* ═══════════════════════════════════════════
+   SEÑAL DEL DÍA — solo DIRECTOR
+   Una sola tarjeta compacta arriba del Home.
+   Jerarquía: vencidas > vence48h > sobrecargados > todo bien.
+   Si no hay riesgo → mensaje positivo, no se oculta (evita
+   que el director piense que se rompió algo).
+═══════════════════════════════════════════ */
+function DailySignal({tasks,users,collabs,onNavigate,onOpenTask,onViewUser}){
+  const now=new Date()
+  const in48h=new Date(now.getTime()+48*3600000)
+
+  const vencidas=tasks.filter(t=>t.status==="vencida")
+  const dueSoon=tasks.filter(t=>{
+    if(t.status==="completada"||t.status==="vencida")return false
+    if(!t.due_date)return false
+    const d=new Date(t.due_date+"T23:59:59")
+    return d>=now&&d<=in48h
+  }).sort((a,b)=>new Date(a.due_date)-new Date(b.due_date))
+  const sobrecargados=collabs.map(u=>({
+    u,
+    n:tasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada"}).length
+  })).filter(x=>x.n>=7).sort((a,b)=>b.n-a.n)
+
+  // Determinar nivel de señal
+  const hasVencidas=vencidas.length>0
+  const hasDueSoon=dueSoon.length>0
+  const hasSobre=sobrecargados.length>0
+  const allClear=!hasVencidas&&!hasDueSoon&&!hasSobre
+
+  // Colores y estilos por nivel
+  const level=hasVencidas?"red":hasDueSoon?"yellow":hasSobre?"orange":"green"
+  const levelStyles={
+    red:{border:"rgba(232,93,93,.35)",bg:"rgba(232,93,93,.06)",dot:"var(--s-vencida)",label:"Requiere atención",labelColor:"#fca5a5"},
+    yellow:{border:"rgba(232,197,71,.35)",bg:"rgba(232,197,71,.05)",dot:"var(--yellow)",label:"Atención esta semana",labelColor:"var(--yellow)"},
+    orange:{border:"rgba(251,146,60,.35)",bg:"rgba(251,146,60,.05)",dot:"#fb923c",label:"Carga elevada",labelColor:"#fb923c"},
+    green:{border:"rgba(46,196,160,.25)",bg:"rgba(46,196,160,.04)",dot:"var(--s-completada)",label:"Todo bajo control",labelColor:"var(--s-completada)"},
+  }[level]
+
+  // Ítem principal a mostrar (el más urgente)
+  const topItem=hasVencidas?vencidas[0]:hasDueSoon?dueSoon[0]:null
+
+  return(
+    <div className="card fade-in" style={{
+      marginBottom:16,
+      padding:"14px 18px",
+      border:`1px solid ${levelStyles.border}`,
+      background:levelStyles.bg,
+      position:"relative",
+      overflow:"hidden"
+    }}>
+      {/* Barra de color arriba */}
+      <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:levelStyles.dot,opacity:.9}}/>
+
+      <div style={{display:"flex",alignItems:"center",gap:10,marginTop:2}}>
+        {/* Indicador semáforo */}
+        <div style={{
+          width:10,height:10,borderRadius:"50%",
+          background:levelStyles.dot,
+          boxShadow:`0 0 8px ${levelStyles.dot}`,
+          flexShrink:0
+        }}/>
+
+        {/* Señal principal */}
+        <div style={{flex:1,minWidth:0}}>
+          {allClear?(
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:14,fontWeight:700,color:levelStyles.labelColor}}>Todo bajo control ✓</span>
+              <span style={{fontSize:12,color:"var(--muted)"}}>Sin vencidas ni alertas hoy</span>
+            </div>
+          ):(
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontSize:13,fontWeight:700,color:levelStyles.labelColor}}>{levelStyles.label}</span>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                {hasVencidas&&(
+                  <button onClick={()=>onNavigate("ordenes","vencida")} style={{
+                    display:"inline-flex",alignItems:"center",gap:4,
+                    fontSize:12,fontWeight:700,
+                    background:"rgba(232,93,93,.12)",border:"1px solid rgba(232,93,93,.25)",
+                    color:"var(--s-vencida)",borderRadius:6,padding:"3px 9px",cursor:"pointer",
+                    fontFamily:"var(--font-body)"
+                  }}>
+                    <Icon n="vencida" size={11}/>
+                    {vencidas.length} vencida{vencidas.length>1?"s":""}
+                  </button>
+                )}
+                {hasDueSoon&&(
+                  <button onClick={()=>onNavigate("ordenes")} style={{
+                    display:"inline-flex",alignItems:"center",gap:4,
+                    fontSize:12,fontWeight:700,
+                    background:"rgba(232,197,71,.1)",border:"1px solid rgba(232,197,71,.25)",
+                    color:"var(--yellow)",borderRadius:6,padding:"3px 9px",cursor:"pointer",
+                    fontFamily:"var(--font-body)"
+                  }}>
+                    <Icon n="reloj" size={11}/>
+                    {dueSoon.length} vence{dueSoon.length>1?"n":""} en 48h
+                  </button>
+                )}
+                {hasSobre&&(
+                  <button onClick={()=>onNavigate("equipos")} style={{
+                    display:"inline-flex",alignItems:"center",gap:4,
+                    fontSize:12,fontWeight:700,
+                    background:"rgba(251,146,60,.1)",border:"1px solid rgba(251,146,60,.25)",
+                    color:"#fb923c",borderRadius:6,padding:"3px 9px",cursor:"pointer",
+                    fontFamily:"var(--font-body)"
+                  }}>
+                    <Icon n="equipos" size={11}/>
+                    {sobrecargados.length} sobrecargado{sobrecargados.length>1?"s":""}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tarea más urgente en línea */}
+        {topItem&&(
+          <div
+            onClick={()=>onOpenTask&&onOpenTask(topItem)}
+            style={{
+              display:"flex",alignItems:"center",gap:6,
+              padding:"5px 10px",borderRadius:7,
+              background:"var(--bg3)",cursor:"pointer",
+              border:"1px solid var(--border)",transition:".12s",
+              maxWidth:240,flexShrink:0
+            }}
+            onMouseEnter={e=>e.currentTarget.style.background="var(--bg4)"}
+            onMouseLeave={e=>e.currentTarget.style.background="var(--bg3)"}>
+            {topItem.order_number&&<span style={{fontSize:10,fontWeight:700,color:"var(--muted)",fontFamily:"var(--font-mono)",flexShrink:0}}>AC-{String(topItem.order_number).padStart(4,"0")}</span>}
+            <span style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{topItem.title}</span>
+            <span style={{fontSize:10,color:"var(--muted)",flexShrink:0}}>→</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigate,onOpenTask,onViewUser}){
   const isDir=me.role==="director"
   const isCuentas=me.role==="cuentas"
   const isCollab=me.role==="colaborador"
 
-  // ── CUENTAS SCOPE ──
   const myTeamIds=isCuentas?(Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:[me.team_id].filter(Boolean)):null
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams
   const scopedTasks=isCuentas&&myTeamIds?tasks.filter(t=>myTeamIds.includes(t.team_id)):tasks
 
-  // pendingApproval se eliminó: su bloque "Pendiente de aprobar"
-  // duplicaba la "Cola de revisión". forReview cubre ese dato.
-
-  // My tasks — colaborador sees ONLY tasks assigned to them directly
   const myTasks=tasks.filter(t=>{
     const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
     return a.includes(me.id)
@@ -148,7 +271,6 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
   const myActive=myTasks.filter(t=>!["completada"].includes(t.status))
   const myUrgent=myActive.filter(t=>t.priority==="Urgente"||t.status==="vencida")
 
-  // Global stats — scoped for cuentas
   const allActive=scopedTasks.filter(t=>t.status!=="completada")
   const forReview=scopedTasks.filter(t=>t.status==="en_revision")
   const overdue=scopedTasks.filter(t=>t.status==="vencida")
@@ -175,7 +297,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
 
   return(
     <div className="fade-in">
-      {/* ════════ COLLABORATOR VIEW — máximo foco ════════ */}
+      {/* ════════ COLLABORATOR VIEW ════════ */}
       {isCollab&&(
         <>
           <div style={{marginBottom:20}}>
@@ -183,10 +305,8 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             <p style={{color:"var(--muted)",fontSize:14}}>Tienes {myActive.length} tarea{myActive.length!==1?"s":""} activa{myActive.length!==1?"s":""}</p>
           </div>
 
-          {/* Único bloque de métricas — todo fusionado aquí */}
           <MyWeekCard me={me} tasks={myTasks} onNavigate={onNavigate}/>
 
-          {/* Alerta solo si hay algo urgente — si no, no se muestra nada */}
           {myUrgent.length>0&&(
             <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:14,padding:16,marginBottom:16}}>
               <p style={{fontSize:13,fontWeight:700,color:"#fca5a5",marginBottom:10}}><Icon n="vencida" size={13} style={{marginRight:4}}/> Requieren atención inmediata</p>
@@ -200,7 +320,6 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             </div>
           )}
 
-          {/* Lista protagonista */}
           <div>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>Mis tareas activas</h3>
             {myActive.length===0
@@ -222,12 +341,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
         </>
       )}
 
-      {/* ════════ DIRECTOR / CUENTAS VIEW ════════
-         Nota: "Pendiente de aprobar" se eliminó — duplicaba la
-         "Cola de revisión" que aparece más abajo con la misma data.
-         "Mis marcas" se movió: ahora va dentro del bloque, después
-         de la tira de salud (orden: saludo→botones→salud→marcas→listas). */}
-
+      {/* ════════ DIRECTOR / CUENTAS VIEW ════════ */}
       {(isDir||isCuentas)&&(
         <>
           <div style={{marginBottom:16}}>
@@ -236,6 +350,18 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
               <p style={{color:"var(--muted)",fontSize:12,fontFamily:"var(--font-mono)"}}>{new Date().toLocaleDateString("es-GT",{weekday:"long",day:"numeric",month:"long"})}</p>
             </div>
           </div>
+
+          {/* ── SEÑAL DEL DÍA — reemplaza "Riesgo de la semana" ── */}
+          {isDir&&(
+            <DailySignal
+              tasks={scopedTasks}
+              users={users}
+              collabs={collabs}
+              onNavigate={onNavigate}
+              onOpenTask={onOpenTask}
+              onViewUser={onViewUser}
+            />
+          )}
 
           <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
             {isDir&&<button className="quick-action" onClick={()=>onNavigate("crear")}><div className="quick-action-icon" style={{background:"var(--accent-dim)"}}><Icon n="nueva" size={18} color="var(--accent)"/></div><span style={{fontSize:11,fontWeight:600}}>Nueva orden</span></button>}
@@ -249,9 +375,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             {isDir&&<button className="quick-action" onClick={()=>onNavigate("desempeno")}><div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}><Icon n="desempeno" size={18} color="var(--s-revision)"/></div><span style={{fontSize:11,fontWeight:600}}>Desempeño</span></button>}
           </div>
 
-          {/* TIRA DE SALUD — una sola línea, reemplaza el stacked bar
-             (duplicaba Mis marcas/Semáforo) y el stat-grid de 4 tarjetas
-             (repetía números que ya están abajo). Todo accionable. */}
+          {/* TIRA DE SALUD */}
           <div className="card" style={{marginBottom:16,padding:"16px 22px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
               <div style={{display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
@@ -283,103 +407,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             </div>
           </div>
 
-          {/* ════════ RIESGO DE LA SEMANA — solo DIRECTOR ════════
-             Señal priorizada: qué está por explotar. Solo se renderiza
-             si HAY riesgo real — si todo está bien, no aparece (evita
-             que se vuelva ruido ignorable). Vence48h + vencidas + sobrecarga. */}
-          {isDir&&(()=>{
-            const now=new Date()
-            const in48h=new Date(now.getTime()+48*3600000)
-            // Vence en próximas 48h (activas, aún no vencidas)
-            const dueSoon=scopedTasks.filter(t=>{
-              if(t.status==="completada"||t.status==="vencida")return false
-              if(!t.due_date)return false
-              const d=new Date(t.due_date+"T23:59:59")
-              return d>=now&&d<=in48h
-            }).sort((a,b)=>new Date(a.due_date)-new Date(b.due_date))
-            // Ya vencidas
-            const vencidas=scopedTasks.filter(t=>t.status==="vencida")
-            // Colaboradores sobrecargados (>=7 activas)
-            const sobrecargados=collabs.map(u=>({
-              u,
-              n:scopedTasks.filter(t=>{const a=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean);return a.includes(u.id)&&t.status!=="completada"}).length
-            })).filter(x=>x.n>=7).sort((a,b)=>b.n-a.n)
-            // Si no hay NINGÚN riesgo, no renderizar nada
-            if(dueSoon.length===0&&vencidas.length===0&&sobrecargados.length===0)return null
-            return(
-              <div className="card fade-in" style={{marginBottom:16,border:"1px solid rgba(232,93,93,.3)",background:"linear-gradient(135deg, rgba(232,93,93,.06), rgba(232,93,93,.02))"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                  <Icon n="alerta" size={16} color="var(--s-vencida)"/>
-                  <h3 style={{fontSize:15,fontWeight:700,color:"#fca5a5"}}>Riesgo de la semana</h3>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-
-                  {/* Vencidas */}
-                  {vencidas.length>0&&(
-                    <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px"}}>
-                      <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
-                        <span style={{fontSize:22,fontWeight:800,color:"var(--s-vencida)",fontFamily:"var(--font-display)"}}>{vencidas.length}</span>
-                        <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".05em"}}>ya vencida{vencidas.length>1?"s":""}</span>
-                      </div>
-                      {vencidas.slice(0,3).map(t=>{
-                        const u=users.find(x=>x.id===(Array.isArray(t.assigned_to)?t.assigned_to[0]:t.assigned_to))
-                        return(
-                          <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",cursor:"pointer",fontSize:12}}>
-                            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</span>
-                            <span style={{fontSize:10,color:"var(--muted)",flexShrink:0}}>{u?.name?.split(" ")[0]||"—"}</span>
-                          </div>
-                        )
-                      })}
-                      {vencidas.length>3&&<button onClick={()=>onNavigate("ordenes","vencida")} style={{fontSize:10,color:"var(--s-vencida)",background:"none",border:"none",cursor:"pointer",padding:"4px 0 0",fontFamily:"var(--font-mono)"}}>+{vencidas.length-3} más →</button>}
-                    </div>
-                  )}
-
-                  {/* Vence en 48h */}
-                  {dueSoon.length>0&&(
-                    <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px"}}>
-                      <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
-                        <span style={{fontSize:22,fontWeight:800,color:"var(--yellow)",fontFamily:"var(--font-display)"}}>{dueSoon.length}</span>
-                        <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".05em"}}>vence{dueSoon.length>1?"n":""} en 48h</span>
-                      </div>
-                      {dueSoon.slice(0,3).map(t=>{
-                        const u=users.find(x=>x.id===(Array.isArray(t.assigned_to)?t.assigned_to[0]:t.assigned_to))
-                        return(
-                          <div key={t.id} onClick={()=>onOpenTask&&onOpenTask(t)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",cursor:"pointer",fontSize:12}}>
-                            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</span>
-                            <span style={{fontSize:10,color:"var(--muted)",flexShrink:0}}>{u?.name?.split(" ")[0]||"—"}</span>
-                          </div>
-                        )
-                      })}
-                      {dueSoon.length>3&&<button onClick={()=>onNavigate("ordenes")} style={{fontSize:10,color:"var(--yellow)",background:"none",border:"none",cursor:"pointer",padding:"4px 0 0",fontFamily:"var(--font-mono)"}}>+{dueSoon.length-3} más →</button>}
-                    </div>
-                  )}
-
-                  {/* Sobrecargados */}
-                  {sobrecargados.length>0&&(
-                    <div style={{background:"var(--bg3)",borderRadius:10,padding:"12px 14px"}}>
-                      <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
-                        <span style={{fontSize:22,fontWeight:800,color:"var(--s-vencida)",fontFamily:"var(--font-display)"}}>{sobrecargados.length}</span>
-                        <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".05em"}}>sobrecargado{sobrecargados.length>1?"s":""}</span>
-                      </div>
-                      {sobrecargados.slice(0,3).map(({u,n})=>(
-                        <div key={u.id} onClick={()=>onViewUser&&onViewUser(u)} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",cursor:"pointer",fontSize:12}}>
-                          <div style={{width:18,height:18,borderRadius:"50%",background:u.avatar_color,fontSize:8,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,flexShrink:0}}>{u.initials}</div>
-                          <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</span>
-                          <span style={{fontSize:11,fontWeight:700,color:"var(--s-vencida)",fontFamily:"var(--font-mono)",flexShrink:0}}>{n}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                </div>
-              </div>
-            )
-          })()}
-
-          {/* ════════ MIS MARCAS — solo CUENTAS ════════
-             Va aquí: después de la tira de salud (general) y antes
-             de las listas (detalle). Orden de lectura natural.
-             Su trabajo real es por cliente/marca, no por equipo. */}
+          {/* MIS MARCAS — solo CUENTAS */}
           {isCuentas&&(()=>{
             const byBrand={}
             scopedTasks.forEach(t=>{
@@ -401,7 +429,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             return(
               <div className="card fade-in" style={{marginBottom:16}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                  <h3 style={{fontSize:15,fontWeight:700}}>🏷️ Mis marcas</h3>
+                  <h3 style={{fontSize:15,fontWeight:700}}><Icon n="marca" size={14} style={{marginRight:6}}/>Mis marcas</h3>
                   <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{brands.length} con trabajo activo</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}>
@@ -420,7 +448,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                           <span style={{fontSize:18,fontWeight:800,color:"var(--text)",fontFamily:"var(--font-display)",lineHeight:1}}>{b.activas}</span>
                         </div>
                         <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-                          {b.revision>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-revision-bg)",color:"var(--s-revision)",fontWeight:700,fontFamily:"var(--font-mono)"}}>🔍 {b.revision} en revisión</span>}
+                          {b.revision>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-revision-bg)",color:"var(--s-revision)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="revision" size={9}/> {b.revision} en revisión</span>}
                           {b.vencidas>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"var(--s-vencida-bg)",color:"var(--s-vencida)",fontWeight:700,fontFamily:"var(--font-mono)"}}><Icon n="alerta" size={9}/> {b.vencidas} vencida{b.vencidas>1?"s":""}</span>}
                           {b.revision===0&&b.vencidas===0&&<span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>Todo al día ✓</span>}
                         </div>
@@ -444,7 +472,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
 
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:14}}>
             <div className="card">
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}><h3 style={{fontSize:15,fontWeight:700}}>🔍 Cola de revisión</h3><span style={{fontSize:12,color:"var(--muted)"}}>{forReview.length}</span></div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}><h3 style={{fontSize:15,fontWeight:700}}><Icon n="revision" size={14} style={{marginRight:6}}/>Cola de revisión</h3><span style={{fontSize:12,color:"var(--muted)"}}>{forReview.length}</span></div>
               {forReview.length===0
                 ?<p style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:16}}>Sin tareas en revisión</p>
                 :forReview.slice(0,5).map(t=>{
@@ -484,7 +512,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
           {isDir&&(
             <div className="card" style={{marginBottom:16}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                <div><h3 style={{fontSize:15,fontWeight:700}}>🚦 Semáforo de equipos</h3><p style={{fontSize:11,color:"var(--muted)",marginTop:2,fontFamily:"var(--font-mono)"}}>🟢 Libre · 🟡 Cargado ≥4/pers · 🔴 Urgente o sobrecarga ≥7/pers</p></div>
+                <div><h3 style={{fontSize:15,fontWeight:700}}><Icon n="semaforo" size={14} style={{marginRight:6}}/>Semáforo de equipos</h3><p style={{fontSize:11,color:"var(--muted)",marginTop:2,fontFamily:"var(--font-mono)"}}><span style={{color:"var(--s-completada)"}}>●</span> Libre · <span style={{color:"var(--yellow)"}}>●</span> Cargado ≥4/pers · <span style={{color:"var(--s-vencida)"}}>●</span> Urgente o sobrecarga ≥7/pers</p></div>
                 <button onClick={()=>onNavigate("admin")} style={{display:"flex",alignItems:"center",gap:5,background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",color:"var(--accent)",fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)"}}>+ Nuevo equipo</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
@@ -511,7 +539,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
           )}
 
           <div className="card">
-            <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}>⚖️ Carga de trabajo por colaborador</h3>
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}><Icon n="carga" size={14} style={{marginRight:6}}/>Carga de trabajo por colaborador</h3>
             {workload.length===0
               ?<div style={{textAlign:"center",padding:"20px 16px"}}>
                  <p style={{fontSize:13,color:"var(--muted)",marginBottom:8}}>Aún no hay colaboradores registrados.</p>
