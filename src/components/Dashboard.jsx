@@ -10,7 +10,6 @@ import TaskCard from'../views/TaskCard'
 import HomeView from'../views/HomeView'
 import OrdenesView from'../views/OrdenesView'
 import CreateTask from'../views/CreateTask'
-import TeamsView from'../views/TeamsView'
 import CalendarView from'../views/CalendarView'
 import IntelView from'../views/IntelView'
 import AdminView from'../views/AdminView'
@@ -118,7 +117,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     home:<HomeView {...shared}/>,
     ordenes:<OrdenesView {...shared} initialFilter={pageArg}/>,
     crear:<CreateTask {...shared} onCreated={()=>navigate("ordenes")} onBack={()=>navigate("ordenes")}/>,
-    equipos:<TeamsView {...shared} teams={visibleTeams}/>,
+    equipos:<OrdenesView {...shared} initialView="equipo"/>,
     calendario:<CalendarView {...shared}/>,
     desempeno:<IntelView {...shared} me={profile} profile={profile} token={token} onRefresh={load} onLoadHistory={loadHistory} initialUser={pageArg} onNavigate={navigate}/>,
     admin:<AdminView {...shared}/>,
@@ -183,7 +182,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
               </div>)
             })}
             {visibleTeams.length>0&&(<div><div className="nav-section">Equipos</div>
-              {visibleTeams.map(t=>(<button key={t.id} onClick={()=>navigate("equipos")} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)",background:"transparent",border:"none",cursor:"pointer",width:"100%",borderRadius:6,transition:".13s",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</button>))}
+              {visibleTeams.map(t=>(<button key={t.id} onClick={()=>navigate("ordenes")} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)",background:"transparent",border:"none",cursor:"pointer",width:"100%",borderRadius:6,transition:".13s",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</button>))}
             </div>)}
             {profile.role==="director"&&(
               <div style={{marginTop:8}}>
