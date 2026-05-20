@@ -1,6 +1,15 @@
 import{useState,useEffect}from'react'
+
+// Colores fijos por rol — consistentes en toda la app
+const ROLE_AVATAR_COLOR={
+  director:"var(--role-director)",
+  cuentas:"var(--role-cuentas)",
+  colaborador:"var(--role-colab)",
+}
+
 export function Av({u,size=32}){
-  return<div className="avatar" style={{width:size,height:size,background:u?.avatar_color||"#7c3aed",fontSize:size*.33,color:"#fff"}}>{u?.initials||"?"}</div>
+  const bg=ROLE_AVATAR_COLOR[u?.role]||u?.avatar_color||"#7c3aed"
+  return<div className="avatar" style={{width:size,height:size,background:bg,fontSize:size*.33,color:"#fff"}}>{u?.initials||"?"}</div>
 }
 export function SC({label,value,sub,color}){
   return(
