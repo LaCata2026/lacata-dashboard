@@ -132,8 +132,18 @@ export const sb={
 
   async inviteUser(email,name){
     const SB_SERVICE=import.meta.env.VITE_SB_SERVICE
-    const r=await fetch(`${SB_URL}/auth/v1/invite`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_SERVICE,Authorization:`Bearer ${SB_SERVICE}`},body:JSON.stringify({email,data:{full_name:name}})})
-    const d=await r.json();if(d.error)throw new Error(d.msg||d.error);return d
+    const r=await fetch(`${SB_URL}/auth/v1/invite`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json",apikey:SB_SERVICE,Authorization:`Bearer ${SB_SERVICE}`},
+      body:JSON.stringify({email,data:{full_name:name}})
+    })
+    const d=await r.json()
+    if(d.error)throw new Error(d.msg||d.error_description||d.error)
+    // Supabase puede retornar {id, email, ...} o {user: {id, email, ...}}
+    // Normalizar para que siempre devuelva un objeto con id en raíz
+    const u=d.user||d
+    if(!u.id)throw new Error("Supabase no devolvió ID del usuario invitado")
+    return{id:u.id,email:u.email||email,user_metadata:u.user_metadata||{full_name:name}}
   },
 
   async get(table,params,token){
