@@ -1,359 +1,230 @@
 import{useState,useEffect,useRef,useCallback}from'react'
-import ReactDOM from'react-dom'
-import{sb,teamColor,COLLAB_COLORS,COLORS,MARCAS_PREDEFINIDAS,getInitials,autoColor}from'../lib/supabase'
-import{showToast}from'../components/Toast'
-import{showConfirm}from'../components/ConfirmDialog'
-import UserTeamRow from'../components/UserTeamRow'
-import Icon from'../components/Icon'
-import{Av,SC,BackBtn,Linkify,ActiveTimer,StatusLegend}from'../components/Shared'
-import{statusLabel,statusPill,statusColor,prioPill,fmtDate,fmtDateRelative,useSessionFilters}from'../lib/utils'
-function ModalPortal({children}){const el=useRef(document.createElement("div"));useEffect(()=>{document.body.appendChild(el.current);return()=>document.body.removeChild(el.current)},[]);return ReactDOM.createPortal(children,el.current)}
-export default function AdminView({users,teams,tasks,token,onRefresh,onBack,onViewUser,setUsers}){
-  const [showNewUser,setShowNewUser]=useState(false);
-  const [showNewTeam,setShowNewTeam]=useState(false);
-  const [editingTeam,setEditingTeam]=useState(null);
-  const [uForm,setUForm]=useState({name:"",email:"",role:"colaborador",team_id:"",team_ids:[],avatar_color:COLLAB_COLORS[0]});
-  const [tForm,setTForm]=useState({name:"",color:"#7c3aed",icon:"equipos"});
-  const [loading,setLoading]=useState(false);
-  const [secOpen,setSecOpen]=useState({equipos:true,directores:true,cuentas:true,colaboradores:true});
-  const toggleSec=(k)=>setSecOpen(s=>({...s,[k]:!s[k]}));
-  const setU=k=>e=>{
-    const val=e.target.value;
-    setUForm(f=>{
-      const upd={...f,[k]:val};
-      if(k==="email")upd.avatar_color=autoColor(val);
-      return upd;
-    });
-  };
-  const setT=k=>e=>setTForm(f=>({...f,[k]:e.target.value}));
+import{sb,LS,SB_URL,SB_ANON}from'./lib/supabase'
+import{Realtime,PushNotif}from'./lib/realtime'
+import Toast,{showToast}from'./components/Toast'
+import ConfirmDialog from'./components/ConfirmDialog'
+import Dashboard from'./components/Dashboard'
+import Login from'./components/Login'
+import SetPassword from'./components/SetPassword'
 
-  const TEAM_ICONS=["equipos","editar","progreso","desempeno","completada","semaforo","vencida","nueva","flecha_der","buscar","carga","marca","adjunto","comentar","detalles"];
-
-  async function createUser(){
-    if(!uForm.name||!uForm.email){alert("Nombre y correo son obligatorios.");return;}
-    setLoading(true);
-    try{
-      const authUser=await sb.inviteUser(uForm.email,uForm.name);
-      if(!authUser||!authUser.id)throw new Error(authUser.msg||"No se pudo crear el usuario");
-      const initials=getInitials(uForm.name);
-      const color=uForm.avatar_color||autoColor(uForm.email);
-      const teamId=uForm.role==="cuentas"?(uForm.team_ids&&uForm.team_ids[0]||null):uForm.team_id||null;
-      const teamIds=uForm.role==="cuentas"?(uForm.team_ids||[]):null;
-      await sb.insert("usuarios",{id:authUser.id,email:uForm.email.toLowerCase(),name:uForm.name,role:uForm.role,team_id:teamId,team_ids:teamIds,avatar_color:color,initials},token);
-      showToast("Invitacion enviada a "+uForm.email,"success");
-      setUForm({name:"",email:"",role:"colaborador",team_id:"",team_ids:[],avatar_color:COLLAB_COLORS[0]});
-      setShowNewUser(false);
-      onRefresh();
-    }catch(e){showToast("Error: "+e.message,"error");}
-    setLoading(false);
-  }
-
-  async function createTeam(){
-    if(!tForm.name){alert("El nombre del equipo es obligatorio.");return;}
-    setLoading(true);
-    try{
-      await sb.insert("equipos",{name:tForm.name,color:tForm.color,icon:tForm.icon||"equipos"},token);
-      showToast("Equipo creado","success");
-      setTForm({name:"",color:"#7c3aed",icon:"equipos"});
-      setShowNewTeam(false);
-      onRefresh();
-    }catch(e){showToast("Error: "+e.message,"error");}
-    setLoading(false);
-  }
-
-  async function saveTeamEdit(){
-    if(!editingTeam)return;
-    await sb.update("equipos",editingTeam.id,{name:editingTeam.name,color:editingTeam.color,icon:editingTeam.icon||"equipos"},token);
-    showToast("Equipo actualizado","success");
-    setEditingTeam(null);
-    onRefresh();
-  }
-
-  async function deleteUser(u){
-    if(!confirm("Eliminar a "+u.name+"?"))return;
-    await sb.del("usuarios",u.id,token);
-    showToast(u.name+" eliminado","success");
-    onRefresh();
-  }
-
-  async function deleteTeam(t){
-    if(!confirm("Eliminar el equipo "+t.name+"?"))return;
-    await sb.del("equipos",t.id,token);
-    showToast("Equipo eliminado","success");
-    onRefresh();
-  }
-
-  async function changeUserRole(userId,newRole){
-    await sb.update("usuarios",userId,{role:newRole},token);
-    showToast("Rol actualizado","success");
-    onRefresh();
-  }
-
-  async function changeUserTeam(userId,teamId){
-    try{
-      await sb.update("usuarios",userId,{team_id:teamId||null},token);
-      showToast("Equipo actualizado","success");
-      onRefresh();
-    }catch(e){showToast("Error: "+e.message,"error");}
-  }
-
-  async function toggleUserTeam(userId,teamId,currentTeamIds,role){
-    // Normalise — handle null, undefined, non-array from DB
-    const ids=Array.isArray(currentTeamIds)&&currentTeamIds.length>0
-      ? currentTeamIds
-      : []; // never trust DB null — start fresh
-    const next=ids.includes(teamId)
-      ? ids.filter(x=>x!==teamId)
-      : [...ids,teamId];
-    const primaryId=next.length>0?next[0]:null;
-
-    // 1. Optimistic UI — update local users state immediately so tags respond on first click
-    setUsers(prev=>prev.map(u=>u.id===userId?{...u,team_ids:next,team_id:primaryId}:u));
-
-    // 2. Persist to Supabase
-    try{
-      await sb.update("usuarios",userId,{
-        team_ids: next,       // array — requires jsonb column
-        team_id:  primaryId,  // primary team for backward compat
-      },token);
-      showToast(next.length===0?"Sin equipos asignados":`${next.length} equipo${next.length>1?"s":""} asignado${next.length>1?"s":""}` ,"success");
-      onRefresh(); // sync full state from DB in background
-    }catch(e){
-      // Revert optimistic update on error
-      setUsers(prev=>prev.map(u=>u.id===userId?{...u,team_ids:ids,team_id:ids[0]||null}:u));
-      showToast("Error al guardar: "+e.message,"error");
+function useVersionChecker(){
+  const[newVersion,setNewVersion]=useState(false)
+  const currentHash=useRef(null)
+  useEffect(()=>{
+    async function checkVersion(){
+      try{
+        const r=await fetch("/?_="+Date.now(),{cache:"no-store"})
+        const html=await r.text()
+        const match=html.match(/src="\/assets\/index-([^"]+)\.js"/)
+        const hash=match?match[1]:null
+        if(!hash)return
+        if(currentHash.current===null){currentHash.current=hash;return}
+        if(hash!==currentHash.current){setNewVersion(true)}
+      }catch{}
     }
-  }
-
-  return(
-    <div>
-      {onBack&&<BackBtn onClick={onBack}/>}
-      <div className="section-header"><h2 className="section-title">Administracion</h2></div>
-
-      {/* EQUIPOS */}
-      <div className="card fade-in" style={{marginBottom:12}}>
-        <div onClick={()=>toggleSec("equipos")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",userSelect:"none",marginBottom:secOpen.equipos?16:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{color:"var(--muted)",fontSize:13,transition:"transform .2s",display:"inline-block",transform:secOpen.equipos?"rotate(0)":"rotate(-90deg)"}}>▼</span>
-            <h3 style={{fontSize:15,fontWeight:700}}>Equipos / Células</h3>
-            <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>({teams.length})</span>
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={e=>{e.stopPropagation();setShowNewTeam(true);}}>+ Nuevo equipo</button>
-        </div>
-        {secOpen.equipos&&(
-          <>
-            {teams.length===0&&<p style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:20}}>No hay equipos aun.</p>}
-            {teams.map(t=>{
-              const members=users.filter(u=>(u.team_id===t.id||(Array.isArray(u.team_ids)&&u.team_ids.includes(t.id)))&&u.role==="colaborador");
-              const activeCount=tasks.filter(x=>x.team_id===t.id&&x.status!=="completada").length;
-              const avg=members.length>0?activeCount/members.length:0;
-              const overloaded=members.filter(u=>tasks.filter(x=>{const a=Array.isArray(x.assigned_to)?x.assigned_to:[x.assigned_to].filter(Boolean);return a.includes(u.id)&&x.status!=="completada";}).length>=7).length;
-              const overdueCount=tasks.filter(x=>x.team_id===t.id&&x.status==="vencida").length;
-              const sColor=overdueCount>0||overloaded>0?"var(--s-vencida)":avg>=4?"var(--load-warn)":"var(--load-ok)";
-              const sLabel=overdueCount>0?`${overdueCount} vencida${overdueCount>1?"s":""}`:overloaded>0?`${overloaded} sobrecargado${overloaded>1?"s":""}`:avg>=4?`~${avg.toFixed(1)} t/persona`:"Carga normal";
-              return(
-                <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderBottom:"1px solid var(--border)",flexWrap:"wrap"}}>
-                  <span style={{fontSize:16,flexShrink:0}}>{<Icon n={t.icon||"equipos"} size={16}/>}</span>
-                  <div style={{width:9,height:9,borderRadius:"50%",background:teamColor(t),flexShrink:0}}/>
-                  <span style={{flex:1,fontSize:14,fontWeight:600,minWidth:80}}>{t.name}</span>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{width:7,height:7,borderRadius:"50%",background:sColor,boxShadow:`0 0 5px ${sColor}`}}/>
-                    <span style={{fontSize:11,color:sColor,fontWeight:600}}>{sLabel}</span>
-                    <span style={{fontSize:11,color:"var(--muted)"}}>· {members.length} miembro{members.length!==1?"s":""}</span>
-                    {activeCount>0&&<span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{activeCount} activas</span>}
-                  </div>
-                  <button className="btn btn-ghost btn-sm" onClick={()=>setEditingTeam({...t,icon:t.icon||"equipos"})}>Editar</button>
-                  <button className="btn btn-danger btn-sm" onClick={()=>deleteTeam(t)}>Eliminar</button>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-
-      {/* USUARIOS */}
-      <div className="card fade-in">
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <h3 style={{fontSize:15,fontWeight:700}}>Usuarios ({users.length})</h3>
-          <button className="btn btn-primary btn-sm" onClick={()=>setShowNewUser(true)}>+ Nuevo usuario</button>
-        </div>
-        {users.length===0&&<p style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:20}}>No hay usuarios aun.</p>}
-        {[
-          {role:"director",label:"Directores",color:"var(--role-director)",key:"directores"},
-          {role:"cuentas",label:"Cuentas",color:"var(--role-cuentas)",key:"cuentas"},
-          {role:"colaborador",label:"Colaboradores",color:"var(--role-colab)",key:"colaboradores"},
-        ].map(({role,label,color,key})=>{
-          const group=users.filter(u=>u.role===role);
-          if(group.length===0)return null;
-          const isOpen=secOpen[key]!==false;
-          return(
-            <div key={role} style={{marginBottom:6,background:"var(--bg3)",borderRadius:8,overflow:"hidden"}}>
-              {/* Role section header — collapsible */}
-              <div onClick={()=>toggleSec(key)}
-                style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",cursor:"pointer",userSelect:"none",borderLeft:`3px solid ${color}`}}>
-                <span style={{color:"var(--muted)",fontSize:11,transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(0)":"rotate(-90deg)"}}>▼</span>
-                <div style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
-                <span style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:".08em",fontFamily:"var(--font-mono)",flex:1}}>{label}</span>
-                <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)"}}>{group.length}</span>
-              </div>
-              {/* Users list */}
-              {isOpen&&group.map(u=>(
-                <UserTeamRow key={u.id} u={u} teams={teams} tasks={tasks} token={token}
-                  onRefresh={onRefresh} onViewUser={onViewUser}
-                  changeUserRole={changeUserRole} deleteUser={deleteUser}/>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* MODAL NUEVO USUARIO */}
-      {showNewUser&&(
-        <ModalPortal>
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowNewUser(false)}>
-          <div className="modal fade-in" onClick={e=>e.stopPropagation()}>
-            <div className="modal-title">Nuevo usuario</div>
-            <div className="form-group"><label className="form-label">Nombre completo *</label><input value={uForm.name} onChange={setU("name")} placeholder="Ej: Lucia Mendoza"/></div>
-            <div className="form-group"><label className="form-label">Correo *</label><input type="email" value={uForm.email} onChange={setU("email")} placeholder="lucia@lacata.com"/></div>
-            <div className="form-group"><label className="form-label">Rol</label>
-              <select value={uForm.role} onChange={setU("role")}>
-                <option value="colaborador">Colaborador</option>
-                <option value="cuentas">Cuentas</option>
-                <option value="director">Director</option>
-              </select>
-            </div>
-            {uForm.role==="cuentas"?(
-              <div className="form-group">
-                <label className="form-label">Equipos (puede gestionar múltiples)</label>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}}>
-                  {teams.map(t=>{
-                    const sel=(uForm.team_ids||[]).includes(t.id);
-                    return(
-                      <button key={t.id} type="button" onClick={()=>setUForm(f=>({...f,team_ids:sel?(f.team_ids||[]).filter(x=>x!==t.id):[...(f.team_ids||[]),t.id]}))}
-                        style={{padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",background:sel?teamColor(t):"var(--bg4)",color:sel?"#fff":"var(--muted2)",border:sel?"none":"1px solid var(--border)",fontWeight:sel?700:400,transition:".13s"}}>
-                        {<Icon n={t.icon||"equipos"} size={16}/>} {t.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                {(uForm.team_ids||[]).length===0&&<p style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Sin restricción — verá todos los equipos</p>}
-              </div>
-            ):(
-              <div className="form-group"><label className="form-label">Equipo</label>
-                <select value={uForm.team_id} onChange={setU("team_id")}>
-                  <option value="">Sin equipo</option>
-                  {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-            )}
-            <div className="form-group">
-              <label className="form-label">Color de avatar (auto-asignado · puedes cambiar)</label>
-              <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:6}}>
-                {COLLAB_COLORS.map(c=>(
-                  <div key={c} onClick={()=>setUForm(f=>({...f,avatar_color:c}))}
-                    style={{width:26,height:26,borderRadius:5,background:c,cursor:"pointer",border:uForm.avatar_color===c?"2px solid #f2f0eb":"2px solid transparent",transform:uForm.avatar_color===c?"scale(1.18)":"scale(1)",transition:".15s"}}/>
-                ))}
-              </div>
-            </div>
-            {uForm.name&&(
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:12,background:"var(--bg3)",borderRadius:10}}>
-                <Av u={{initials:getInitials(uForm.name),avatar_color:uForm.avatar_color}} size={36}/>
-                <div><p style={{fontSize:13,fontWeight:600}}>{uForm.name}</p><p style={{fontSize:12,color:"var(--muted)"}}>{uForm.role}{uForm.role==="cuentas"&&(uForm.team_ids||[]).length>0?` · ${(uForm.team_ids||[]).length} equipos`:""}</p></div>
-              </div>
-            )}
-            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button className="btn btn-ghost" onClick={()=>setShowNewUser(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={createUser} disabled={loading}>{loading?"Enviando...":"Enviar invitacion"}</button>
-            </div>
-          </div>
-        </div>
-        </ModalPortal>
-      )}
-
-      {/* MODAL NUEVO EQUIPO */}
-      {showNewTeam&&(
-        <ModalPortal>
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowNewTeam(false)}>
-          <div className="modal fade-in" onClick={e=>e.stopPropagation()}>
-            <div className="modal-title">Nuevo equipo</div>
-            <div className="form-group"><label className="form-label">Nombre *</label><input value={tForm.name} onChange={setT("name")} placeholder="Ej: Celula Estrategia"/></div>
-            <div className="form-group">
-              <label className="form-label">Icono</label>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {TEAM_ICONS.map(ic=>(
-                  <button key={ic} type="button" onClick={()=>setTForm(f=>({...f,icon:ic}))}
-                    style={{fontSize:20,padding:"6px 10px",borderRadius:8,background:tForm.icon===ic?"var(--accent)":"var(--bg3)",border:tForm.icon===ic?"none":"1px solid var(--border)",cursor:"pointer"}}>
-                    {ic}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Color</label>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
-                {COLORS.map(c=>(
-                  <div key={c} onClick={()=>setTForm(f=>({...f,color:c}))}
-                    style={{width:28,height:28,borderRadius:"50%",background:c,cursor:"pointer",border:tForm.color===c?"2px solid #fff":"2px solid transparent",transform:tForm.color===c?"scale(1.15)":"scale(1)",transition:".15s"}}/>
-                ))}
-              </div>
-              {tForm.name&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
-                <span style={{fontSize:18}}>{tForm.icon}</span>
-                <div style={{width:10,height:10,borderRadius:"50%",background:tForm.color}}/>
-                <span style={{fontSize:13}}>{tForm.name}</span>
-              </div>}
-            </div>
-            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button className="btn btn-ghost" onClick={()=>setShowNewTeam(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={createTeam} disabled={loading}>{loading?"Creando...":"Crear equipo"}</button>
-            </div>
-          </div>
-        </div>
-        </ModalPortal>
-      )}
-
-      {/* MODAL EDITAR EQUIPO */}
-      {editingTeam&&(
-        <ModalPortal>
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEditingTeam(null)}>
-          <div className="modal fade-in" onClick={e=>e.stopPropagation()}>
-            <div className="modal-title">Editar equipo</div>
-            <div className="form-group"><label className="form-label">Nombre</label><input value={editingTeam.name} onChange={e=>setEditingTeam(t=>({...t,name:e.target.value}))}/></div>
-            <div className="form-group">
-              <label className="form-label">Icono</label>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {TEAM_ICONS.map(ic=>(
-                  <button key={ic} type="button" onClick={()=>setEditingTeam(t=>({...t,icon:ic}))}
-                    style={{fontSize:20,padding:"6px 10px",borderRadius:8,background:editingTeam.icon===ic?"var(--accent)":"var(--bg3)",border:editingTeam.icon===ic?"none":"1px solid var(--border)",cursor:"pointer"}}>
-                    {ic}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Color</label>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
-                {COLORS.map(c=>(
-                  <div key={c} onClick={()=>setEditingTeam(t=>({...t,color:c}))}
-                    style={{width:28,height:28,borderRadius:"50%",background:c,cursor:"pointer",border:editingTeam.color===c?"2px solid #fff":"2px solid transparent",transform:editingTeam.color===c?"scale(1.15)":"scale(1)",transition:".15s"}}/>
-                ))}
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
-                <span style={{display:"flex",alignItems:"center",justifyContent:"center",width:24}}><Icon n={editingTeam.icon||"equipos"} size={18}/></span>
-                <div style={{width:10,height:10,borderRadius:"50%",background:editingTeam.color}}/>
-                <span style={{fontSize:13,fontWeight:500}}>{editingTeam.name}</span>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button className="btn btn-ghost" onClick={()=>setEditingTeam(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveTeamEdit}>Guardar cambios</button>
-            </div>
-          </div>
-        </div>
-        </ModalPortal>
-      )}
-    </div>
-  );
+    checkVersion()
+    const id=setInterval(checkVersion,5*60*1000)
+    function onVisible(){if(document.visibilityState==="visible")checkVersion()}
+    document.addEventListener("visibilitychange",onVisible)
+    return()=>{clearInterval(id);document.removeEventListener("visibilitychange",onVisible)}
+  },[])
+  return newVersion
 }
 
+function UpdateBanner(){
+  return(
+    <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:"var(--accent)",color:"#0d0d0d",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"10px 16px",fontSize:13,fontWeight:600,fontFamily:"var(--font-body)",boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}>
+      <span>🔄 Hay una nueva versión disponible</span>
+      <button onClick={()=>window.location.reload(true)} style={{background:"#0d0d0d",color:"var(--accent)",border:"none",borderRadius:6,padding:"4px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Actualizar ahora</button>
+      <span style={{fontSize:11,opacity:.7}}>Recarga para no perder funcionalidad</span>
+    </div>
+  )
+}
 
-/* ── TASK CARD ── */
+function SessionExpiredModal({onContinue,onLogout}){
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:14,padding:"28px 32px",maxWidth:360,textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+        <div style={{fontSize:36,marginBottom:12}}>⏰</div>
+        <h3 style={{fontSize:17,fontWeight:700,marginBottom:8}}>Sesión expirada</h3>
+        <p style={{fontSize:13,color:"var(--muted)",marginBottom:20,lineHeight:1.5}}>Tu sesión expiró por inactividad. ¿Quieres continuar trabajando?</p>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <button onClick={onLogout} style={{padding:"8px 18px",borderRadius:8,border:"1px solid var(--border)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>Cerrar sesión</button>
+          <button onClick={onContinue} style={{padding:"8px 20px",borderRadius:8,border:"none",background:"var(--accent)",color:"#0d0d0d",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"inherit"}}>Continuar →</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function useSessionRefresh(session,onLogout,onTokenUpdate){
+  const refreshTokenRef=useRef(LS.get("lc_refresh_token",null))
+  const refreshingRef=useRef(false)
+  const[expired,setExpired]=useState(false)
+
+  function getExpiry(token){
+    try{const p=JSON.parse(atob(token.split(".")[1]));return p.exp?p.exp*1000:null}catch{return null}
+  }
+
+  const doRefresh=useCallback(async(force=false)=>{
+    if(refreshingRef.current&&!force)return
+    const rt=refreshTokenRef.current
+    if(!rt)return
+    refreshingRef.current=true
+    try{
+      const d=await sb.refreshSession(rt)
+      if(d.access_token){
+        refreshTokenRef.current=d.refresh_token||rt
+        LS.set("lc_refresh_token",d.refresh_token||rt)
+        onTokenUpdate&&onTokenUpdate(d.access_token)
+        setExpired(false)
+      }
+    }catch(e){console.warn("Session refresh failed:",e)}
+    finally{refreshingRef.current=false}
+  },[onTokenUpdate])
+
+  useEffect(()=>{
+    if(!session)return
+    const expiry=getExpiry(session.token)
+    if(expiry&&(expiry-Date.now())<20*60*1000)doRefresh()
+    const id=setInterval(()=>{
+      const exp=getExpiry(session.token)
+      if(!exp)return
+      const rem=exp-Date.now()
+      if(rem<10*60*1000&&rem>0)doRefresh()
+      if(rem<=0)setExpired(true)
+    },3*60*1000)
+    function onVisible(){
+      if(document.visibilityState!=="visible")return
+      const exp=getExpiry(session.token)
+      if(!exp)return
+      if((exp-Date.now())<15*60*1000)doRefresh()
+    }
+    document.addEventListener("visibilitychange",onVisible)
+    let activityTimer=null
+    function onActivity(){
+      clearTimeout(activityTimer)
+      activityTimer=setTimeout(()=>{
+        const exp=getExpiry(session.token)
+        if(exp&&(exp-Date.now())<20*60*1000)doRefresh()
+      },2000)
+    }
+    window.addEventListener("click",onActivity,{passive:true})
+    window.addEventListener("keydown",onActivity,{passive:true})
+    return()=>{
+      clearInterval(id)
+      document.removeEventListener("visibilitychange",onVisible)
+      window.removeEventListener("click",onActivity)
+      window.removeEventListener("keydown",onActivity)
+      clearTimeout(activityTimer)
+    }
+  },[session?.token,doRefresh])
+
+  useEffect(()=>{
+    const rt=LS.get("lc_refresh_token",null)
+    if(rt)refreshTokenRef.current=rt
+  },[session?.token])
+
+  return{expired,doRefresh}
+}
+
+export default function App(){
+  const[session,setSession]=useState(()=>LS.get("lc_session",null))
+  const[isDark,setIsDark]=useState(()=>{const s=localStorage.getItem("lc_theme");return s?s==="dark":true})
+  const newVersion=useVersionChecker()
+
+  useEffect(()=>{
+    document.body.classList.toggle("light",!isDark)
+    localStorage.setItem("lc_theme",isDark?"dark":"light")
+  },[isDark])
+
+  // ── REFRESH PERFIL DESDE BD AL CARGAR ──
+  // Si hay sesión en LS, verificar que el perfil esté actualizado con la BD.
+  // Esto corrige nombres/roles incorrectos sin que el usuario tenga que hacer login.
+  // Usar ref para que solo corra UNA vez al montar, no en cada refresh de token
+  const profileRefreshedRef=useRef(false)
+  useEffect(()=>{
+    if(!session?.token||!session?.profile?.id)return
+    if(profileRefreshedRef.current)return
+    profileRefreshedRef.current=true
+    async function refreshProfile(){
+      try{
+        const r=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${session.profile.id}&select=*`,{
+          headers:{apikey:SB_ANON,Authorization:`Bearer ${session.token}`}
+        })
+        if(!r.ok)return
+        const data=await r.json()
+        if(!Array.isArray(data)||data.length===0)return
+        const freshProfile=data[0]
+        if(typeof freshProfile.team_ids==="string"){try{freshProfile.team_ids=JSON.parse(freshProfile.team_ids)}catch{freshProfile.team_ids=[]}}
+        if(!Array.isArray(freshProfile.team_ids))freshProfile.team_ids=[]
+        // Solo actualizar si algo cambió — evitar re-renders innecesarios
+        const hasChanges=
+          freshProfile.name!==session.profile.name||
+          freshProfile.role!==session.profile.role||
+          freshProfile.initials!==session.profile.initials
+        if(hasChanges){
+          const updated={...session,profile:{...session.profile,...freshProfile}}
+          LS.set("lc_session",updated)
+          setSession(updated)
+        }
+      }catch(e){console.warn("refreshProfile error:",e)}
+    }
+    refreshProfile()
+  // Solo correr al montar — no en cada cambio de sesión para evitar loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[session?.token])
+
+  function handleTokenUpdate(t){
+    const u={...session,token:t}
+    LS.set("lc_session",u)
+    setSession(u)
+  }
+
+  function handleLogout(){
+    Realtime.disconnect()
+    LS.del("lc_session")
+    LS.del("lc_refresh_token")
+    setSession(null)
+  }
+
+  const{expired,doRefresh}=useSessionRefresh(session,handleLogout,handleTokenUpdate)
+
+  async function handleContinue(){
+    await doRefresh(true)
+    const rt=LS.get("lc_refresh_token",null)
+    if(!rt)handleLogout()
+  }
+
+  useEffect(()=>{
+    if(session?.token){Realtime.connect(session.token);PushNotif.requestPermission()}
+    else Realtime.disconnect()
+    return()=>{if(!session)Realtime.disconnect()}
+  },[session?.token])
+
+  // Detectar invitación/recovery en hash, query string o cookies
+  const hash=window.location.hash||""
+  const search=window.location.search||""
+  const hashParams=new URLSearchParams(hash.replace("#",""))
+  const searchParams=new URLSearchParams(search)
+  const typeFromHash=hashParams.get("type")
+  const typeFromQuery=searchParams.get("type")
+  const tokenFromHash=hashParams.get("access_token")
+  const tokenFromQuery=searchParams.get("access_token")||searchParams.get("code")
+  const isInvite=(typeFromHash==="invite"||typeFromHash==="recovery"||typeFromQuery==="invite"||typeFromQuery==="recovery"||!!tokenFromHash||!!tokenFromQuery)&&(tokenFromHash||tokenFromQuery)
+
+  if(isInvite)return<><Toast/><ConfirmDialog/><SetPassword/></>
+
+  return(
+    <>
+      <Toast/>
+      <ConfirmDialog/>
+      {newVersion&&<UpdateBanner/>}
+      {session&&expired&&<SessionExpiredModal onContinue={handleContinue} onLogout={handleLogout}/>}
+      {session
+        ?<Dashboard session={session} isDark={isDark} toggleTheme={()=>setIsDark(d=>!d)} onLogout={handleLogout}/>
+        :<Login onLogin={s=>setSession(s)}/>
+      }
+    </>
+  )
+}
