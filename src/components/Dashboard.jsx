@@ -32,7 +32,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const[page,setPage]=useState("home")
   const[pageArg,setPageArg]=useState(null)
-  // Filtro por equipo activo (independiente de pageArg para no romper otras vistas)
   const[activeTeamId,setActiveTeamId]=useState(null)
   const[tasks,setTasks]=useState([])
   const[users,setUsers]=useState([])
@@ -41,6 +40,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const[sidebarOpen,setSidebarOpen]=useState(false)
   const[spotlight,setSpotlight]=useState(false)
   const[floatTaskId,setFloatTaskId]=useState(null)
+  // NUEVO: cuando se abre una tarea, en qué tab debe abrir (detalles | conversacion)
+  const[floatTaskTab,setFloatTaskTab]=useState("detalles")
   const[showNotif,setShowNotif]=useState(false)
   const[showDiag,setShowDiag]=useState(false)
   const[showReporte,setShowReporte]=useState(false)
@@ -85,8 +86,14 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     return()=>{clearTimeout(reloadTimer.current);unsubs.forEach(u=>u());document.removeEventListener("visibilitychange",onVisible);clearInterval(rtCheck)}
   },[load,token])
 
+  // window._openTask AHORA acepta segundo parámetro initialTab
+  // - openTask(task) → abre en tab "detalles" (default)
+  // - openTask(task, "conversacion") → abre directo en el tab de comentarios
   useEffect(()=>{
-    window._openTask=(t)=>setFloatTaskId(t?.id||null)
+    window._openTask=(t,initialTab)=>{
+      setFloatTaskId(t?.id||null)
+      setFloatTaskTab(initialTab==="conversacion"?"conversacion":"detalles")
+    }
     return()=>{delete window._openTask}
   },[])
 
@@ -95,7 +102,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)
   },[])
 
-  // Cerrar popup de menciones con click afuera
+  // Click outside cierra el popup de menciones
   const notifPopupRef=useRef(null)
   const notifBtnRef=useRef(null)
   useEffect(()=>{
@@ -109,7 +116,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     return()=>document.removeEventListener("mousedown",onClickOutside)
   },[showNotif])
 
-  // navigate maneja también filtro por equipo desde el sidebar
   const navigate=useCallback((id,arg=null)=>{
     if(id&&id.startsWith("equipo_")){setPage("equipos");setPageArg(id.replace("equipo_",""));setActiveTeamId(null);setSidebarOpen(false);return}
     if(arg&&typeof arg==="object"&&arg.teamId){
@@ -134,7 +140,11 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   const myScopedTeamIds=useMemo(()=>(isCuentas||isCollab)?(Array.isArray(profile.team_ids)&&profile.team_ids.length>0?profile.team_ids:[profile.team_id].filter(Boolean)):null,[isCuentas,isCollab,profile.team_ids,profile.team_id])
   const visibleTeams=useMemo(()=>(isCuentas||isCollab)&&myScopedTeamIds?teams.filter(t=>myScopedTeamIds.includes(t.id)):teams,[isCuentas,isCollab,myScopedTeamIds,teams])
   const onViewUser=useCallback((u)=>{navigate("desempeno",u)},[navigate])
-  const onOpenTask=useCallback((t)=>{setFloatTaskId(t?.id||null)},[])
+  // onOpenTask para usar dentro del dashboard (no via window._openTask) — también acepta tab
+  const onOpenTask=useCallback((t,initialTab)=>{
+    setFloatTaskId(t?.id||null)
+    setFloatTaskTab(initialTab==="conversacion"?"conversacion":"detalles")
+  },[])
 
   const shared=useMemo(()=>({
     tasks,users,teams,token,profile,me:profile,
@@ -188,19 +198,16 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       <div className={`mobile-overlay${sidebarOpen?" open":""}`} onClick={()=>setSidebarOpen(false)}/>
       <aside className={`sidebar${sidebarOpen?" open":""}`}>
         <div className="sidebar-inner">
-          {/* Logo */}
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24,paddingBottom:16,borderBottom:"1px solid var(--border)"}}>
             <div className="logo-mark" style={{background:"#0d0d0d",padding:2}}><img src="/logo_cata.png" alt="La Cata" style={{width:"100%",height:"100%",objectFit:"contain",borderRadius:6}}/></div>
             <div><div style={{fontWeight:800,fontSize:15,fontFamily:"var(--font-display)",letterSpacing:"-.02em"}}>La Cata</div><div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:".08em"}}>Creative Ops</div></div>
           </div>
 
-          {/* Buscar */}
           <button onClick={()=>setSpotlight(true)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 10px",color:"var(--muted)",fontSize:12,cursor:"pointer",marginBottom:16,fontFamily:"var(--font-body)",transition:".13s"}}>
             <Icon n="buscar" size={13}/><span style={{flex:1,textAlign:"left"}}>Buscar...</span>
             <span style={{fontSize:10,fontFamily:"var(--font-mono)",background:"var(--bg4)",padding:"2px 5px",borderRadius:4}}>K</span>
           </button>
 
-          {/* Nav */}
           <nav>
             {["trabajo","admin"].map(section=>{
               const items=navItems.filter(n=>n.section===section);if(!items.length)return null
@@ -247,9 +254,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
             )}
           </nav>
 
-          {/* ── PERFIL DE USUARIO ── */}
           <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:8,position:"relative"}}>
-            {/* Fila 1: avatar + nombre + rol */}
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"4px 4px 10px",borderBottom:"1px solid var(--border)"}}>
               <Av u={profile} size={32}/>
               <div style={{flex:1,minWidth:0}}>
@@ -261,7 +266,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
               </div>
             </div>
 
-            {/* Fila 2: acciones compactas */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:8,paddingBottom:4}}>
               <div style={{display:"flex",alignItems:"center",gap:2}}>
                 <SidebarBtn onClick={()=>setDense(d=>!d)} title={dense?"Vista normal":"Vista densa"} active={dense}>
@@ -277,17 +281,13 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
                 )}
               </div>
 
-              {/* Botón de menciones — el popup ya no se renderiza acá adentro,
-                  se renderiza al nivel del sidebar-inner para tener ancho completo */}
               <SidebarBtn btnRef={notifBtnRef} onClick={()=>setShowNotif(s=>!s)} title="Menciones" active={showNotif||unread.length>0}>
                 <Icon n="comentar" size={15}/>
                 {unread.length>0&&<span style={{position:"absolute",top:0,right:0,background:"var(--s-vencida)",color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:13,height:13,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{unread.length>9?"9+":unread.length}</span>}
               </SidebarBtn>
             </div>
 
-            {/* ═══ POPUP DE MENCIONES — anclado al sidebar, no se sale ═══
-                Se posiciona arriba de la fila del perfil, ocupando todo el ancho
-                disponible del sidebar (con padding). Así nunca queda fuera del viewport. */}
+            {/* Popup de menciones anclado al sidebar */}
             {showNotif&&(
               <div ref={notifPopupRef} className="fade-in" style={{
                 position:"absolute",
@@ -313,7 +313,13 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
                 {unread.length===0
                   ?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"16px 0"}}>Sin menciones nuevas</p>
                   :unread.slice(0,8).map(n=>(
-                    <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);setFloatTaskId(n.task.id)}}
+                    <div key={n.key} onClick={()=>{
+                      markSeen(n.key);
+                      setShowNotif(false);
+                      // Abrir DIRECTO en el tab de conversación
+                      setFloatTaskId(n.task.id);
+                      setFloatTaskTab("conversacion");
+                    }}
                       style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer",transition:".13s"}}
                       onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -350,7 +356,18 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
       {showDiag&&<DiagnosticPanel session={session} tasks={tasks} users={users} teams={teams} onClose={()=>setShowDiag(false)}/>}
       {showReporte&&<ReporteExcel tasks={tasks} users={users} teams={teams} isOpen={showReporte} onClose={()=>setShowReporte(false)}/>}
       {spotlight&&<Spotlight tasks={tasks} users={users} teams={teams} onNavigate={navigate} onClose={()=>setSpotlight(false)} onOpenTask={onOpenTask}/>}
-      {floatTask&&<TaskCard task={floatTask} users={users} teams={teams} me={profile} token={token} onRefresh={load} forceOpen={true} onForceClose={()=>setFloatTaskId(null)}/>}
+      {/* initialTab le dice al TaskCard si abrir en detalles o conversacion */}
+      {floatTask&&<TaskCard
+        key={floatTaskId+"-"+floatTaskTab}
+        task={floatTask}
+        users={users}
+        teams={teams}
+        me={profile}
+        token={token}
+        onRefresh={load}
+        forceOpen={true}
+        initialTab={floatTaskTab}
+        onForceClose={()=>{setFloatTaskId(null);setFloatTaskTab("detalles")}}/>}
       <div className="mobile-bottom-nav"><BottomNav page={page} navigate={navigate} profile={profile} isDark={isDark} toggleTheme={toggleTheme} onLogout={onLogout} unread={unread.length} onNotif={()=>setShowNotif(s=>!s)} onReporte={()=>setShowReporte(true)}/></div>
     </div>
   )
