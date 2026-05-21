@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import ReactDOM from 'react-dom'
+import { useState, useEffect, useRef } from 'react'
 import {
   sb,
   teamColor,
@@ -13,24 +12,8 @@ import { showToast } from '../components/Toast'
 import { showConfirm } from '../components/ConfirmDialog'
 import UserTeamRow from '../components/UserTeamRow'
 import Icon from '../components/Icon'
-import { Av, SC, BackBtn, Linkify, ActiveTimer, StatusLegend } from '../components/Shared'
-import {
-  statusLabel,
-  statusPill,
-  statusColor,
-  prioPill,
-  fmtDate,
-  fmtDateRelative,
-  useSessionFilters,
-} from '../lib/utils'
-function ModalPortal({ children }) {
-  const el = useRef(document.createElement('div'))
-  useEffect(() => {
-    document.body.appendChild(el.current)
-    return () => document.body.removeChild(el.current)
-  }, [])
-  return ReactDOM.createPortal(children, el.current)
-}
+import { Av, BackBtn, ModalPortal } from '../components/Shared'
+import { fmtDate } from '../lib/utils'
 export default function AdminView({
   users,
   teams,
@@ -67,6 +50,14 @@ export default function AdminView({
     setUForm((f) => {
       const upd = { ...f, [k]: val }
       if (k === 'email') upd.avatar_color = autoColor(val)
+      if (k === 'team_id' && val) {
+        const team = teams.find((t) => t.id === val)
+        if (team) upd.avatar_color = teamColor(team)
+      }
+      if (k === 'role' && val === 'colaborador' && f.team_id) {
+        const team = teams.find((t) => t.id === f.team_id)
+        if (team) upd.avatar_color = teamColor(team)
+      }
       return upd
     })
   }
@@ -121,7 +112,7 @@ export default function AdminView({
         },
         token
       )
-      showToast('Invitacion enviada a ' + uForm.email, 'success')
+      showToast('Invitación enviada a ' + uForm.email, 'success')
       setUForm({
         name: '',
         email: '',
@@ -218,7 +209,10 @@ export default function AdminView({
 
   async function changeUserTeam(userId, teamId) {
     try {
-      await sb.update('usuarios', userId, { team_id: teamId || null }, token)
+      const team = teams.find((t) => t.id === teamId)
+      const updates = { team_id: teamId || null }
+      if (team) updates.avatar_color = teamColor(team)
+      await sb.update('usuarios', userId, updates, token)
       showToast('Equipo actualizado', 'success')
       onRefresh()
     } catch (e) {
@@ -258,7 +252,7 @@ export default function AdminView({
     <div>
       {onBack && <BackBtn onClick={onBack} />}
       <div className="section-header">
-        <h2 className="section-title">Administracion</h2>
+        <h2 className="section-title">Administración</h2>
       </div>
 
       {/* EQUIPOS */}
@@ -702,30 +696,50 @@ export default function AdminView({
                   </select>
                 </div>
               )}
-              <div className="form-group">
-                <label className="form-label">
-                  Color de avatar (auto-asignado · puedes cambiar)
-                </label>
-                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 6 }}>
-                  {COLLAB_COLORS.map((c) => (
+              {uForm.role === 'colaborador' && uForm.team_id ? (
+                <div className="form-group">
+                  <label className="form-label">Color de avatar</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
                     <div
-                      key={c}
-                      onClick={() => setUForm((f) => ({ ...f, avatar_color: c }))}
                       style={{
                         width: 26,
                         height: 26,
                         borderRadius: 5,
-                        background: c,
-                        cursor: 'pointer',
-                        border:
-                          uForm.avatar_color === c ? '2px solid #f2f0eb' : '2px solid transparent',
-                        transform: uForm.avatar_color === c ? 'scale(1.18)' : 'scale(1)',
-                        transition: '.15s',
+                        background: uForm.avatar_color,
+                        border: '2px solid var(--border)',
                       }}
                     />
-                  ))}
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      Asignado automáticamente por el equipo
+                    </span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">
+                    Color de avatar (auto-asignado · puedes cambiar)
+                  </label>
+                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 6 }}>
+                    {COLLAB_COLORS.map((c) => (
+                      <div
+                        key={c}
+                        onClick={() => setUForm((f) => ({ ...f, avatar_color: c }))}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 5,
+                          background: c,
+                          cursor: 'pointer',
+                          border:
+                            uForm.avatar_color === c ? '2px solid #f2f0eb' : '2px solid transparent',
+                          transform: uForm.avatar_color === c ? 'scale(1.18)' : 'scale(1)',
+                          transition: '.15s',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               {uForm.name && (
                 <div
                   style={{

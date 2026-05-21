@@ -10,6 +10,7 @@ export default function BottomNav({
   unread,
   onNotif,
   onReporte,
+  onEquipos,
 }) {
   const isDir = profile.role === 'director'
   const isCuentas = profile.role === 'cuentas'
@@ -19,7 +20,7 @@ export default function BottomNav({
     { id: 'home', icon: 'home', label: 'Inicio' },
     { id: 'ordenes', icon: 'ordenes', label: 'Ordenes' },
     ...(canCreate ? [{ id: 'crear', icon: 'nueva', label: 'Nueva', primary: true }] : []),
-    { id: 'equipos', icon: 'equipos', label: 'Equipos' },
+    { id: 'equipos', icon: 'equipos', label: 'Equipos', action: onEquipos },
     ...(isDir
       ? [
           {

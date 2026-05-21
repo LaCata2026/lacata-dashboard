@@ -1,37 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import ReactDOM from 'react-dom'
+import { useState } from 'react'
 import {
-  sb,
   teamColor,
   getUserColor,
-  COLLAB_COLORS,
-  COLORS,
-  MARCAS_PREDEFINIDAS,
-  getInitials,
-  autoColor,
 } from '../lib/supabase'
-import { showToast } from '../components/Toast'
-import { showConfirm } from '../components/ConfirmDialog'
 import Icon from '../components/Icon'
-import { Av, SC, BackBtn, Linkify, ActiveTimer, StatusLegend } from '../components/Shared'
+import { Av, BackBtn } from '../components/Shared'
 import TaskCard from './TaskCard'
-import {
-  statusLabel,
-  statusPill,
-  statusColor,
-  prioPill,
-  fmtDate,
-  fmtDateRelative,
-  useSessionFilters,
-} from '../lib/utils'
-function ModalPortal({ children }) {
-  const el = useRef(document.createElement('div'))
-  useEffect(() => {
-    document.body.appendChild(el.current)
-    return () => document.body.removeChild(el.current)
-  }, [])
-  return ReactDOM.createPortal(children, el.current)
-}
 export default function TeamDetailView({
   team,
   teamTasks,

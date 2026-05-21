@@ -11,33 +11,29 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
   try {
-    // Verificar que el llamador es un usuario autenticado con rol director
+    // Verificar que el llamador está autenticado
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No autorizado' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if (!authHeader) return json({ error: 'No autorizado' }, 401)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!
 
-    // Verificar el token del usuario que llama
+    // Verificar token del director que llama
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     })
     const { data: { user }, error: authError } = await callerClient.auth.getUser()
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Token inválido' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if (authError || !user) return json({ error: 'Token inválido' }, 401)
 
-    // Verificar que el usuario tiene rol director en la BD
+    // Solo directores pueden invitar
     const { data: profile, error: profileError } = await callerClient
       .from('usuarios')
       .select('role')
@@ -45,43 +41,27 @@ serve(async (req) => {
       .single()
 
     if (profileError || profile?.role !== 'director') {
-      return new Response(JSON.stringify({ error: 'Solo los directores pueden invitar usuarios' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json({ error: 'Solo los directores pueden invitar usuarios' }, 403)
     }
 
-    // Leer body
     const { email, name } = await req.json()
-    if (!email || !name) {
-      return new Response(JSON.stringify({ error: 'email y name son requeridos' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if (!email || !name) return json({ error: 'email y name son requeridos' }, 400)
 
-    // Usar service key para invitar — nunca se expone al browser
+    // Invitar usuario — Supabase envía el email usando la plantilla configurada
+    // en Auth → Email Templates → Invite user del dashboard de Supabase
     const adminClient = createClient(supabaseUrl, serviceKey)
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { full_name: name },
+      redirectTo: 'https://hub.agarrate-catalina.com',
     })
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if (error) return json({ error: error.message }, 400)
 
     const u = data.user
-    return new Response(
-      JSON.stringify({ id: u.id, email: u.email, user_metadata: u.user_metadata }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return json({ id: u.id, email: u.email, user_metadata: u.user_metadata })
+
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error('invite-user error:', err)
+    return json({ error: err.message }, 500)
   }
 })

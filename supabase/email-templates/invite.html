@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invitación — Agárrate Catalina</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0d0d0d;-webkit-text-size-adjust:100%;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+    style="background-color:#0d0d0d;padding:48px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+          style="max-width:520px;width:100%;">
+
+          <!-- Logo y nombre -->
+          <tr>
+            <td align="center" style="padding-bottom:28px;">
+              <img
+                src="{{ .SiteURL }}/logo_cata.png"
+                alt="Agárrate Catalina"
+                width="52"
+                height="52"
+                style="display:block;margin:0 auto 14px;border-radius:12px;border:0;" />
+              <div style="color:#f2f0eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.02em;line-height:1;">
+                Agárrate Catalina
+              </div>
+              <div style="color:#555;font-family:'Courier New',Courier,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;margin-top:5px;">
+                Creative Ops Dashboard
+              </div>
+            </td>
+          </tr>
+
+          <!-- Card principal -->
+          <tr>
+            <td style="background-color:#161616;border:1px solid #252525;border-radius:16px;padding:40px 40px 36px;mso-padding-alt:40px 40px 36px;">
+
+              <h1 style="color:#f2f0eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;line-height:1.35;margin:0 0 14px;">
+                Tienes acceso al dashboard
+              </h1>
+
+              <p style="color:#888;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.75;margin:0 0 30px;">
+                Fuiste agregado al sistema de gestión de proyectos de
+                <strong style="color:#c8c5be;">Agárrate Catalina</strong>.
+                Haz clic en el botón para establecer tu contraseña e ingresar al dashboard.
+              </p>
+
+              <!-- Botón CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="center" style="padding-bottom:34px;">
+                    <a href="{{ .ConfirmationURL }}"
+                      style="background-color:#e8c547;color:#0d0d0d;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;padding:15px 36px;border-radius:10px;display:inline-block;letter-spacing:-0.01em;line-height:1;">
+                      Crear contraseña e ingresar &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid #232323;margin-bottom:24px;"></div>
+
+              <!-- Enlace alternativo -->
+              <p style="color:#555;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;margin:0 0 10px;">
+                Si el botón no funciona, copia este enlace en tu navegador:
+              </p>
+              <p style="margin:0 0 24px;word-break:break-all;">
+                <a href="{{ .ConfirmationURL }}"
+                  style="color:#e8c547;font-family:'Courier New',Courier,monospace;font-size:11px;text-decoration:none;">
+                  {{ .ConfirmationURL }}
+                </a>
+              </p>
+
+              <div style="border-top:1px solid #232323;margin-bottom:20px;"></div>
+
+              <p style="color:#444;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;margin:0;">
+                Si no esperabas esta invitación puedes ignorar este correo con seguridad.
+                Este enlace expira en <strong style="color:#555;">24 horas</strong>.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="color:#333;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.04em;margin:0;">
+                &copy; Agárrate Catalina Agency
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,41 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import ReactDOM from 'react-dom'
-import {
-  sb,
-  teamColor,
-  getUserColor,
-  COLLAB_COLORS,
-  COLORS,
-  MARCAS_PREDEFINIDAS,
-  getInitials,
-  autoColor,
-} from '../lib/supabase'
-import { showToast } from '../components/Toast'
-import { showConfirm } from '../components/ConfirmDialog'
+import { useState, useCallback } from 'react'
+import { teamColor, getUserColor } from '../lib/supabase'
 import Icon from '../components/Icon'
-import { Av, SC, BackBtn, Linkify, ActiveTimer, StatusLegend } from '../components/Shared'
-import {
-  statusLabel,
-  statusPill,
-  statusColor,
-  prioPill,
-  fmtDate,
-  fmtDateRelative,
-  useSessionFilters,
-} from '../lib/utils'
+import { Av, BackBtn } from '../components/Shared'
+import { assignedOf } from '../lib/utils'
 import TaskCard from './TaskCard'
-function ModalPortal({ children }) {
-  const el = useRef(document.createElement('div'))
-  useEffect(() => {
-    document.body.appendChild(el.current)
-    return () => document.body.removeChild(el.current)
-  }, [])
-  return ReactDOM.createPortal(children, el.current)
-}
-
-// assignedOf — normaliza assigned_to a array (array | string | null → array)
-const assignedOf = (t) =>
-  Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)
 
 export default function TeamsView({
   tasks,

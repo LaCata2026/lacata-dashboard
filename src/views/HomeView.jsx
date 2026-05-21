@@ -702,257 +702,257 @@ function MyWeekCard({ me, tasks, onNavigate }) {
   )
 }
 
-function DailySignal({ tasks, users, collabs, onNavigate, onOpenTask, onViewUser }) {
+function TodayPanel({ tasks, users, teams, onOpenTask }) {
+  // Fecha local (no UTC) — Guatemala = UTC-6, toISOString daría ayer antes de las 6am
   const now = new Date()
-  const in48h = new Date(now.getTime() + 48 * 3600000)
-  const vencidas = tasks.filter((t) => t.status === 'vencida')
-  const dueSoon = tasks
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+  // Orden de urgencia: lo que no ha empezado o está vencido va primero
+  const urgencyOrder = { vencida: 0, pendiente: 1, en_pausa: 2, en_progreso: 3, en_revision: 4 }
+
+  const dueToday = tasks
+    .filter((t) => t.due_date === todayStr && t.status !== 'completada')
+    .sort((a, b) => (urgencyOrder[a.status] ?? 9) - (urgencyOrder[b.status] ?? 9))
+
+  const completedToday = tasks
     .filter((t) => {
-      if (t.status === 'completada' || t.status === 'vencida') return false
-      if (!t.due_date) return false
-      const d = new Date(t.due_date + 'T23:59:59')
-      return d >= now && d <= in48h
+      if (t.status !== 'completada') return false
+      const upd = t.updated_at ? new Date(t.updated_at) : null
+      if (!upd) return false
+      const updStr = `${upd.getFullYear()}-${String(upd.getMonth() + 1).padStart(2, '0')}-${String(upd.getDate()).padStart(2, '0')}`
+      return updStr === todayStr
     })
-    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
-  const sobrecargados = collabs
-    .map((u) => ({
-      u,
-      n: tasks.filter((t) => {
-        const a = Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)
-        return a.includes(u.id) && t.status !== 'completada'
-      }).length,
-    }))
-    .filter((x) => x.n >= 7)
-    .sort((a, b) => b.n - a.n)
-  const hasVencidas = vencidas.length > 0
-  const hasDueSoon = dueSoon.length > 0
-  const hasSobre = sobrecargados.length > 0
-  const allClear = !hasVencidas && !hasDueSoon && !hasSobre
-  const level = hasVencidas ? 'red' : hasDueSoon ? 'yellow' : hasSobre ? 'orange' : 'green'
-  const levelStyles = {
-    red: {
-      border: 'rgba(232,93,93,.35)',
-      bg: 'rgba(232,93,93,.06)',
-      dot: 'var(--s-vencida)',
-      label: 'Requiere atención',
-      labelColor: '#fca5a5',
-    },
-    yellow: {
-      border: 'rgba(232,197,71,.35)',
-      bg: 'rgba(232,197,71,.05)',
-      dot: 'var(--yellow)',
-      label: 'Atención esta semana',
-      labelColor: 'var(--yellow)',
-    },
-    orange: {
-      border: 'rgba(251,146,60,.35)',
-      bg: 'rgba(251,146,60,.05)',
-      dot: '#fb923c',
-      label: 'Carga elevada',
-      labelColor: '#fb923c',
-    },
-    green: {
-      border: 'rgba(46,196,160,.25)',
-      bg: 'rgba(46,196,160,.04)',
-      dot: 'var(--s-completada)',
-      label: 'Todo bajo control',
-      labelColor: 'var(--s-completada)',
-    },
-  }[level]
-  const topItem = hasVencidas ? vencidas[0] : hasDueSoon ? dueSoon[0] : null
-  const sinMarca = tasks.filter((t) => (!t.marca || !t.marca.trim()) && t.status !== 'completada')
+    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+
+  const total = dueToday.length + completedToday.length
+  const pct = total > 0 ? Math.round((completedToday.length / total) * 100) : 0
+  const allDone = total > 0 && pct === 100
+  const nothingToday = total === 0
+
+  const scColor = {
+    pendiente: 'var(--s-pendiente)',
+    en_progreso: 'var(--s-progreso)',
+    en_revision: 'var(--s-revision)',
+    vencida: 'var(--s-vencida)',
+    en_pausa: 'var(--s-pausa)',
+  }
 
   return (
     <div
       className="card fade-in"
       style={{
         marginBottom: 16,
-        padding: '14px 18px',
-        border: `1px solid ${levelStyles.border}`,
-        background: levelStyles.bg,
-        position: 'relative',
-        overflow: 'hidden',
+        padding: '16px 18px',
+        border: allDone ? '1px solid rgba(46,196,160,.3)' : '1px solid var(--border)',
+        background: allDone ? 'rgba(46,196,160,.03)' : undefined,
       }}
     >
+      {/* Cabecera */}
       <div
         style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 3,
-          background: levelStyles.dot,
-          opacity: 0.9,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 10,
         }}
-      />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
-        <div
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            background: levelStyles.dot,
-            boxShadow: `0 0 8px ${levelStyles.dot}`,
-            flexShrink: 0,
-          }}
-        />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {allClear ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: levelStyles.labelColor }}>
-                Todo bajo control ✓
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                Sin vencidas ni alertas hoy
-              </span>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: levelStyles.labelColor }}>
-                {levelStyles.label}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                {hasVencidas && (
-                  <button
-                    onClick={() => onNavigate('ordenes', 'vencida')}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: 'rgba(232,93,93,.12)',
-                      border: '1px solid rgba(232,93,93,.25)',
-                      color: 'var(--s-vencida)',
-                      borderRadius: 6,
-                      padding: '3px 9px',
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font-body)',
-                    }}
-                  >
-                    <Icon n="vencida" size={11} />
-                    {vencidas.length} vencida{vencidas.length > 1 ? 's' : ''}
-                  </button>
-                )}
-                {hasDueSoon && (
-                  <button
-                    onClick={() => onNavigate('ordenes')}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: 'rgba(232,197,71,.1)',
-                      border: '1px solid rgba(232,197,71,.25)',
-                      color: 'var(--yellow)',
-                      borderRadius: 6,
-                      padding: '3px 9px',
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font-body)',
-                    }}
-                  >
-                    <Icon n="reloj" size={11} />
-                    {dueSoon.length} vence{dueSoon.length > 1 ? 'n' : ''} en 48h
-                  </button>
-                )}
-                {hasSobre && (
-                  <button
-                    onClick={() => onNavigate('equipos')}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: 'rgba(251,146,60,.1)',
-                      border: '1px solid rgba(251,146,60,.25)',
-                      color: '#fb923c',
-                      borderRadius: 6,
-                      padding: '3px 9px',
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font-body)',
-                    }}
-                  >
-                    <Icon n="equipos" size={11} />
-                    {sobrecargados.length} sobrecargado{sobrecargados.length > 1 ? 's' : ''}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-        {sinMarca.length > 0 && (
-          <button
-            onClick={() => onNavigate('ordenes')}
+      >
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 700 }}>
+            <Icon n="calendario" size={13} style={{ marginRight: 6, opacity: 0.6 }} />
+            Entregas de hoy
+          </h3>
+          <p
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 12,
-              fontWeight: 700,
-              background: 'rgba(232,197,71,.1)',
-              border: '1px solid rgba(232,197,71,.25)',
-              color: 'var(--yellow)',
-              borderRadius: 6,
-              padding: '3px 9px',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-body)',
-              flexShrink: 0,
+              fontSize: 11,
+              color: 'var(--muted)',
+              fontFamily: 'var(--font-mono)',
+              marginTop: 2,
             }}
           >
-            <Icon n="alerta" size={11} />
-            {sinMarca.length} sin marca →
-          </button>
+            {completedToday.length} de {total} entregada{total !== 1 ? 's' : ''}
+          </p>
+        </div>
+        {allDone && (
+          <span className="fade-in" style={{ fontSize: 13, fontWeight: 700, color: 'var(--s-completada)' }}>
+            ✓ Todo entregado
+          </span>
         )}
-        {topItem && (
+        {nothingToday && (
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+            sin programar
+          </span>
+        )}
+      </div>
+
+      {/* Barra de progreso del día */}
+      <div
+        style={{
+          height: 5,
+          background: 'var(--bg3)',
+          borderRadius: 3,
+          marginBottom: 14,
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${pct}%`,
+            background: allDone ? 'var(--s-completada)' : 'var(--accent)',
+            borderRadius: 3,
+            transition: 'width .6s cubic-bezier(.4,0,.2,1)',
+          }}
+        />
+      </div>
+
+      {/* Estado vacío */}
+      {nothingToday && (
+        <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '10px 0 4px', fontStyle: 'italic' }}>
+          No hay órdenes con fecha límite hoy
+        </p>
+      )}
+
+      {/* Pendientes de hoy */}
+      {dueToday.map((t) => {
+        const assignee = users.find(
+          (u) => u.id === (Array.isArray(t.assigned_to) ? t.assigned_to[0] : t.assigned_to)
+        )
+        const sc = scColor[t.status] || 'var(--muted)'
+        return (
           <div
-            onClick={() => onOpenTask && onOpenTask(topItem)}
+            key={t.id}
+            onClick={() => onOpenTask && onOpenTask(t)}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              borderRadius: 7,
-              background: 'var(--bg3)',
+              gap: 10,
+              padding: '8px 8px',
+              marginBottom: 2,
+              borderRadius: 8,
               cursor: 'pointer',
-              border: '1px solid var(--border)',
+              borderLeft: `3px solid ${sc}`,
               transition: '.12s',
-              maxWidth: 240,
-              flexShrink: 0,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg4)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            {topItem.order_number && (
+            <Av u={assignee} size={24} teams={teams} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {t.title}
+              </p>
+              <p style={{ fontSize: 11, color: 'var(--muted)' }}>
+                {assignee?.name || 'Sin asignar'}
+                {t.marca ? ` · ${t.marca}` : ''}
+              </p>
+            </div>
+            <span
+              style={{
+                fontSize: 10,
+                padding: '2px 7px',
+                borderRadius: 4,
+                flexShrink: 0,
+                background: sc + '1a',
+                color: sc,
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {statusLabel[t.status]}
+            </span>
+          </div>
+        )
+      })}
+
+      {/* Entregadas hoy */}
+      {completedToday.length > 0 && (
+        <>
+          <p
+            style={{
+              fontSize: 10,
+              color: 'var(--muted)',
+              fontFamily: 'var(--font-mono)',
+              textTransform: 'uppercase',
+              letterSpacing: '.06em',
+              margin: dueToday.length > 0 ? '12px 0 8px' : '4px 0 8px',
+              paddingTop: dueToday.length > 0 ? 10 : 0,
+              borderTop: dueToday.length > 0 ? '1px solid var(--border)' : 'none',
+            }}
+          >
+            Entregadas hoy
+          </p>
+          {completedToday.map((t) => (
+            <div
+              key={t.id}
+              onClick={() => onOpenTask && onOpenTask(t)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '7px 8px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                opacity: 0.55,
+                transition: '.12s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg3)'
+                e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.opacity = '0.55'
+              }}
+            >
               <span
                 style={{
-                  fontSize: 10,
-                  fontWeight: 700,
+                  color: 'var(--s-completada)',
+                  fontSize: 13,
+                  flexShrink: 0,
+                  lineHeight: 1,
+                }}
+              >
+                ✓
+              </span>
+              <p
+                style={{
+                  flex: 1,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  textDecoration: 'line-through',
+                  color: 'var(--muted)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {t.title}
+              </p>
+              <span
+                style={{
+                  fontSize: 11,
                   color: 'var(--muted)',
                   fontFamily: 'var(--font-mono)',
                   flexShrink: 0,
                 }}
               >
-                AC-{String(topItem.order_number).padStart(4, '0')}
+                {new Date(t.updated_at).toLocaleTimeString('es-GT', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </span>
-            )}
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                flex: 1,
-              }}
-            >
-              {topItem.title}
-            </span>
-            <span style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>→</span>
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }
@@ -1208,13 +1208,11 @@ export default function HomeView({
             </div>
           </div>
           {isDir && (
-            <DailySignal
+            <TodayPanel
               tasks={scopedTasks}
               users={users}
-              collabs={collabs}
-              onNavigate={onNavigate}
+              teams={teams}
               onOpenTask={onOpenTask}
-              onViewUser={onViewUser}
             />
           )}
           <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>

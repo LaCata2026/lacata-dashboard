@@ -120,8 +120,20 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
     [session.profile]
   )
 
-  const [page, setPage] = useState('home')
-  const [pageArg, setPageArg] = useState(null)
+  // ── Inicializar página desde hash de URL (soporta recargar/compartir link) ──
+  const [page, setPage] = useState(() => {
+    const hash = window.location.hash.replace('#', '')
+    if (!hash || hash.includes('access_token') || hash.includes('type=')) return 'home'
+    const [hashPage] = hash.split('/')
+    const valid = ['home', 'ordenes', 'crear', 'equipos', 'calendario', 'desempeno', 'admin', 'perfil']
+    return valid.includes(hashPage) ? hashPage : 'home'
+  })
+  const [pageArg, setPageArg] = useState(() => {
+    const hash = window.location.hash.replace('#', '')
+    if (!hash || hash.includes('access_token') || hash.includes('type=')) return null
+    const parts = hash.split('/')
+    return parts[1] || null // string ID; se resuelve a objeto cuando carguen los datos
+  })
   const [activeTeamId, setActiveTeamId] = useState(null)
   const [pageTransitioning, setPageTransitioning] = useState(false)
   const [tasks, setTasks] = useState([])
@@ -138,6 +150,11 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
   const [showReporte, setShowReporte] = useState(false)
   const [dense, setDense] = useState(() => localStorage.getItem('lc_dense') === '1')
   const [rtOk, setRtOk] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+
+  // Ref siempre actualizado de users — usado en el handler popstate sin clausura stale
+  const usersRef = useRef([])
+  useEffect(() => { usersRef.current = users }, [users])
 
   const { unread, markAllSeen, markSeen } = useNotifications(tasks, profile)
 
@@ -155,8 +172,10 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
       setTasks(t)
       setUsers(u)
       setTeams(tm)
+      setLoadError(false)
     } catch (e) {
       if (e.message === 'SESSION_EXPIRED') onLogout()
+      else setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -273,24 +292,69 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
   const navigate = useCallback((id, arg = null) => {
     setPageTransitioning(true)
     setTimeout(() => setPageTransitioning(false), 320)
+
+    let newPage = id
+    let newPageArg = arg
+    let newActiveTeamId = null
+
     if (id && id.startsWith('equipo_')) {
-      setPage('equipos')
-      setPageArg(id.replace('equipo_', ''))
+      newPage = 'equipos'
+      newPageArg = id.replace('equipo_', '')
+    } else if (arg && typeof arg === 'object' && arg.teamId) {
+      newPage = id
+      newActiveTeamId = arg.teamId
+      newPageArg = null
+    }
+
+    setPage(newPage)
+    setPageArg(newPageArg)
+    setActiveTeamId(newActiveTeamId)
+    setSidebarOpen(false)
+
+    // ── Empujar al historial del browser ──
+    const argId =
+      newPageArg && typeof newPageArg === 'object'
+        ? newPageArg.id
+        : newPageArg || null
+    const argType = newPageArg && typeof newPageArg === 'object' ? 'user' : null
+    const hashPart = newPage + (argId ? '/' + argId : '')
+    window.history.pushState({ page: newPage, argId, argType }, '', '#' + hashPart)
+  }, [])
+
+  // ── Restaurar página al usar Atrás / Adelante del browser ──
+  useEffect(() => {
+    // Decorar la entrada inicial del historial para que popstate pueda restaurarla
+    if (!window.history.state?.page) {
+      const argId = pageArg && typeof pageArg === 'object' ? pageArg.id : (pageArg || null)
+      const argType = pageArg && typeof pageArg === 'object' ? 'user' : null
+      window.history.replaceState({ page, argId, argType }, '', window.location.hash || '#home')
+    }
+
+    function onPopState(e) {
+      if (!e.state?.page) return
+      const { page: p, argId, argType } = e.state
+      let restoredArg = argId || null
+      if (argType === 'user' && argId) {
+        restoredArg = usersRef.current.find((u) => u.id === argId) || null
+      }
+      setPage(p)
+      setPageArg(restoredArg)
       setActiveTeamId(null)
       setSidebarOpen(false)
-      return
+      setPageTransitioning(true)
+      setTimeout(() => setPageTransitioning(false), 320)
     }
-    if (arg && typeof arg === 'object' && arg.teamId) {
-      setPage(id)
-      setActiveTeamId(arg.teamId)
-      setPageArg(null)
-      setSidebarOpen(false)
-      return
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps — usersRef es ref, no necesita dep
+
+  // ── Resolver pageArg de string-ID a objeto usuario (carga inicial desde hash) ──
+  useEffect(() => {
+    if (page === 'desempeno' && typeof pageArg === 'string' && users.length > 0) {
+      const user = users.find((u) => u.id === pageArg)
+      if (user) setPageArg(user)
     }
-    setPage(id)
-    setPageArg(arg)
-    setSidebarOpen(false)
-  }, [])
+  }, [users, page, pageArg])
 
   useEffect(() => {
     if (page !== 'ordenes' && activeTeamId) setActiveTeamId(null)
@@ -440,18 +504,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
             border: '1px solid var(--border)',
           }}
         >
-          <div
-            className="avatar"
-            style={{
-              width: 48,
-              height: 48,
-              background: profile.avatar_color || '#7c3aed',
-              fontSize: 16,
-              color: '#fff',
-            }}
-          >
-            {profile.initials || '?'}
-          </div>
+          <Av u={profile} size={48} teams={teams} />
           <div>
             <p style={{ fontSize: 16, fontWeight: 700 }}>{profile.name}</p>
             <p style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'capitalize' }}>
@@ -495,7 +548,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
               className="btn btn-ghost"
               style={{ justifyContent: 'flex-start', gap: 10 }}
             >
-              ⚙ Administracion
+              ⚙ Administración
             </button>
           )}
           <button
@@ -503,7 +556,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
             className="btn btn-danger"
             style={{ justifyContent: 'flex-start', gap: 10, marginTop: 8 }}
           >
-            Cerrar sesion
+            Cerrar sesión
           </button>
         </div>
       </div>
@@ -744,7 +797,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
                 borderBottom: '1px solid var(--border)',
               }}
             >
-              <Av u={profile} size={32} />
+              <Av u={profile} size={32} teams={teams} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
@@ -992,7 +1045,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
               style={{ width: '100%', fontSize: 11, marginTop: 4 }}
               onClick={onLogout}
             >
-              Cerrar sesion
+              Cerrar sesión
             </button>
           </div>
         </div>
@@ -1049,6 +1102,13 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
             const teamName = page === 'equipos' && pageArg
               ? teams.find((t) => t.id === pageArg)?.name
               : null
+            const userCrumb = page === 'desempeno' && pageArg && typeof pageArg === 'object'
+              ? pageArg.name
+              : null
+            const crumbBtnStyle = {
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--muted)', fontFamily: 'inherit', fontSize: 'inherit', padding: 0,
+            }
             return (
               <div
                 style={{
@@ -1065,15 +1125,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
                   <>
                     <button
                       onClick={() => navigate('equipos')}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--muted)',
-                        fontFamily: 'inherit',
-                        fontSize: 'inherit',
-                        padding: 0,
-                      }}
+                      style={crumbBtnStyle}
                       onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
                       onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
                     >
@@ -1081,6 +1133,19 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
                     </button>
                     <span>›</span>
                     <span style={{ color: 'var(--text)', fontWeight: 600 }}>{teamName}</span>
+                  </>
+                ) : userCrumb ? (
+                  <>
+                    <button
+                      onClick={() => navigate('desempeno')}
+                      style={crumbBtnStyle}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
+                    >
+                      Reportes
+                    </button>
+                    <span>›</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 600 }}>{userCrumb}</span>
                   </>
                 ) : (
                   <span style={{ color: 'var(--muted2)' }}>{pageLabel}</span>
@@ -1095,6 +1160,34 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
                 style={{ width: 200, margin: '0 auto 12px' }}
               />
               <div className="skeleton skeleton-text" style={{ width: 300, margin: '0 auto' }} />
+            </div>
+          ) : loadError ? (
+            <div
+              style={{
+                padding: 48,
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <span style={{ fontSize: 32, opacity: 0.4 }}>⚠️</span>
+              <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>
+                No se pudieron cargar los datos.
+                <br />
+                Verifica tu conexión e inténtalo de nuevo.
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setLoadError(false)
+                  setLoading(true)
+                  load()
+                }}
+              >
+                Reintentar
+              </button>
             </div>
           ) : (
             <div key={page + (activeTeamId || '')} className="page-enter">
@@ -1135,7 +1228,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
       {/* initialTab le dice al TaskCard si abrir en detalles o conversacion */}
       {floatTask && (
         <TaskCard
-          key={floatTaskId + '-' + floatTaskTab}
+          key={floatTaskId}
           task={floatTask}
           users={users}
           teams={teams}
@@ -1161,6 +1254,11 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
           unread={unread.length}
           onNotif={() => setShowNotif((s) => !s)}
           onReporte={() => setShowReporte(true)}
+          onEquipos={() =>
+            visibleTeams.length === 1
+              ? navigate('equipo_' + visibleTeams[0].id)
+              : navigate('equipos')
+          }
         />
       </div>
     </div>

@@ -1,5 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { getUserColor } from '../lib/supabase'
+
+export function ModalPortal({ children }) {
+  const el = useRef(document.createElement('div'))
+  useEffect(() => {
+    document.body.appendChild(el.current)
+    return () => document.body.removeChild(el.current)
+  }, [])
+  return ReactDOM.createPortal(children, el.current)
+}
 
 export function Av({ u, size = 32, teams }) {
   const bg = getUserColor(u, teams)
