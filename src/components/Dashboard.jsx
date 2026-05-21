@@ -32,7 +32,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const[page,setPage]=useState("home")
   const[pageArg,setPageArg]=useState(null)
-  // NUEVO: filtro por equipo activo (independiente de pageArg para no romper otras vistas)
+  // Filtro por equipo activo (independiente de pageArg para no romper otras vistas)
   const[activeTeamId,setActiveTeamId]=useState(null)
   const[tasks,setTasks]=useState([])
   const[users,setUsers]=useState([])
@@ -91,17 +91,27 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
   },[])
 
   useEffect(()=>{
-    function onKey(e){if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setSpotlight(s=>!s)};if(e.key==="Escape")setSpotlight(false)}
+    function onKey(e){if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setSpotlight(s=>!s)};if(e.key==="Escape"){setSpotlight(false);setShowNotif(false)}}
     window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)
   },[])
 
-  // navigate: ahora maneja también filtro por equipo desde el sidebar
-  // - navigate("equipo_<id>") → vista Equipos (como antes)
-  // - navigate("ordenes", {teamId}) → vista Órdenes filtrada por equipo (NUEVO)
-  // - navigate("ordenes", "vencida") → vista Órdenes filtrada por status (como antes)
+  // Cerrar popup de menciones con click afuera
+  const notifPopupRef=useRef(null)
+  const notifBtnRef=useRef(null)
+  useEffect(()=>{
+    if(!showNotif)return
+    function onClickOutside(e){
+      if(notifPopupRef.current&&!notifPopupRef.current.contains(e.target)&&notifBtnRef.current&&!notifBtnRef.current.contains(e.target)){
+        setShowNotif(false)
+      }
+    }
+    document.addEventListener("mousedown",onClickOutside)
+    return()=>document.removeEventListener("mousedown",onClickOutside)
+  },[showNotif])
+
+  // navigate maneja también filtro por equipo desde el sidebar
   const navigate=useCallback((id,arg=null)=>{
     if(id&&id.startsWith("equipo_")){setPage("equipos");setPageArg(id.replace("equipo_",""));setActiveTeamId(null);setSidebarOpen(false);return}
-    // NUEVO: si nos pasan {teamId} guardamos el filtro y limpiamos pageArg para no confundir initialFilter
     if(arg&&typeof arg==="object"&&arg.teamId){
       setPage(id);
       setActiveTeamId(arg.teamId);
@@ -112,7 +122,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     setPage(id);setPageArg(arg);setSidebarOpen(false)
   },[])
 
-  // Limpiar filtro de equipo al cambiar a otra página que no sea órdenes
   useEffect(()=>{
     if(page!=="ordenes"&&activeTeamId)setActiveTeamId(null)
   },[page,activeTeamId])
@@ -134,7 +143,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const views={
     home:<HomeView {...shared}/>,
-    // initialTeam: filtro por equipo (nuevo, opcional). No rompe nada si no se pasa.
     ordenes:<OrdenesView {...shared} initialFilter={pageArg} initialTeam={activeTeamId} onClearTeamFilter={()=>setActiveTeamId(null)}/>,
     crear:<CreateTask {...shared} onCreated={()=>navigate("ordenes")} onBack={()=>navigate("ordenes")}/>,
     equipos:<OrdenesView {...shared} initialView="equipo"/>,
@@ -160,9 +168,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     ),
   }
 
-  // Botón de ícono reutilizable para la barra de acciones del sidebar
-  const SidebarBtn=({onClick,title,active,children})=>(
-    <button onClick={onClick} title={title} style={{
+  const SidebarBtn=({onClick,title,active,children,btnRef})=>(
+    <button ref={btnRef} onClick={onClick} title={title} style={{
       background:active?"var(--accent-dim)":"none",
       border:"none",cursor:"pointer",
       color:active?"var(--accent)":"var(--muted2)",
@@ -203,7 +210,6 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
             })}
             {visibleTeams.length>0&&(<div><div className="nav-section">Equipos</div>
               {visibleTeams.map(t=>{
-                // NUEVO: marcar visualmente el equipo activo cuando estamos filtrando por él
                 const isActive=page==="ordenes"&&activeTeamId===t.id
                 return(
                   <button
@@ -241,8 +247,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
             )}
           </nav>
 
-          {/* ── PERFIL DE USUARIO — rediseñado ── */}
-          <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:8}}>
+          {/* ── PERFIL DE USUARIO ── */}
+          <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:8,position:"relative"}}>
             {/* Fila 1: avatar + nombre + rol */}
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"4px 4px 10px",borderBottom:"1px solid var(--border)"}}>
               <Av u={profile} size={32}/>
@@ -258,15 +264,12 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
             {/* Fila 2: acciones compactas */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:8,paddingBottom:4}}>
               <div style={{display:"flex",alignItems:"center",gap:2}}>
-                {/* Modo denso */}
                 <SidebarBtn onClick={()=>setDense(d=>!d)} title={dense?"Vista normal":"Vista densa"} active={dense}>
                   <Icon n="lista" size={15}/>
                 </SidebarBtn>
-                {/* Tema */}
                 <SidebarBtn onClick={toggleTheme} title={isDark?"Modo claro":"Modo oscuro"}>
                   <Icon n={isDark?"sol":"luna"} size={15}/>
                 </SidebarBtn>
-                {/* Diagnóstico — solo director */}
                 {profile.role==="director"&&(
                   <SidebarBtn onClick={()=>setShowDiag(true)} title="Diagnóstico del sistema">
                     <Icon n="semaforo" size={15}/>
@@ -274,37 +277,57 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
                 )}
               </div>
 
-              {/* Notificaciones — con badge */}
-              <div style={{position:"relative"}}>
-                <SidebarBtn onClick={()=>setShowNotif(s=>!s)} title="Menciones" active={unread.length>0}>
-                  <Icon n="comentar" size={15}/>
-                  {unread.length>0&&<span style={{position:"absolute",top:0,right:0,background:"var(--s-vencida)",color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:13,height:13,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{unread.length>9?"9+":unread.length}</span>}
-                </SidebarBtn>
-                {showNotif&&(
-                  <div style={{position:"absolute",bottom:"100%",right:0,marginBottom:8,background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:10,padding:8,minWidth:280,boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:300}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingBottom:8,borderBottom:"1px solid var(--border)"}}>
-                      <span style={{fontSize:12,fontWeight:700}}>Menciones</span>
-                      {unread.length>0&&<button onClick={markAllSeen} style={{fontSize:11,background:"none",border:"none",cursor:"pointer",color:"var(--muted)"}}>Marcar leidas</button>}
-                    </div>
-                    {unread.length===0
-                      ?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"12px 0"}}>Sin menciones nuevas</p>
-                      :unread.slice(0,5).map(n=>(
-                        <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);setFloatTaskId(n.task.id)}}
-                          style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer",transition:".13s"}}
-                          onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
-                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                          <span style={{fontSize:16,flexShrink:0}}>💬</span>
-                          <div style={{minWidth:0}}>
-                            <p style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.task.title}</p>
-                            <p style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.comment.user_name}: {n.comment.text.slice(0,50)}</p>
-                          </div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                )}
-              </div>
+              {/* Botón de menciones — el popup ya no se renderiza acá adentro,
+                  se renderiza al nivel del sidebar-inner para tener ancho completo */}
+              <SidebarBtn btnRef={notifBtnRef} onClick={()=>setShowNotif(s=>!s)} title="Menciones" active={showNotif||unread.length>0}>
+                <Icon n="comentar" size={15}/>
+                {unread.length>0&&<span style={{position:"absolute",top:0,right:0,background:"var(--s-vencida)",color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:13,height:13,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{unread.length>9?"9+":unread.length}</span>}
+              </SidebarBtn>
             </div>
+
+            {/* ═══ POPUP DE MENCIONES — anclado al sidebar, no se sale ═══
+                Se posiciona arriba de la fila del perfil, ocupando todo el ancho
+                disponible del sidebar (con padding). Así nunca queda fuera del viewport. */}
+            {showNotif&&(
+              <div ref={notifPopupRef} className="fade-in" style={{
+                position:"absolute",
+                bottom:"calc(100% + 6px)",
+                left:0,
+                right:0,
+                background:"var(--bg2)",
+                border:"1px solid var(--border2)",
+                borderRadius:10,
+                padding:8,
+                boxShadow:"0 8px 32px rgba(0,0,0,.4)",
+                zIndex:500,
+                maxHeight:"60vh",
+                overflowY:"auto"
+              }}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingBottom:8,borderBottom:"1px solid var(--border)"}}>
+                  <span style={{fontSize:12,fontWeight:700}}>Menciones {unread.length>0&&<span style={{color:"var(--muted)",fontWeight:400,fontFamily:"var(--font-mono)"}}>({unread.length})</span>}</span>
+                  <div style={{display:"flex",gap:4}}>
+                    {unread.length>0&&<button onClick={markAllSeen} style={{fontSize:11,background:"none",border:"none",cursor:"pointer",color:"var(--muted)",padding:"2px 6px",borderRadius:4}}>Marcar leídas</button>}
+                    <button onClick={()=>setShowNotif(false)} style={{fontSize:14,background:"none",border:"none",cursor:"pointer",color:"var(--muted)",padding:"0 4px",lineHeight:1}} title="Cerrar">×</button>
+                  </div>
+                </div>
+                {unread.length===0
+                  ?<p style={{fontSize:12,color:"var(--muted)",textAlign:"center",padding:"16px 0"}}>Sin menciones nuevas</p>
+                  :unread.slice(0,8).map(n=>(
+                    <div key={n.key} onClick={()=>{markSeen(n.key);setShowNotif(false);setFloatTaskId(n.task.id)}}
+                      style={{display:"flex",gap:8,padding:"8px 6px",borderRadius:7,cursor:"pointer",transition:".13s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{fontSize:16,flexShrink:0}}>💬</span>
+                      <div style={{minWidth:0,flex:1}}>
+                        <p style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.task.title}</p>
+                        <p style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.comment.user_name}: {n.comment.text.slice(0,60)}</p>
+                      </div>
+                    </div>
+                  ))
+                }
+                {unread.length>8&&<p style={{fontSize:10,color:"var(--muted)",textAlign:"center",marginTop:8,fontFamily:"var(--font-mono)"}}>+{unread.length-8} más</p>}
+              </div>
+            )}
 
             <button className="btn btn-ghost btn-sm" style={{width:"100%",fontSize:11,marginTop:4}} onClick={onLogout}>Cerrar sesion</button>
           </div>
