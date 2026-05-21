@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import Icon from '../components/Icon'
 import { Av } from '../components/Shared'
 import { showToast } from '../components/Toast'
-import { teamColor } from '../lib/supabase'
+import { teamColor, getUserColor } from '../lib/supabase'
 
 /* ─── helpers ─── */
 const SL = {
@@ -331,7 +331,7 @@ function TabColaborador({ tasks, users, teams, range }) {
             background: 'var(--bg2)',
             borderRadius: 12,
             border: '1px solid var(--border)',
-            borderLeft: `4px solid ${u.avatar_color || 'var(--accent)'}`,
+            borderLeft: `4px solid ${getUserColor(u, teams)}`,
           }}
         >
           <Av u={u} size={44} />
@@ -490,7 +490,7 @@ function TabColaborador({ tasks, users, teams, range }) {
                   width: 4,
                   height: 44,
                   borderRadius: 2,
-                  background: u.avatar_color || 'var(--accent)',
+                  background: getUserColor(u, teams),
                   flexShrink: 0,
                 }}
               />

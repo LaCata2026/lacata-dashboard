@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import {
   sb,
   teamColor,
+  getUserColor,
   COLLAB_COLORS,
   COLORS,
   MARCAS_PREDEFINIDAS,
@@ -151,7 +152,7 @@ export default function PerformanceView({ tasks, users, teams, onBack }) {
             background: 'var(--bg2)',
             borderRadius: 12,
             border: '1px solid var(--border)',
-            borderLeft: `4px solid ${u.avatar_color}`,
+            borderLeft: `4px solid ${getUserColor(u, teams)}`,
           }}
         >
           <Av u={u} size={48} />
@@ -594,7 +595,7 @@ export default function PerformanceView({ tasks, users, teams, onBack }) {
                       })
                       .reduce((s, t) => s + Number(t.hours_real || 0), 0)
                     const uColor =
-                      ut >= 7 ? 'var(--red)' : ut >= 4 ? 'var(--yellow)' : u.avatar_color
+                      ut >= 7 ? 'var(--red)' : ut >= 4 ? 'var(--yellow)' : getUserColor(u, teams)
                     const pct = Math.min(100, Math.round((ut / 8) * 100))
                     return (
                       <div
@@ -606,11 +607,11 @@ export default function PerformanceView({ tasks, users, teams, onBack }) {
                             width: 3,
                             height: 32,
                             borderRadius: 2,
-                            background: u.avatar_color,
+                            background: getUserColor(u, teams),
                             flexShrink: 0,
                           }}
                         />
-                        <Av u={u} size={26} />
+                        <Av u={u} size={26} teams={teams} />
                         <div style={{ flex: 1 }}>
                           <div
                             style={{

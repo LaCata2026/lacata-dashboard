@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import {
   sb,
   teamColor,
+  getUserColor,
   COLLAB_COLORS,
   COLORS,
   MARCAS_PREDEFINIDAS,
@@ -394,9 +395,7 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
                         : taskCount >= 5
                           ? 'var(--yellow)'
                           : 'var(--muted)'
-                    // Colaboradores usan el color de su equipo principal
-                    const userTeam = teams.find((t) => t.id === u.team_id)
-                    const avatarBg = userTeam ? teamColor(userTeam) : u.avatar_color
+                    const avatarBg = getUserColor(u, teams)
                     return (
                       <button
                         key={u.id}

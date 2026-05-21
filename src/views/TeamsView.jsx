@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import {
   sb,
   teamColor,
+  getUserColor,
   COLLAB_COLORS,
   COLORS,
   MARCAS_PREDEFINIDAS,
@@ -195,7 +196,7 @@ export default function TeamsView({
                     ? 'var(--s-vencida)'
                     : mTasks.length >= 4
                       ? 'var(--load-warn)'
-                      : m.avatar_color
+                      : getUserColor(m, teams)
                 const isOpen = !!openMembers[m.id]
                 return (
                   <div
@@ -217,7 +218,7 @@ export default function TeamsView({
                         padding: '10px 12px',
                         cursor: 'pointer',
                         userSelect: 'none',
-                        borderLeft: `3px solid ${m.avatar_color}`,
+                        borderLeft: `3px solid ${getUserColor(m, teams)}`,
                         transition: '.13s',
                         background: isOpen ? 'var(--bg4)' : 'transparent',
                       }}

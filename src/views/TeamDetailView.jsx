@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import {
   sb,
   teamColor,
+  getUserColor,
   COLLAB_COLORS,
   COLORS,
   MARCAS_PREDEFINIDAS,
@@ -178,7 +179,7 @@ export default function TeamDetailView({
                 ? 'var(--s-vencida)'
                 : uTasks.length >= 4
                   ? 'var(--load-warn)'
-                  : u.avatar_color
+                  : getUserColor(u, allTeams)
             return (
               <div
                 key={userId}
@@ -199,7 +200,7 @@ export default function TeamDetailView({
                     gap: 10,
                     padding: '12px 16px',
                     cursor: 'pointer',
-                    borderLeft: `4px solid ${u.avatar_color}`,
+                    borderLeft: `4px solid ${getUserColor(u, allTeams)}`,
                     transition: '.13s',
                     background: isOpen ? 'var(--bg3)' : 'var(--bg2)',
                   }}

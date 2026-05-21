@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom'
 import {
   sb,
   teamColor,
+  getUserColor,
   COLLAB_COLORS,
   COLORS,
   MARCAS_PREDEFINIDAS,
@@ -378,7 +379,7 @@ export default function OrdenesView({
                     width: 18,
                     height: 18,
                     borderRadius: 4,
-                    background: u.avatar_color,
+                    background: getUserColor(u, teams),
                     fontSize: 7,
                     color: '#fff',
                     display: 'flex',

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import Icon from '../components/Icon'
 import { Av, SC, BackBtn, StatusLegend } from '../components/Shared'
 import { showToast } from '../components/Toast'
-import { teamColor } from '../lib/supabase'
+import { teamColor, getUserColor } from '../lib/supabase'
 import { assignedOf } from '../lib/utils'
 import TaskCard from './TaskCard'
 
@@ -613,7 +613,7 @@ function TabOperativo({ tasks, users, teams, me, token, onRefresh, onOpenTask, o
                       ? 'var(--s-vencida)'
                       : mTasks.length >= 4
                         ? 'var(--load-warn)'
-                        : m.avatar_color
+                        : getUserColor(m, teams)
                   const isOpen = !!openMembers[m.id]
                   return (
                     <div
@@ -635,7 +635,7 @@ function TabOperativo({ tasks, users, teams, me, token, onRefresh, onOpenTask, o
                           cursor: 'pointer',
                           background: isOpen ? 'var(--bg3)' : 'transparent',
                           transition: '.12s',
-                          borderLeft: `2px solid ${m.avatar_color}`,
+                          borderLeft: `2px solid ${getUserColor(m, teams)}`,
                         }}
                       >
                         <span
@@ -872,7 +872,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
             background: 'var(--bg2)',
             borderRadius: 12,
             border: '1px solid var(--border)',
-            borderLeft: `4px solid ${u.avatar_color || 'var(--accent)'}`,
+            borderLeft: `4px solid ${getUserColor(u, teams)}`,
           }}
         >
           <Av u={u} size={44} />
@@ -1045,7 +1045,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
                     transition: '.13s',
                   }}
                   onMouseEnter={(ev) =>
-                    (ev.currentTarget.style.borderColor = u.avatar_color || 'var(--accent)')
+                    (ev.currentTarget.style.borderColor = getUserColor(u, teams))
                   }
                   onMouseLeave={(ev) => (ev.currentTarget.style.borderColor = 'var(--border)')}
                 >
@@ -1070,7 +1070,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
                       width: 4,
                       height: 40,
                       borderRadius: 2,
-                      background: u.avatar_color || 'var(--accent)',
+                      background: getUserColor(u, teams),
                       flexShrink: 0,
                     }}
                   />
@@ -1089,7 +1089,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
                         style={{
                           width: barPct + '%',
                           height: '100%',
-                          background: u.avatar_color || 'var(--accent)',
+                          background: getUserColor(u, teams),
                           borderRadius: 3,
                           transition: 'width .6s cubic-bezier(.4,0,.2,1)',
                         }}
