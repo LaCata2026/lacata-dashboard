@@ -11,15 +11,51 @@ function ModalPortal({children}){const el=useRef(document.createElement("div"));
 const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
 
 /* ═══════════════════════════════════════════
-   TIP BANNER — #10
-   Aparece una sola vez en el Home (cualquier rol).
-   Muestra tip de Cmd+K y botón de notificaciones
-   si el permiso aún no está concedido.
-   Se descarta con X y no vuelve a aparecer.
+   STAT CARD — tarjeta de estadística clickeable
+   Componente reutilizable con hover visual claro.
+   Se ve "tappable" sin ser ruidoso.
+═══════════════════════════════════════════ */
+function StatCard({val,label,color,onClick,isHero}){
+  const clickable=typeof onClick==="function"
+  return(
+    <button
+      onClick={onClick}
+      disabled={!clickable}
+      style={{
+        background:"transparent",border:"none",padding:isHero?"0":"4px 10px",
+        borderRadius:8,cursor:clickable?"pointer":"default",
+        textAlign:"center",fontFamily:"inherit",color:"inherit",
+        transition:".13s",display:"flex",
+        flexDirection:isHero?"row":"column",
+        alignItems:isHero?"baseline":"center",gap:isHero?8:3
+      }}
+      onMouseEnter={e=>{if(clickable){e.currentTarget.style.background="var(--bg3)";e.currentTarget.style.transform="translateY(-1px)"}}}
+      onMouseLeave={e=>{if(clickable){e.currentTarget.style.background="transparent";e.currentTarget.style.transform="translateY(0)"}}}>
+      <span style={{fontSize:isHero?34:22,fontWeight:800,color,fontFamily:"var(--font-display)",letterSpacing:isHero?"-.03em":"normal",lineHeight:1}}>{val}</span>
+      <span style={{fontSize:isHero?11:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:isHero?".1em":".05em",fontFamily:"var(--font-mono)",marginTop:isHero?0:3}}>{label}</span>
+    </button>
+  )
+}
+
+/* ═══════════════════════════════════════════
+   TIP BANNER
+   Aparece en el Home cuando:
+   - El usuario nunca lo ha descartado, O
+   - Las notificaciones no están activadas (banner se queda visible para volver a ofrecerlas)
+   Si el usuario ya descartó Y las notificaciones están activas → no aparece.
 ═══════════════════════════════════════════ */
 function TipBanner(){
-  const [visible,setVisible]=useState(()=>!localStorage.getItem("lc_tip_dismissed"))
+  const [dismissed,setDismissed]=useState(()=>localStorage.getItem("lc_tip_dismissed")==="1")
   const [notifState,setNotifState]=useState(()=>"Notification"in window?Notification.permission:"denied")
+
+  // Refrescar el estado del permiso si la ventana recobra foco (usuario pudo cambiarlo en settings)
+  useEffect(()=>{
+    function onFocus(){
+      if("Notification"in window)setNotifState(Notification.permission)
+    }
+    window.addEventListener("focus",onFocus)
+    return()=>window.removeEventListener("focus",onFocus)
+  },[])
 
   async function enableNotifs(){
     await PushNotif.requestPermission()
@@ -28,10 +64,14 @@ function TipBanner(){
 
   function dismiss(){
     localStorage.setItem("lc_tip_dismissed","1")
-    setVisible(false)
+    setDismissed(true)
   }
 
-  if(!visible)return null
+  // Si ya descartó el banner Y las notificaciones están activas → no mostramos nada
+  if(dismissed&&notifState==="granted")return null
+  // Si ya descartó pero notifs no están activas → mostramos solo botón de notifs
+  const showFullTip=!dismissed
+
   return(
     <div className="fade-in" style={{
       display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
@@ -39,9 +79,12 @@ function TipBanner(){
       background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.25)",
       borderRadius:10,fontSize:12
     }}>
-      <span style={{fontSize:15,flexShrink:0}}>💡</span>
+      <span style={{fontSize:15,flexShrink:0}}>{notifState==="granted"?"💡":"🔔"}</span>
       <span style={{flex:1,color:"var(--muted2)"}}>
-        Usa <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd> para buscar órdenes, usuarios o equipos al instante.
+        {showFullTip
+          ?<>Usa <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd> para buscar órdenes, usuarios o equipos al instante.</>
+          :<>Recibe avisos en el escritorio cuando te asignen una orden o te mencionen.</>
+        }
       </span>
       {notifState!=="granted"&&(
         <button onClick={enableNotifs} style={{
@@ -53,10 +96,10 @@ function TipBanner(){
           🔔 Activar notificaciones
         </button>
       )}
-      {notifState==="granted"&&(
+      {notifState==="granted"&&showFullTip&&(
         <span style={{fontSize:11,color:"var(--s-completada)",fontWeight:600,flexShrink:0}}>✓ Notificaciones activas</span>
       )}
-      <button onClick={dismiss} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:16,padding:"0 2px",flexShrink:0,lineHeight:1}}>×</button>
+      <button onClick={dismiss} title="Cerrar" style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:16,padding:"0 2px",flexShrink:0,lineHeight:1}}>×</button>
     </div>
   )
 }
@@ -102,14 +145,22 @@ function MyWeekCard({me,tasks,onNavigate}){
       <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5,textTransform:"uppercase",letterSpacing:".06em"}}>{label}{tip&&<span style={{marginLeft:4,opacity:.5}}>ⓘ</span>}</div>
     </div>
   )
+  // OpCount: ahora con hover visual más claro y fondo activo
   const OpCount=({val,label,color,onClick})=>(
-    <div onClick={onClick} style={{flex:1,textAlign:"center",padding:"8px 6px",borderRadius:8,cursor:onClick?"pointer":"default",transition:".13s"}}
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      style={{
+        flex:1,textAlign:"center",padding:"8px 6px",borderRadius:8,
+        cursor:onClick?"pointer":"default",transition:".13s",
+        background:"transparent",border:"none",fontFamily:"inherit",color:"inherit"
+      }}
       onMouseEnter={e=>{if(onClick)e.currentTarget.style.background="var(--bg3)"}}
       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
       <span style={{fontSize:16,fontWeight:800,color,fontFamily:"var(--font-display)"}}>{val}</span>
       <span style={{fontSize:11,color:"var(--muted)",marginLeft:6}}>{label}</span>
       {onClick&&<span style={{fontSize:10,color:"var(--muted)",opacity:.4,marginLeft:4}}>→</span>}
-    </div>
+    </button>
   )
   return(
     <div className="card fade-in" style={{marginBottom:20,background:"linear-gradient(135deg, rgba(232,197,71,.08), rgba(155,127,232,.06))",border:"1px solid rgba(232,197,71,.18)"}}>
@@ -308,29 +359,36 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             <button className="quick-action" onClick={()=>onNavigate("equipos")}><div className="quick-action-icon" style={{background:"rgba(46,196,160,.12)"}}><Icon n="equipos" size={18} color="var(--s-completada)"/></div><span style={{fontSize:11,fontWeight:600}}>Equipos</span></button>
             {isDir&&<button className="quick-action" onClick={()=>onNavigate("desempeno")}><div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}><Icon n="desempeno" size={18} color="var(--s-revision)"/></div><span style={{fontSize:11,fontWeight:600}}>Desempeño</span></button>}
           </div>
-          <div className="card" style={{marginBottom:16,padding:"16px 22px"}}>
+
+          {/* ──────────────── BARRA DE STATS — ahora con botones <button> que tienen hover real ──────────────── */}
+          <div className="card" style={{marginBottom:16,padding:"12px 18px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
-                <div onClick={()=>onNavigate("ordenes")} style={{display:"flex",alignItems:"baseline",gap:8,cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                {/* Activas — hero */}
+                <button onClick={()=>onNavigate("ordenes")} style={{
+                  display:"flex",alignItems:"baseline",gap:8,
+                  background:"transparent",border:"none",cursor:"pointer",padding:"6px 10px",borderRadius:8,
+                  transition:".13s",fontFamily:"inherit",color:"inherit"
+                }}
+                  onMouseEnter={e=>{e.currentTarget.style.background="var(--bg3)";e.currentTarget.style.transform="translateY(-1px)"}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.transform="translateY(0)"}}>
                   <span style={{fontSize:34,fontWeight:800,lineHeight:1,fontFamily:"var(--font-display)",letterSpacing:"-.03em",color:"var(--text)"}}>{allActive.length}</span>
                   <span style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".1em",fontFamily:"var(--font-mono)"}}>activas</span>
-                </div>
+                </button>
+
                 <div style={{width:1,height:32,background:"var(--border)"}}/>
-                <div onClick={()=>onNavigate("ordenes","en_revision")} style={{cursor:"pointer",textAlign:"center"}}>
-                  <div style={{fontSize:22,fontWeight:800,color:"var(--s-revision)",fontFamily:"var(--font-display)",lineHeight:1}}>{forReview.length}</div>
-                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>en revisión</div>
-                </div>
-                <div onClick={()=>onNavigate("ordenes","vencida")} style={{cursor:"pointer",textAlign:"center"}}>
-                  <div style={{fontSize:22,fontWeight:800,color:overdue.length>0?"var(--s-vencida)":"var(--s-completada)",fontFamily:"var(--font-display)",lineHeight:1}}>{overdue.length}</div>
-                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>vencidas</div>
-                </div>
-                {onPause.length>0&&(
-                  <div onClick={()=>onNavigate("ordenes","en_pausa")} style={{cursor:"pointer",textAlign:"center"}}>
-                    <div style={{fontSize:22,fontWeight:800,color:"var(--s-pausa)",fontFamily:"var(--font-display)",lineHeight:1}}>{onPause.length}</div>
-                    <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>en pausa</div>
-                  </div>
-                )}
-                <div style={{textAlign:"center"}}>
+
+                {/* En revisión */}
+                <StatCard val={forReview.length} label="en revisión" color="var(--s-revision)" onClick={()=>onNavigate("ordenes","en_revision")}/>
+
+                {/* Vencidas */}
+                <StatCard val={overdue.length} label="vencidas" color={overdue.length>0?"var(--s-vencida)":"var(--s-completada)"} onClick={()=>onNavigate("ordenes","vencida")}/>
+
+                {/* En pausa — solo si hay */}
+                {onPause.length>0&&<StatCard val={onPause.length} label="en pausa" color="var(--s-pausa)" onClick={()=>onNavigate("ordenes","en_pausa")}/>}
+
+                {/* Tendencia — NO clickeable, solo informativa. Sin cursor pointer. */}
+                <div style={{textAlign:"center",padding:"4px 10px"}}>
                   <div style={{fontSize:22,fontWeight:800,color:trend===null?"var(--muted)":trend>=0?"var(--green)":"var(--red)",fontFamily:"var(--font-display)",lineHeight:1}}>{trend===null?"—":`${trend>=0?"+":""}${trend}%`}</div>
                   <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>tendencia</div>
                 </div>
@@ -338,6 +396,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
               <button onClick={()=>onNavigate("ordenes")} style={{fontSize:11,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"6px 14px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:700}}>Ver todas →</button>
             </div>
           </div>
+
           {isCuentas&&(()=>{
             const byBrand={}
             scopedTasks.forEach(t=>{
@@ -428,8 +487,9 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                   const health=teamOverdue>0||overloaded>0?"red":avgLoad>=4?"yellow":"green"
                   const healthColor={red:"var(--load-crit)",yellow:"var(--load-warn)",green:"var(--load-ok)"}[health]
                   const healthLabel={red:teamOverdue>0?`${teamOverdue} vencida${teamOverdue>1?"s":""}`:overloaded>0?`${overloaded} sobrecargado${overloaded>1?"s":""}`:"-",yellow:`~${Math.round(avgLoad*10)/10} tareas/persona`,green:members.length===0?"Sin miembros":"Al día"}[health]
+                  // NUEVO: ahora pasa el team_id para filtrar órdenes por ese equipo
                   return(
-                    <div key={team.id} onClick={()=>onNavigate("equipo_"+team.id)} className="team-semaph" style={{padding:"12px 14px",background:"var(--bg3)",borderRadius:10,border:`1px solid ${healthColor}55`,cursor:"pointer",position:"relative",overflow:"hidden"}}>
+                    <div key={team.id} onClick={()=>onNavigate("ordenes",{teamId:team.id})} className="team-semaph" style={{padding:"12px 14px",background:"var(--bg3)",borderRadius:10,border:`1px solid ${healthColor}55`,cursor:"pointer",position:"relative",overflow:"hidden"}}>
                       <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:healthColor,opacity:.8}}/>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,marginTop:2}}><div style={{width:9,height:9,borderRadius:"50%",background:healthColor,boxShadow:`0 0 8px ${healthColor}`,flexShrink:0}}/><span style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team.name}</span></div>
                       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--muted)",marginBottom:5}}><span><strong style={{color:"var(--text)",fontSize:13}}>{teamTasks.length}</strong> activas</span><span><strong style={{color:"var(--text)",fontSize:13}}>{members.length}</strong> miembros</span></div>
