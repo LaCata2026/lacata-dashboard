@@ -125,13 +125,16 @@ function OtherReasonInput({onSubmit}){
   );
 }
 
-export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=false,onForceClose=null,allTasks=[],...props}){
+// CAMBIO: nuevo prop `initialTab` (default "detalles"). Cuando viene de una notificación
+// de mención llega como "conversacion" y abre directamente en el tab de comentarios.
+export default function TaskCard({task,users,teams,me,token,onRefresh,forceOpen=false,onForceClose=null,allTasks=[],initialTab="detalles",...props}){
   const [modal,setModal]=useState(forceOpen);
   const [localStatus,setLocalStatus]=useState(task.status);
   useEffect(()=>setLocalStatus(task.status),[task.status]);
   const [editing,setEditing]=useState(false);
   const [editForm,setEditForm]=useState({});
-  const [activeTab,setActiveTab]=useState("detalles");
+  // CAMBIO: usar initialTab como valor inicial del state
+  const [activeTab,setActiveTab]=useState(initialTab);
   const [commentText,setCommentText]=useState("");
   const [sendingComment,setSendingComment]=useState(false);
   const [mentionState,setMentionState]=useState({open:false,query:"",pos:0});
