@@ -13,15 +13,9 @@ export const Realtime={
       ;["tareas","usuarios","equipos"].forEach(table=>{this.ws.send(JSON.stringify({topic:"realtime:public:"+table,event:"phx_join",payload:{config:{broadcast:{self:false},presence:{key:""},postgres_changes:[{event:"*",schema:"public",table}]}},ref:"join_"+table}))})
       this._heartbeat=setInterval(()=>{if(this.ws.readyState===WebSocket.OPEN)this.ws.send(JSON.stringify({topic:"phoenix",event:"heartbeat",payload:{},ref:"hb"}))},20000)
     }
-    // ── FIX: antes este handler disparaba los callbacks DOS VECES por evento.
-    // Tenía dos `if` separados que matcheaban el mismo mensaje (uno por
-    // msg.payload?.data?.table y otro por msg.event==="postgres_changes").
-    // Ahora se procesa UNA sola vez: extraemos el event data y disparamos.
     this.ws.onmessage=(e)=>{
       try{
         const msg=JSON.parse(e.data)
-        // Supabase Realtime envía el cambio en msg.payload.data, ya sea como
-        // mensaje suelto o envuelto en event:"postgres_changes". Lo unificamos.
         const ev=msg?.payload?.data
         if(!ev||!ev.table)return
         const cbs=this.callbacks[ev.table]
@@ -33,8 +27,51 @@ export const Realtime={
   },
   disconnect(){this._manualClose=true;clearInterval(this._heartbeat);clearTimeout(this._reconnectTimer);if(this.ws)try{this.ws.close()}catch{};this.ws=null;window._realtimeConnected=false},
 }
+
+/* ════════════════════════════════════════════════════
+   PushNotif — notificaciones del navegador
+   FIX: ya no usamos un flag _granted que se pierde en
+   cada reload. Siempre leemos Notification.permission
+   en vivo. Así, si el usuario concedió el permiso en
+   una sesión anterior, las notificaciones siguen
+   funcionando aunque la app se haya recargado.
+════════════════════════════════════════════════════ */
 export const PushNotif={
-  _granted:false,
-  async requestPermission(){if(!("Notification"in window))return;if(Notification.permission==="granted"){this._granted=true;return};if(Notification.permission!=="denied"){const p=await Notification.requestPermission();this._granted=(p==="granted")}},
-  send(title,body,onClick){if(!this._granted)return;try{const n=new Notification(title,{body,tag:title});if(onClick)n.onclick=()=>{window.focus();onClick();n.close()};setTimeout(()=>n.close(),8000)}catch{}},
+  isSupported(){
+    return typeof window!=="undefined" && "Notification" in window
+  },
+  isGranted(){
+    if(!this.isSupported())return false
+    return Notification.permission==="granted"
+  },
+  async requestPermission(){
+    if(!this.isSupported())return"unsupported"
+    if(Notification.permission==="granted")return"granted"
+    if(Notification.permission==="denied")return"denied"
+    try{
+      const p=await Notification.requestPermission()
+      // Algunos navegadores devuelven el resultado como string, otros pasan
+      // a un callback antiguo. Re-leemos del API para estar seguros.
+      return p||Notification.permission
+    }catch(e){
+      console.warn("[PushNotif] requestPermission error:",e)
+      return Notification.permission
+    }
+  },
+  send(title,body,onClick){
+    if(!this.isGranted())return false
+    try{
+      const n=new Notification(title,{body,tag:title,icon:"/logo_cata.png"})
+      if(onClick)n.onclick=()=>{
+        window.focus()
+        try{onClick()}catch(e){console.warn("[PushNotif] onclick error:",e)}
+        n.close()
+      }
+      setTimeout(()=>{try{n.close()}catch{}},8000)
+      return true
+    }catch(e){
+      console.warn("[PushNotif] send error:",e)
+      return false
+    }
+  },
 }
