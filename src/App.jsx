@@ -202,9 +202,16 @@ export default function App(){
     return()=>{if(!session)Realtime.disconnect()}
   },[session?.token])
 
-  const hash=window.location.hash
-  const params=new URLSearchParams(hash.replace("#",""))
-  const isInvite=(params.get("type")==="invite"||params.get("type")==="recovery")&&params.get("access_token")
+  // Detectar invitación/recovery en hash, query string o cookies
+  const hash=window.location.hash||""
+  const search=window.location.search||""
+  const hashParams=new URLSearchParams(hash.replace("#",""))
+  const searchParams=new URLSearchParams(search)
+  const typeFromHash=hashParams.get("type")
+  const typeFromQuery=searchParams.get("type")
+  const tokenFromHash=hashParams.get("access_token")
+  const tokenFromQuery=searchParams.get("access_token")||searchParams.get("code")
+  const isInvite=(typeFromHash==="invite"||typeFromHash==="recovery"||typeFromQuery==="invite"||typeFromQuery==="recovery"||!!tokenFromHash||!!tokenFromQuery)&&(tokenFromHash||tokenFromQuery)
 
   if(isInvite)return<><Toast/><ConfirmDialog/><SetPassword/></>
 
