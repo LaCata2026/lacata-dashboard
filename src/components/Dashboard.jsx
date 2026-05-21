@@ -223,6 +223,19 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
         : teams,
     [isCuentas, isCollab, myScopedTeamIds, teams]
   )
+
+  // Tasks filtradas según el rol — usadas en Spotlight y vistas para evitar que
+  // colaboradores vean órdenes que no les corresponden
+  const scopedTasksForRole = useMemo(() => {
+    if (profile.role === 'director') return tasks
+    if (profile.role === 'cuentas' && myScopedTeamIds)
+      return tasks.filter((t) => myScopedTeamIds.includes(t.team_id))
+    // colaborador: solo órdenes de su equipo o asignadas a él
+    return tasks.filter((t) => {
+      const a = Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)
+      return a.includes(profile.id) || (profile.team_id && t.team_id === profile.team_id)
+    })
+  }, [tasks, profile, myScopedTeamIds])
   const onViewUser = useCallback(
     (u) => {
       navigate('desempeno', u)
@@ -506,70 +519,124 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
                 <div className="nav-section">Equipos</div>
                 {visibleTeams.map((t) => {
                   const isActive = page === 'ordenes' && activeTeamId === t.id
+                  const members = users.filter(
+                    (u) =>
+                      u.activo !== false &&
+                      (u.team_id === t.id ||
+                        (Array.isArray(u.team_ids) && u.team_ids.includes(t.id)))
+                  )
+                  const MAX_AVATARS = 4
                   return (
-                    <button
-                      key={t.id}
-                      onClick={() => navigate('ordenes', { teamId: t.id })}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '5px 10px',
-                        fontSize: 12,
-                        color: isActive ? 'var(--text)' : 'var(--muted2)',
-                        fontWeight: isActive ? 700 : 400,
-                        background: isActive ? 'var(--bg3)' : 'transparent',
-                        border: isActive
-                          ? `1px solid ${t.color || '#e8c547'}55`
-                          : '1px solid transparent',
-                        cursor: 'pointer',
-                        width: '100%',
-                        borderRadius: 6,
-                        transition: '.13s',
-                        fontFamily: 'inherit',
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive) e.currentTarget.style.background = 'var(--bg3)'
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive) e.currentTarget.style.background = 'transparent'
-                      }}
-                    >
-                      <span
+                    <div key={t.id} style={{ marginBottom: 2 }}>
+                      <button
+                        onClick={() => navigate('ordenes', { teamId: t.id })}
                         style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: '50%',
-                          background: t.color || 'var(--accent)',
-                          flexShrink: 0,
-                          display: 'inline-block',
-                          boxShadow: isActive ? `0 0 6px ${t.color || '#e8c547'}99` : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '5px 10px',
+                          fontSize: 12,
+                          color: isActive ? 'var(--text)' : 'var(--muted2)',
+                          fontWeight: isActive ? 700 : 400,
+                          background: isActive ? 'var(--bg3)' : 'transparent',
+                          border: isActive
+                            ? `1px solid ${t.color || '#e8c547'}55`
+                            : '1px solid transparent',
+                          cursor: 'pointer',
+                          width: '100%',
+                          borderRadius: 6,
+                          transition: '.13s',
+                          fontFamily: 'inherit',
+                          textAlign: 'left',
                         }}
-                      />
-                      <span
-                        style={{
-                          flex: 1,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                        onMouseEnter={(e) => {
+                          if (!isActive) e.currentTarget.style.background = 'var(--bg3)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) e.currentTarget.style.background = 'transparent'
                         }}
                       >
-                        {t.name}
-                      </span>
-                      {isActive && (
                         <span
                           style={{
-                            fontSize: 9,
-                            color: 'var(--accent)',
-                            fontFamily: 'var(--font-mono)',
-                            fontWeight: 700,
+                            width: 7,
+                            height: 7,
+                            borderRadius: '50%',
+                            background: t.color || 'var(--accent)',
+                            flexShrink: 0,
+                            display: 'inline-block',
+                            boxShadow: isActive ? `0 0 6px ${t.color || '#e8c547'}99` : 'none',
+                          }}
+                        />
+                        <span
+                          style={{
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          ●
+                          {t.name}
                         </span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: 'var(--muted)',
+                            fontFamily: 'var(--font-mono)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {members.length}
+                        </span>
+                      </button>
+
+                      {/* Integrantes del equipo */}
+                      {members.length > 0 && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '3px 10px 5px 26px',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {members.slice(0, MAX_AVATARS).map((m) => (
+                            <div
+                              key={m.id}
+                              title={m.name}
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: '50%',
+                                background: m.avatar_color || 'var(--muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 7,
+                                fontWeight: 800,
+                                color: '#fff',
+                                flexShrink: 0,
+                                cursor: 'default',
+                                border: '1.5px solid var(--bg)',
+                              }}
+                            >
+                              {m.initials || (m.name || '?').substring(0, 2).toUpperCase()}
+                            </div>
+                          ))}
+                          {members.length > MAX_AVATARS && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: 'var(--muted)',
+                                fontFamily: 'var(--font-mono)',
+                              }}
+                            >
+                              +{members.length - MAX_AVATARS}
+                            </span>
+                          )}
+                        </div>
                       )}
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -914,7 +981,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
       )}
       {spotlight && (
         <Spotlight
-          tasks={tasks}
+          tasks={scopedTasksForRole}
           users={users}
           teams={teams}
           onNavigate={navigate}

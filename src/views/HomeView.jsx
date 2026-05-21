@@ -975,8 +975,15 @@ export default function HomeView({
       ? me.team_ids
       : [me.team_id].filter(Boolean)
     : null
-  const scopedTasks =
-    isCuentas && myTeamIds ? tasks.filter((t) => myTeamIds.includes(t.team_id)) : tasks
+  const scopedTasks = isDir
+    ? tasks
+    : isCuentas && myTeamIds
+      ? tasks.filter((t) => myTeamIds.includes(t.team_id))
+      : tasks.filter((t) => {
+          // colaborador: solo órdenes de su equipo o asignadas a él directamente
+          const a = Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)
+          return a.includes(me.id) || (me.team_id && t.team_id === me.team_id)
+        })
   const myTasks = tasks.filter((t) => {
     const a = Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)
     return a.includes(me.id)
