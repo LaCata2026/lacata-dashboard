@@ -1,5 +1,5 @@
 import{useState,useEffect,useRef,useCallback}from'react'
-import{sb,LS}from'./lib/supabase'
+import{sb,LS,SB_URL,SB_ANON}from'./lib/supabase'
 import{Realtime,PushNotif}from'./lib/realtime'
 import Toast,{showToast}from'./components/Toast'
 import ConfirmDialog from'./components/ConfirmDialog'
@@ -141,18 +141,16 @@ export default function App(){
   // ── REFRESH PERFIL DESDE BD AL CARGAR ──
   // Si hay sesión en LS, verificar que el perfil esté actualizado con la BD.
   // Esto corrige nombres/roles incorrectos sin que el usuario tenga que hacer login.
+  // Usar ref para que solo corra UNA vez al montar, no en cada refresh de token
+  const profileRefreshedRef=useRef(false)
   useEffect(()=>{
     if(!session?.token||!session?.profile?.id)return
-    // Solo refrescar si el nombre parece autogenerado o si no tiene rol
-    const needsRefresh=!session.profile.name||session.profile.name.startsWith("usuario_")||!session.profile.role
-    // Siempre refrescar — costo mínimo, garantía de datos correctos
+    if(profileRefreshedRef.current)return
+    profileRefreshedRef.current=true
     async function refreshProfile(){
       try{
-        const r=await fetch(`https://puaonadnfhwgeybkuxgh.supabase.co/rest/v1/usuarios?id=eq.${session.profile.id}&select=*`,{
-          headers:{
-            apikey:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1YW9uYWRuZmh3Z2V5Ymt1eGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTk5NzcsImV4cCI6MjA5NDA3NTk3N30.t29__W64x10eqpLmhPhrMkmQZNX0Yd6FQCEJFe8STqM",
-            Authorization:`Bearer ${session.token}`
-          }
+        const r=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${session.profile.id}&select=*`,{
+          headers:{apikey:SB_ANON,Authorization:`Bearer ${session.token}`}
         })
         if(!r.ok)return
         const data=await r.json()
