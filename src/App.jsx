@@ -138,10 +138,16 @@ export default function App(){
     localStorage.setItem("lc_theme",isDark?"dark":"light")
   },[isDark])
 
+  function handleLogout(){
+    Realtime.disconnect()
+    LS.del("lc_session")
+    LS.del("lc_refresh_token")
+    setSession(null)
+  }
+
   // ── REFRESH PERFIL DESDE BD AL CARGAR ──
-  // Si hay sesión en LS, verificar que el perfil esté actualizado con la BD.
-  // Esto corrige nombres/roles incorrectos sin que el usuario tenga que hacer login.
-  // Usar ref para que solo corra UNA vez al montar, no en cada refresh de token
+  // Verifica que el perfil esté actualizado. También hace logout si el usuario
+  // fue desactivado desde AdminView (activo===false).
   const profileRefreshedRef=useRef(false)
   useEffect(()=>{
     if(!session?.token||!session?.profile?.id)return
@@ -158,6 +164,8 @@ export default function App(){
         const freshProfile=data[0]
         if(typeof freshProfile.team_ids==="string"){try{freshProfile.team_ids=JSON.parse(freshProfile.team_ids)}catch{freshProfile.team_ids=[]}}
         if(!Array.isArray(freshProfile.team_ids))freshProfile.team_ids=[]
+        // NUEVO: si el usuario fue desactivado, cerrar sesión inmediatamente
+        if(freshProfile.activo===false){handleLogout();return}
         // Solo actualizar si algo cambió — evitar re-renders innecesarios
         const hasChanges=
           freshProfile.name!==session.profile.name||
@@ -179,13 +187,6 @@ export default function App(){
     const u={...session,token:t}
     LS.set("lc_session",u)
     setSession(u)
-  }
-
-  function handleLogout(){
-    Realtime.disconnect()
-    LS.del("lc_session")
-    LS.del("lc_refresh_token")
-    setSession(null)
   }
 
   const{expired,doRefresh}=useSessionRefresh(session,handleLogout,handleTokenUpdate)
