@@ -187,8 +187,10 @@ function TipBanner(){
     }}>
       {/* Fila principal */}
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:15,flexShrink:0}}>
-          {isGranted?"✓":isDenied?"🔕":unsupported?"💡":"🔔"}
+        <span style={{flexShrink:0,display:"flex",alignItems:"center"}}>
+          {isGranted&&<Icon n="check" size={16} color="var(--s-completada)"/>}
+          {isDenied&&<Icon n="alerta" size={16} color="var(--s-vencida)"/>}
+          {!isGranted&&!isDenied&&<Icon n="comentar" size={16} color="var(--accent)"/>}
         </span>
         <span style={{flex:1,color:"var(--muted2)",lineHeight:1.5,minWidth:200}}>
           {isGranted&&(
@@ -479,7 +481,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
           <div>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>Mis tareas activas</h3>
             {myActive.length===0
-              ?<div className="empty"><div style={{fontSize:36,opacity:.4}}>🎉</div><p>Sin tareas pendientes</p><p style={{fontSize:12,color:"var(--muted)",marginTop:6}}>Cuando te asignen una orden nueva, aparecerá aquí.</p></div>
+              ?<div className="empty"><div style={{opacity:.35,marginBottom:8}}><Icon n="check" size={44} color="var(--s-completada)"/></div><p>Sin tareas pendientes</p><p style={{fontSize:12,color:"var(--muted)",marginTop:6}}>Cuando te asignen una orden nueva, aparecerá aquí.</p></div>
               :myActive.map(t=>{
                 const team=teams.find(x=>x.id===t.team_id),dr=fmtDateRelative(t.due_date,t.status)
                 return(
