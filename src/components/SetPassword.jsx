@@ -62,7 +62,7 @@ export default function SetPassword(){
       // ── Hacer login real con email+password para obtener sesión válida ──
       // El accessToken del link de invitación es de un solo uso y no sirve para sesiones
       // Usar email del response del PUT como fallback si profile.email no está disponible
-      const loginEmail=profile.email||email||d.email||uForm?.email
+      const loginEmail=profile.email||email||d.email
       let finalToken=accessToken
       let finalRefresh=null
       if(loginEmail){
