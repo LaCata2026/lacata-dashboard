@@ -444,6 +444,7 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
   const trend=completedLastWeek===0?null:Math.round(((completedThisWeek-completedLastWeek)/completedLastWeek)*100)
   const collabs=users.filter(u=>{
     if(u.role!=="colaborador")return false
+    if(u.activo===false)return false  // excluir inactivos del workload
     if(!isCuentas||!myTeamIds)return true
     return myTeamIds.includes(u.team_id)||(Array.isArray(u.team_ids)&&u.team_ids.some(id=>myTeamIds.includes(id)))
   })
