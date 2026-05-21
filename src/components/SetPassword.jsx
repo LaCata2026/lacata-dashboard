@@ -4,6 +4,28 @@ import Icon from'./Icon'
 export default function SetPassword(){
   const[pw,setPw]=useState("");const[pw2,setPw2]=useState("");const[loading,setLoading]=useState(false);const[err,setErr]=useState("")
   const hash=window.location.hash;const params=new URLSearchParams(hash.replace("#",""));const accessToken=params.get("access_token")
+
+  // Si no hay token válido, mostrar mensaje claro
+  if(!accessToken||accessToken.split(".").length!==3){
+    return(
+      <div className="login-wrap"><div className="login-card">
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+          <div className="logo-mark" style={{background:"#0d0d0d",padding:2}}><img src="/logo_cata.png" alt="La Cata" style={{width:"100%",height:"100%",objectFit:"contain",borderRadius:6}}/></div>
+          <div><h1 style={{fontSize:24,fontWeight:900,letterSpacing:"-0.4px",fontFamily:"var(--font-display)"}}>La Cata</h1><p style={{fontSize:12,color:"var(--muted)"}}>Enlace inválido</p></div>
+        </div>
+        <div style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"14px 16px",fontSize:13,color:"#fca5a5",marginBottom:16,lineHeight:1.5}}>
+          Este enlace ya fue usado o es inválido. Por favor:
+          <ol style={{marginTop:8,marginLeft:18,padding:0}}>
+            <li>Vuelve a tu correo electrónico</li>
+            <li>Haz clic en el enlace de invitación más reciente</li>
+            <li>No recargues la página ni cierres la pestaña antes de crear tu contraseña</li>
+          </ol>
+        </div>
+        <button className="btn btn-ghost" style={{width:"100%",padding:11,fontSize:13}} onClick={()=>{window.location.hash="";window.location.href="/"}}>Ir al inicio</button>
+      </div></div>
+    )
+  }
+
   async function savePassword(){
     setErr("")
     if(pw.length<8)return setErr("Mínimo 8 caracteres")
@@ -17,7 +39,7 @@ export default function SetPassword(){
         body:JSON.stringify({password:pw})
       })
       const d=await r.json()
-      if(!r.ok||d.error||d.code)throw new Error(d.msg||d.error_description||d.error||"No se pudo guardar la contraseña")
+      if(!r.ok||d.error||d.code)throw new Error(d.msg||d.error_description||d.error||"No se pudo guardar la contraseña. El enlace puede haber expirado — vuelve a tu correo y usa el enlace más reciente.")
 
       const email=(d.email||d.user_metadata?.email||d.new_email||"").toLowerCase()
       if(!email)throw new Error("No se pudo identificar el email del usuario")
@@ -26,8 +48,6 @@ export default function SetPassword(){
       const name=fullName||fallbackName
 
       // ── 2. VERIFICAR que la contraseña realmente se guardó haciendo login ──
-      // Esto es crítico — el PUT puede responder OK pero no persistir la password
-      // si hay políticas de Supabase activas (longitud, complejidad, etc)
       const loginR=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{
         method:"POST",
         headers:{"Content-Type":"application/json",apikey:SB_ANON},
@@ -38,7 +58,7 @@ export default function SetPassword(){
         throw new Error("La contraseña no se guardó correctamente. Verifica que cumpla con los requisitos mínimos (8+ caracteres) e intenta de nuevo.")
       }
 
-      // ── 3. Buscar perfil en usuarios usando el NUEVO token (no el de invitación) ──
+      // ── 3. Buscar perfil en usuarios usando el NUEVO token ──
       const profileR=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${d.id}&select=*`,{
         headers:{apikey:SB_ANON,Authorization:`Bearer ${loginD.access_token}`}
       })
@@ -48,7 +68,6 @@ export default function SetPassword(){
       if(Array.isArray(profileData)&&profileData.length>0){
         profile=profileData[0]
       }else{
-        // Fila no existe — crear con el token de sesión real
         const newProfile={
           id:d.id,
           email,
@@ -73,11 +92,10 @@ export default function SetPassword(){
         profile=Array.isArray(insertData)&&insertData.length>0?insertData[0]:newProfile
       }
 
-      // Normalizar team_ids
       if(typeof profile.team_ids==="string"){try{profile.team_ids=JSON.parse(profile.team_ids)}catch{profile.team_ids=[]}}
       if(!Array.isArray(profile.team_ids))profile.team_ids=[]
 
-      // ── 4. Guardar sesión con el TOKEN REAL del login (no el de invitación) ──
+      // ── 4. Guardar sesión con el TOKEN REAL del login ──
       LS.set("lc_session",{token:loginD.access_token,profile})
       if(loginD.refresh_token)LS.set("lc_refresh_token",loginD.refresh_token)
       window.location.hash=""
