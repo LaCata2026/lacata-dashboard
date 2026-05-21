@@ -59,7 +59,30 @@ export default function SetPassword(){
         profile=Array.isArray(insertData)&&insertData.length>0?insertData[0]:newProfile
       }
 
-      LS.set("lc_session",{token:accessToken,profile})
+      // ── Hacer login real con email+password para obtener sesión válida ──
+      // El accessToken del link de invitación es de un solo uso y no sirve para sesiones
+      // Usar email del response del PUT como fallback si profile.email no está disponible
+      const loginEmail=profile.email||email||d.email||uForm?.email
+      let finalToken=accessToken
+      let finalRefresh=null
+      if(loginEmail){
+        try{
+          const loginR=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{
+            method:"POST",
+            headers:{"Content-Type":"application/json",apikey:SB_ANON},
+            body:JSON.stringify({email:loginEmail,password:pw})
+          })
+          const loginD=await loginR.json()
+          if(loginD.access_token){
+            finalToken=loginD.access_token
+            finalRefresh=loginD.refresh_token
+          }
+        }catch(loginErr){console.warn("Auto-login after SetPassword failed:",loginErr)}
+      }
+
+      LS.set("lc_session",{token:finalToken,profile})
+      // LS.set hace JSON.stringify internamente — usar LS.set consistentemente
+      if(finalRefresh)LS.set("lc_refresh_token",finalRefresh)
       window.location.hash=""
       window.location.reload()
     }catch(e){setErr(e.message)}finally{setLoading(false)}
