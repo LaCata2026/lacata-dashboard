@@ -12,8 +12,6 @@ const assignedOf=t=>Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].f
 
 /* ═══════════════════════════════════════════
    STAT CARD — tarjeta de estadística clickeable
-   Componente reutilizable con hover visual claro.
-   Se ve "tappable" sin ser ruidoso.
 ═══════════════════════════════════════════ */
 function StatCard({val,label,color,onClick,isHero}){
   const clickable=typeof onClick==="function"
@@ -38,19 +36,96 @@ function StatCard({val,label,color,onClick,isHero}){
 }
 
 /* ═══════════════════════════════════════════
+   detectBrowser — detecta navegador para
+   dar instrucciones específicas si las
+   notificaciones están bloqueadas
+═══════════════════════════════════════════ */
+function detectBrowser(){
+  if(typeof navigator==="undefined")return"unknown"
+  const ua=navigator.userAgent
+  const v=navigator.vendor||""
+  // Brave tiene API navigator.brave.isBrave
+  if(navigator.brave&&typeof navigator.brave.isBrave==="function")return"brave"
+  if(/Edg\//.test(ua))return"edge"
+  if(/OPR\/|Opera/.test(ua))return"opera"
+  if(/Firefox/.test(ua))return"firefox"
+  // Safari: vendor "Apple Computer, Inc." y no Chrome
+  if(/Safari/.test(ua)&&!/Chrome|CriOS|Chromium/.test(ua)&&/Apple/.test(v))return"safari"
+  // Chrome en iOS es CriOS
+  if(/CriOS/.test(ua))return"chrome-ios"
+  if(/Chrome|Chromium/.test(ua))return"chrome"
+  return"unknown"
+}
+
+// Instrucciones específicas por navegador para desbloquear notificaciones
+function getUnblockInstructions(browser){
+  switch(browser){
+    case"chrome":
+    case"brave":
+    case"edge":
+    case"opera":
+      return{
+        steps:[
+          "Haz click en el ícono 🔒 o ⓘ al lado de la URL",
+          "Busca 'Notificaciones' y cámbialo a 'Permitir'",
+          "Recarga la página"
+        ],
+        shortcut:browser==="chrome"?"O ve a chrome://settings/content/notifications":browser==="edge"?"O ve a edge://settings/content/notifications":browser==="brave"?"O ve a brave://settings/content/notifications":null
+      }
+    case"safari":
+      return{
+        steps:[
+          "Abre Safari → Configuración (⌘,) → Sitios web",
+          "Selecciona 'Notificaciones' en la barra lateral",
+          "Encuentra hub.agarrate-catalina.com y cámbialo a 'Permitir'",
+          "Recarga la página"
+        ],
+        shortcut:null
+      }
+    case"firefox":
+      return{
+        steps:[
+          "Haz click en el ícono 🔒 al lado de la URL",
+          "Click en '>' junto a 'Permisos'",
+          "Cambia 'Notificaciones' a 'Permitir'",
+          "Recarga la página"
+        ],
+        shortcut:"O ve a about:preferences#privacy → Permisos → Notificaciones"
+      }
+    case"chrome-ios":
+      return{
+        steps:["Chrome en iOS no soporta notificaciones de escritorio. Considera usar Safari o instalar la app como PWA."],
+        shortcut:null
+      }
+    default:
+      return{
+        steps:[
+          "Haz click en el ícono de configuración (🔒 o ⓘ) al lado de la URL",
+          "Busca permisos de Notificaciones y cámbialo a 'Permitir'",
+          "Recarga la página"
+        ],
+        shortcut:null
+      }
+  }
+}
+
+/* ═══════════════════════════════════════════
    TIP BANNER
-   Aparece en el Home cuando:
-   - El usuario nunca lo ha descartado, O
-   - Las notificaciones no están activadas (banner se queda visible para volver a ofrecerlas)
-   Si el usuario ya descartó Y las notificaciones están activas → no aparece.
+   3 estados:
+   - default: pedir permiso (amarillo, botón Activar)
+   - granted: confirmación verde + tip ⌘K
+   - denied: instrucciones específicas del navegador para desbloquear
 ═══════════════════════════════════════════ */
 function TipBanner(){
   const [dismissed,setDismissed]=useState(()=>localStorage.getItem("lc_tip_dismissed")==="1")
   const [notifState,setNotifState]=useState(()=>("Notification"in window)?Notification.permission:"unsupported")
   const [busy,setBusy]=useState(false)
   const [justEnabled,setJustEnabled]=useState(false)
+  const [showHelp,setShowHelp]=useState(false)
 
-  // Refrescar permiso si la ventana recobra foco (usuario pudo cambiarlo en settings del browser)
+  const browser=detectBrowser()
+
+  // Refrescar permiso si la ventana recobra foco
   useEffect(()=>{
     function onFocus(){
       if("Notification"in window)setNotifState(Notification.permission)
@@ -63,13 +138,11 @@ function TipBanner(){
     if(busy)return
     setBusy(true)
     try{
-      const result=await PushNotif.requestPermission()
-      // Re-leemos del API para asegurar el estado real
+      await PushNotif.requestPermission()
       const current=("Notification"in window)?Notification.permission:"unsupported"
       setNotifState(current)
       if(current==="granted"){
         setJustEnabled(true)
-        // Enviar notificación de prueba para confirmar al usuario que funciona
         try{
           PushNotif.send(
             "✓ Notificaciones activadas",
@@ -77,6 +150,9 @@ function TipBanner(){
             null
           )
         }catch(e){console.warn("Test notif failed:",e)}
+      }else if(current==="denied"){
+        // Auto-mostrar instrucciones cuando el usuario intentó activar y le negaron
+        setShowHelp(true)
       }
     }catch(e){
       console.warn("[TipBanner] enableNotifs error:",e)
@@ -90,76 +166,104 @@ function TipBanner(){
     setDismissed(true)
   }
 
-  // Si el navegador no soporta notificaciones, solo mostrar el tip de Cmd+K
   const unsupported=notifState==="unsupported"
-  // Si ya descartó el banner Y notifs activas → ocultar todo
   if(dismissed&&(notifState==="granted"||unsupported))return null
 
-  // Decidir variante del banner según estado
-  // - granted: confirmación verde + tip de Cmd+K (auto-oculto tras dismiss)
-  // - default: pedir permiso (banner amarillo)
-  // - denied: instrucciones para activar manualmente en el navegador
   const isDenied=notifState==="denied"
   const isGranted=notifState==="granted"
   const bgColor=isDenied?"rgba(232,93,93,.08)":isGranted?"rgba(46,196,160,.08)":"var(--accent-dim)"
   const borderColor=isDenied?"rgba(232,93,93,.25)":isGranted?"rgba(46,196,160,.25)":"rgba(232,197,71,.25)"
 
+  // ── Browser name pretty ──
+  const browserNames={chrome:"Chrome",brave:"Brave",edge:"Edge",opera:"Opera",safari:"Safari",firefox:"Firefox","chrome-ios":"Chrome iOS",unknown:"tu navegador"}
+  const browserName=browserNames[browser]||"tu navegador"
+  const unblockInfo=getUnblockInstructions(browser)
+
   return(
     <div className="fade-in" style={{
-      display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
       padding:"10px 14px",marginBottom:16,
       background:bgColor,border:`1px solid ${borderColor}`,
       borderRadius:10,fontSize:12
     }}>
-      <span style={{fontSize:15,flexShrink:0}}>
-        {isGranted?"✓":isDenied?"🔕":"🔔"}
-      </span>
-      <span style={{flex:1,color:"var(--muted2)",lineHeight:1.5}}>
-        {isGranted&&(
-          <>
-            <strong style={{color:"var(--s-completada)"}}>Notificaciones activas.</strong> Usa{" "}
-            <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd>{" "}
-            para buscar órdenes, usuarios o equipos al instante.
-          </>
-        )}
-        {isDenied&&(
-          <>
-            <strong style={{color:"#fca5a5"}}>Notificaciones bloqueadas.</strong> Para activarlas, haz click en el ícono de candado/configuración en la barra del navegador → Permisos → Notificaciones → Permitir.
-          </>
-        )}
-        {!isGranted&&!isDenied&&!unsupported&&(
-          <>
-            <strong style={{color:"var(--text)"}}>Activa las notificaciones</strong> para recibir avisos cuando te asignen una orden o te mencionen, incluso con la pestaña en segundo plano.
-          </>
-        )}
-        {unsupported&&(
-          <>Tu navegador no soporta notificaciones de escritorio. Usa{" "}
-            <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd> para buscar al instante.
-          </>
-        )}
-      </span>
-
-      {/* Botón principal: pedir permiso. Solo se muestra si el estado es default (ni granted ni denied) */}
-      {!isGranted&&!isDenied&&!unsupported&&(
-        <button onClick={enableNotifs} disabled={busy} style={{
-          display:"inline-flex",alignItems:"center",gap:5,
-          fontSize:12,fontWeight:700,padding:"6px 14px",borderRadius:6,
-          cursor:busy?"wait":"pointer",
-          background:"var(--accent)",color:"#0d0d0d",border:"none",fontFamily:"var(--font-body)",
-          flexShrink:0,opacity:busy?.6:1,transition:".13s"
-        }}>
-          {busy?"Solicitando...":"🔔 Activar"}
-        </button>
-      )}
-
-      {/* Confirmación visual reciente */}
-      {justEnabled&&isGranted&&(
-        <span className="fade-in" style={{fontSize:11,color:"var(--s-completada)",fontWeight:600,flexShrink:0}}>
-          ✓ ¡Listo!
+      {/* Fila principal */}
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <span style={{fontSize:15,flexShrink:0}}>
+          {isGranted?"✓":isDenied?"🔕":unsupported?"💡":"🔔"}
         </span>
-      )}
+        <span style={{flex:1,color:"var(--muted2)",lineHeight:1.5,minWidth:200}}>
+          {isGranted&&(
+            <>
+              <strong style={{color:"var(--s-completada)"}}>Notificaciones activas.</strong> Usa{" "}
+              <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd>{" "}
+              para buscar al instante.
+            </>
+          )}
+          {isDenied&&(
+            <>
+              <strong style={{color:"#fca5a5"}}>Notificaciones bloqueadas en {browserName}.</strong>{" "}
+              <button onClick={()=>setShowHelp(s=>!s)} style={{background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit",fontSize:12,padding:0,textDecoration:"underline"}}>
+                {showHelp?"Ocultar instrucciones":"Ver cómo activarlas"}
+              </button>
+            </>
+          )}
+          {!isGranted&&!isDenied&&!unsupported&&(
+            <>
+              <strong style={{color:"var(--text)"}}>Activa las notificaciones</strong> para recibir avisos cuando te asignen una orden o te mencionen.
+            </>
+          )}
+          {unsupported&&(
+            <>{browserName} no soporta notificaciones de escritorio. Usa{" "}
+              <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd> para buscar al instante.
+            </>
+          )}
+        </span>
 
-      <button onClick={dismiss} title="Cerrar" style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"0 4px",flexShrink:0,lineHeight:1}}>×</button>
+        {!isGranted&&!isDenied&&!unsupported&&(
+          <button onClick={enableNotifs} disabled={busy} style={{
+            display:"inline-flex",alignItems:"center",gap:5,
+            fontSize:12,fontWeight:700,padding:"6px 14px",borderRadius:6,
+            cursor:busy?"wait":"pointer",
+            background:"var(--accent)",color:"#0d0d0d",border:"none",fontFamily:"var(--font-body)",
+            flexShrink:0,opacity:busy?.6:1,transition:".13s"
+          }}>
+            {busy?"Solicitando…":"🔔 Activar"}
+          </button>
+        )}
+
+        {justEnabled&&isGranted&&(
+          <span className="fade-in" style={{fontSize:11,color:"var(--s-completada)",fontWeight:600,flexShrink:0}}>
+            ✓ ¡Listo!
+          </span>
+        )}
+
+        <button onClick={dismiss} title="Cerrar" style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"0 4px",flexShrink:0,lineHeight:1}}>×</button>
+      </div>
+
+      {/* Panel desplegable con instrucciones específicas del navegador */}
+      {isDenied&&showHelp&&(
+        <div className="fade-in" style={{
+          marginTop:10,paddingTop:10,borderTop:"1px solid rgba(232,93,93,.2)",
+          background:"rgba(0,0,0,.15)",margin:"10px -14px -10px -14px",padding:"12px 16px 14px",
+          borderBottomLeftRadius:10,borderBottomRightRadius:10
+        }}>
+          <p style={{fontSize:11,fontWeight:700,color:"var(--muted2)",marginBottom:8,textTransform:"uppercase",letterSpacing:".05em",fontFamily:"var(--font-mono)"}}>
+            Pasos en {browserName}:
+          </p>
+          <ol style={{margin:0,paddingLeft:22,fontSize:12,color:"var(--muted2)",lineHeight:1.7}}>
+            {unblockInfo.steps.map((step,i)=>(
+              <li key={i} style={{marginBottom:3}}>{step}</li>
+            ))}
+          </ol>
+          {unblockInfo.shortcut&&(
+            <p style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:8,paddingTop:8,borderTop:"1px dashed rgba(255,255,255,.05)"}}>
+              💡 {unblockInfo.shortcut}
+            </p>
+          )}
+          <p style={{fontSize:11,color:"var(--muted)",marginTop:10,fontStyle:"italic"}}>
+            Una vez permitidas, recarga la página (⌘R) y el banner desaparecerá.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -205,7 +309,6 @@ function MyWeekCard({me,tasks,onNavigate}){
       <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:5,textTransform:"uppercase",letterSpacing:".06em"}}>{label}{tip&&<span style={{marginLeft:4,opacity:.5}}>ⓘ</span>}</div>
     </div>
   )
-  // OpCount: ahora con hover visual más claro y fondo activo
   const OpCount=({val,label,color,onClick})=>(
     <button
       onClick={onClick}
@@ -272,8 +375,6 @@ function DailySignal({tasks,users,collabs,onNavigate,onOpenTask,onViewUser}){
     green:{border:"rgba(46,196,160,.25)",bg:"rgba(46,196,160,.04)",dot:"var(--s-completada)",label:"Todo bajo control",labelColor:"var(--s-completada)"},
   }[level]
   const topItem=hasVencidas?vencidas[0]:hasDueSoon?dueSoon[0]:null
-
-  // Órdenes sin marca — solo activas para no saturar con completadas viejas
   const sinMarca=tasks.filter(t=>(!t.marca||!t.marca.trim())&&t.status!=="completada")
 
   return(
@@ -298,7 +399,6 @@ function DailySignal({tasks,users,collabs,onNavigate,onOpenTask,onViewUser}){
             </div>
           )}
         </div>
-        {/* Badge sin marca — clickeable, navega a Órdenes */}
         {sinMarca.length>0&&(
           <button onClick={()=>onNavigate("ordenes")} style={{
             display:"inline-flex",alignItems:"center",gap:4,
@@ -355,10 +455,8 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
 
   return(
     <div className="fade-in">
-      {/* ── TIP BANNER — visible para todos los roles, una sola vez ── */}
       <TipBanner/>
 
-      {/* ════════ COLLABORATOR VIEW ════════ */}
       {isCollab&&(
         <>
           <div style={{marginBottom:20}}>
@@ -399,7 +497,6 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
         </>
       )}
 
-      {/* ════════ DIRECTOR / CUENTAS VIEW ════════ */}
       {(isDir||isCuentas)&&(
         <>
           <div style={{marginBottom:16}}>
@@ -420,11 +517,9 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
             {isDir&&<button className="quick-action" onClick={()=>onNavigate("desempeno")}><div className="quick-action-icon" style={{background:"rgba(155,127,232,.12)"}}><Icon n="desempeno" size={18} color="var(--s-revision)"/></div><span style={{fontSize:11,fontWeight:600}}>Desempeño</span></button>}
           </div>
 
-          {/* ──────────────── BARRA DE STATS — ahora con botones <button> que tienen hover real ──────────────── */}
           <div className="card" style={{marginBottom:16,padding:"12px 18px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
               <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-                {/* Activas — hero */}
                 <button onClick={()=>onNavigate("ordenes")} style={{
                   display:"flex",alignItems:"baseline",gap:8,
                   background:"transparent",border:"none",cursor:"pointer",padding:"6px 10px",borderRadius:8,
@@ -438,16 +533,10 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
 
                 <div style={{width:1,height:32,background:"var(--border)"}}/>
 
-                {/* En revisión */}
                 <StatCard val={forReview.length} label="en revisión" color="var(--s-revision)" onClick={()=>onNavigate("ordenes","en_revision")}/>
-
-                {/* Vencidas */}
                 <StatCard val={overdue.length} label="vencidas" color={overdue.length>0?"var(--s-vencida)":"var(--s-completada)"} onClick={()=>onNavigate("ordenes","vencida")}/>
-
-                {/* En pausa — solo si hay */}
                 {onPause.length>0&&<StatCard val={onPause.length} label="en pausa" color="var(--s-pausa)" onClick={()=>onNavigate("ordenes","en_pausa")}/>}
 
-                {/* Tendencia — NO clickeable, solo informativa. Sin cursor pointer. */}
                 <div style={{textAlign:"center",padding:"4px 10px"}}>
                   <div style={{fontSize:22,fontWeight:800,color:trend===null?"var(--muted)":trend>=0?"var(--green)":"var(--red)",fontFamily:"var(--font-display)",lineHeight:1}}>{trend===null?"—":`${trend>=0?"+":""}${trend}%`}</div>
                   <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--font-mono)",marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>tendencia</div>
@@ -547,7 +636,6 @@ export default function HomeView({tasks,users,teams,me,token,onRefresh,onNavigat
                   const health=teamOverdue>0||overloaded>0?"red":avgLoad>=4?"yellow":"green"
                   const healthColor={red:"var(--load-crit)",yellow:"var(--load-warn)",green:"var(--load-ok)"}[health]
                   const healthLabel={red:teamOverdue>0?`${teamOverdue} vencida${teamOverdue>1?"s":""}`:overloaded>0?`${overloaded} sobrecargado${overloaded>1?"s":""}`:"-",yellow:`~${Math.round(avgLoad*10)/10} tareas/persona`,green:members.length===0?"Sin miembros":"Al día"}[health]
-                  // NUEVO: ahora pasa el team_id para filtrar órdenes por ese equipo
                   return(
                     <div key={team.id} onClick={()=>onNavigate("ordenes",{teamId:team.id})} className="team-semaph" style={{padding:"12px 14px",background:"var(--bg3)",borderRadius:10,border:`1px solid ${healthColor}55`,cursor:"pointer",position:"relative",overflow:"hidden"}}>
                       <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:healthColor,opacity:.8}}/>
