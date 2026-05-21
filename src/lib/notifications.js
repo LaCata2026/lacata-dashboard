@@ -11,7 +11,6 @@ export function useNotifications(tasks,me){
     if(!tasks||!me)return
     const seen=LS.get("lc_seen_mentions",{})
     const mentions=[]
-
     tasks.forEach(t=>{
       const comments=Array.isArray(t.comments)?t.comments:[]
       comments.forEach(c=>{
@@ -29,12 +28,12 @@ export function useNotifications(tasks,me){
             PushNotif.send(
               "Nueva mención en: "+t.title,
               (c.user_name||"Alguien")+" te mencionó: "+c.text.slice(0,80),
-              ()=>{ window._openTask&&window._openTask(t) }
+              // Click en la notif → abre la tarea EN EL TAB DE CONVERSACIÓN
+              ()=>{ window._openTask&&window._openTask(t,"conversacion") }
             )
           }
         }
       })
-
       // ── NOTIFICACIÓN: nueva tarea asignada ──
       const assigned=Array.isArray(t.assigned_to)?t.assigned_to:[t.assigned_to].filter(Boolean)
       if(assigned.includes(me.id)&&t.status==="pendiente"){
@@ -48,13 +47,13 @@ export function useNotifications(tasks,me){
             PushNotif.send(
               "Nueva orden asignada",
               t.title+(t.order_number?" (AC-"+String(t.order_number).padStart(4,"0")+")":""),
-              ()=>{ window._openTask&&window._openTask(t) }
+              // Click → abre la tarea en detalles (tab por defecto)
+              ()=>{ window._openTask&&window._openTask(t,"detalles") }
             )
           }
         }
       }
     })
-
     setUnread(mentions)
   },[tasks,me?.id])
 
