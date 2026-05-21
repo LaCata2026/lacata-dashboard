@@ -60,7 +60,7 @@ function teamUrgencyScore(tTasks){
   return 0 // solo completadas → al final
 }
 
-export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter,initialView}){
+export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack,initialFilter,initialView,initialTeam,onClearTeamFilter}){
   const [viewMode,setViewMode]=useSessionFilters("ordenes_view",initialView||"lista");
   const [sf,setSf]=useSessionFilters("ordenes_status",initialFilter||"todas");
   const [tf,setTf]=useSessionFilters("ordenes_team","todas");
@@ -74,6 +74,25 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
   const effectiveView=isCollab?"lista":viewMode;
   const myTeamIds=isCuentas?(Array.isArray(me.team_ids)&&me.team_ids.length>0?me.team_ids:[me.team_id].filter(Boolean)):null;
   const visibleTeams=isCuentas&&myTeamIds?teams.filter(t=>myTeamIds.includes(t.id)):teams;
+
+  // NUEVO: cuando llega initialTeam desde el sidebar, aplicarlo como filtro
+  // Solo lo aplicamos una vez al cambiar initialTeam (no en cada render).
+  // Esto pisa el filtro de equipo guardado en sesión, pero es lo esperado:
+  // si el usuario hizo click en un equipo del sidebar, quiere ver ese equipo.
+  const lastInitialTeamRef=useRef(undefined);
+  useEffect(()=>{
+    if(initialTeam!==lastInitialTeamRef.current){
+      lastInitialTeamRef.current=initialTeam;
+      if(initialTeam){
+        setTf(initialTeam);
+        // Al cambiar de equipo, también reseteamos el filtro de status si estaba aplicado por error
+        // No tocamos sf — el usuario puede haber pinchado "vencidas" y ahora ver vencidas de un equipo
+      }
+    }
+  },[initialTeam,setTf]);
+
+  // Equipo actualmente seleccionado en el dropdown (sea por initialTeam o por elección manual)
+  const selectedTeam=tf!=="todas"?visibleTeams.find(t=>t.id===tf):null;
 
   const visible=tasks.filter(t=>{
     let canSee=false;
@@ -164,6 +183,35 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
     )
   }
 
+  // ── NUEVO: chip de equipo filtrado, visible cuando hay filtro activo ──
+  function TeamFilterChip(){
+    if(!selectedTeam)return null;
+    const c=selectedTeam.color||"var(--accent)";
+    function clear(){
+      setTf("todas");
+      if(onClearTeamFilter)onClearTeamFilter();
+    }
+    return(
+      <div className="fade-in" style={{
+        display:"inline-flex",alignItems:"center",gap:8,
+        padding:"5px 6px 5px 12px",borderRadius:7,
+        background:"var(--bg3)",border:`1px solid ${c}55`,
+        fontSize:12,fontFamily:"var(--font-body)",marginBottom:10
+      }}>
+        <span style={{width:8,height:8,borderRadius:"50%",background:c,boxShadow:`0 0 6px ${c}99`,flexShrink:0}}/>
+        <span style={{color:"var(--muted2)"}}>Filtrando por:</span>
+        <strong style={{color:"var(--text)"}}>{selectedTeam.name}</strong>
+        <button onClick={clear} title="Quitar filtro" style={{
+          background:"var(--bg4)",border:"none",cursor:"pointer",
+          color:"var(--muted)",borderRadius:5,padding:"2px 7px",
+          fontSize:13,lineHeight:1,fontFamily:"inherit",
+          transition:".13s"
+        }} onMouseEnter={e=>{e.currentTarget.style.background="var(--s-vencida)";e.currentTarget.style.color="#fff"}}
+          onMouseLeave={e=>{e.currentTarget.style.background="var(--bg4)";e.currentTarget.style.color="var(--muted)"}}>×</button>
+      </div>
+    )
+  }
+
   return(
     <div>
       {onBack&&<BackBtn onClick={onBack}/>}
@@ -184,11 +232,14 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
         </div>
       </div>
 
+      {/* Chip de equipo filtrado — aparece arriba de los filtros */}
+      {effectiveView!=="calendario"&&<TeamFilterChip/>}
+
       {effectiveView!=="calendario"&&(
         <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar nombre, AC-0001, marca..." style={{flex:1,minWidth:200,fontSize:13}}/>
           {(isDir||isCuentas)&&(
-            <select value={tf} onChange={e=>setTf(e.target.value)} style={{width:"auto",fontSize:12}}>
+            <select value={tf} onChange={e=>{setTf(e.target.value);if(e.target.value==="todas"&&onClearTeamFilter)onClearTeamFilter()}} style={{width:"auto",fontSize:12}}>
               <option value="todas">Todos los equipos</option>
               {visibleTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
@@ -216,7 +267,7 @@ export default function OrdenesView({tasks,users,teams,me,token,onRefresh,onBack
             {hayFiltros
               ?<>
                  <p>Ninguna orden coincide con los filtros actuales.</p>
-                 <button onClick={()=>{setSf("todas");setTf("todas");setSearch("");}} style={{marginTop:10,fontSize:12,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"6px 14px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:600}}>Limpiar filtros</button>
+                 <button onClick={()=>{setSf("todas");setTf("todas");setSearch("");if(onClearTeamFilter)onClearTeamFilter();}} style={{marginTop:10,fontSize:12,color:"var(--accent)",background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.2)",padding:"6px 14px",borderRadius:6,cursor:"pointer",fontFamily:"var(--font-body)",fontWeight:600}}>Limpiar filtros</button>
                </>
               :isCollab
                 ?<p>Aún no tienes órdenes asignadas. Cuando te asignen una, aparecerá aquí.</p>
