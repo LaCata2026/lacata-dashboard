@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { sb } from '../lib/supabase'
+import { sb, teamColor } from '../lib/supabase'
 import { Realtime } from '../lib/realtime'
-import { NAV, autoMarkVencidas } from '../lib/utils'
+import { NAV } from '../lib/utils'
 import { useNotifications } from '../lib/notifications'
 import Icon from './Icon'
 import { Av } from './Shared'
@@ -17,6 +17,85 @@ import BottomNav from './BottomNav'
 import DiagnosticPanel from './DiagnosticPanel'
 import ReporteExcel from '../views/ReporteExcel'
 import TeamDetailView from '../views/TeamDetailView'
+
+function TeamsOverview({ teams, users, tasks, onSelect }) {
+  return (
+    <div>
+      <div className="section-header">
+        <h2 className="section-title">Equipos</h2>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))',
+          gap: 10,
+        }}
+      >
+        {teams.map((team) => {
+          const members = users.filter(
+            (u) =>
+              u.activo !== false &&
+              (u.team_id === team.id ||
+                (Array.isArray(u.team_ids) && u.team_ids.includes(team.id)))
+          )
+          const active = tasks.filter(
+            (t) => t.team_id === team.id && t.status !== 'completada'
+          ).length
+          const color = teamColor(team)
+          return (
+            <button
+              key={team.id}
+              onClick={() => onSelect(team.id)}
+              style={{
+                background: 'var(--bg2)',
+                border: `1px solid var(--border)`,
+                borderLeft: `4px solid ${color}`,
+                borderRadius: 10,
+                padding: '14px 16px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'background .13s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg2)')}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 14,
+                    fontFamily: 'var(--font-display)',
+                    color: 'var(--text)',
+                  }}
+                >
+                  {team.name}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)' }}>
+                <span>{members.length} integrante{members.length !== 1 ? 's' : ''}</span>
+                <span style={{ color: active > 0 ? 'var(--s-progreso)' : 'var(--muted)' }}>
+                  {active} activa{active !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </button>
+          )
+        })}
+        {teams.length === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 13 }}>No hay equipos registrados.</p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
   const { token } = session
@@ -44,6 +123,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
   const [page, setPage] = useState('home')
   const [pageArg, setPageArg] = useState(null)
   const [activeTeamId, setActiveTeamId] = useState(null)
+  const [pageTransitioning, setPageTransitioning] = useState(false)
   const [tasks, setTasks] = useState([])
   const [users, setUsers] = useState([])
   const [teams, setTeams] = useState([])
@@ -75,13 +155,26 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
       setTasks(t)
       setUsers(u)
       setTeams(tm)
-      autoMarkVencidas(t, token, sb).catch((e) => console.warn('autoMark:', e))
     } catch (e) {
       if (e.message === 'SESSION_EXPIRED') onLogout()
     } finally {
       setLoading(false)
     }
   }, [token])
+
+  // Llama al Edge Function una sola vez por sesión al iniciar
+  const markedThisSession = useRef(false)
+  useEffect(() => {
+    if (markedThisSession.current || !token) return
+    markedThisSession.current = true
+    fetch(`${import.meta.env.VITE_SB_URL}/functions/v1/auto-mark-vencidas`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SB_ANON },
+    })
+      .then((r) => r.json())
+      .then((d) => { if (d.marked || d.reverted) load() })
+      .catch(() => {})
+  }, [token, load])
 
   const loadHistory = useCallback(async () => {
     try {
@@ -105,8 +198,9 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
     function schedule() {
       clearTimeout(reloadTimer.current)
       reloadTimer.current = setTimeout(() => {
-        load()
-      }, 800)
+        // No recargar si el usuario tiene la tab en segundo plano
+        if (document.visibilityState !== 'hidden') load()
+      }, 2000)
     }
     const unsubs = ['tareas', 'usuarios', 'equipos'].map((table) =>
       Realtime.subscribe(table, () => {
@@ -177,6 +271,8 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
   }, [showNotif])
 
   const navigate = useCallback((id, arg = null) => {
+    setPageTransitioning(true)
+    setTimeout(() => setPageTransitioning(false), 320)
     if (id && id.startsWith('equipo_')) {
       setPage('equipos')
       setPageArg(id.replace('equipo_', ''))
@@ -285,7 +381,16 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
     ),
     equipos: (() => {
       const team = teams.find((t) => t.id === pageArg)
-      if (!team) return <OrdenesView {...shared} initialView="equipo" />
+      if (!team) {
+        return (
+          <TeamsOverview
+            teams={teams}
+            users={users}
+            tasks={tasks}
+            onSelect={(id) => navigate('equipo_' + id)}
+          />
+        )
+      }
       const teamTasks = tasks.filter((t) => t.team_id === team.id)
       const teamUsers = users.filter(
         (u) =>
@@ -303,7 +408,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
           me={profile}
           token={token}
           onRefresh={load}
-          onBack={() => navigate('home')}
+          onBack={() => navigate('equipos')}
         />
       )
     })(),
@@ -914,7 +1019,75 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
             La Cata
           </div>
         </div>
+        {pageTransitioning && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              zIndex: 9999,
+              background: 'var(--accent)',
+              animation: 'navProgress .32s ease-out forwards',
+            }}
+          />
+        )}
         <div className="page-content">
+          {(() => {
+            const labels = {
+              home: 'Inicio',
+              ordenes: 'Órdenes',
+              crear: 'Nueva orden',
+              equipos: 'Equipos',
+              calendario: 'Calendario',
+              desempeno: 'Desempeño',
+              admin: 'Administración',
+              perfil: 'Perfil',
+            }
+            const pageLabel = labels[page] || 'Inicio'
+            const teamName = page === 'equipos' && pageArg
+              ? teams.find((t) => t.id === pageArg)?.name
+              : null
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 11,
+                  color: 'var(--muted)',
+                  marginBottom: 12,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {teamName ? (
+                  <>
+                    <button
+                      onClick={() => navigate('equipos')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--muted)',
+                        fontFamily: 'inherit',
+                        fontSize: 'inherit',
+                        padding: 0,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
+                    >
+                      Equipos
+                    </button>
+                    <span>›</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 600 }}>{teamName}</span>
+                  </>
+                ) : (
+                  <span style={{ color: 'var(--muted2)' }}>{pageLabel}</span>
+                )}
+              </div>
+            )
+          })()}
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
               <div
@@ -977,7 +1150,7 @@ export default function Dashboard({ session, isDark, toggleTheme, onLogout }) {
           }}
         />
       )}
-      <div className="mobile-bottom-nav">
+      <div className="mobile-bottom-nav" style={{ display: sidebarOpen ? 'none' : undefined }}>
         <BottomNav
           page={page}
           navigate={navigate}

@@ -445,6 +445,15 @@ export default function TaskCard({
       setPausePrompt(true)
       return
     }
+    if (s === 'completada') {
+      const ok = await showConfirm(`¿Marcar "${task.title}" como completada?`, {
+        title: 'Completar orden',
+        confirmLabel: 'Sí, completar',
+        confirmColor: 'var(--s-completada)',
+        detail: 'Esta acción registrará las horas trabajadas y cerrará la orden.',
+      })
+      if (!ok) return
+    }
     const reactivating = task.status === 'en_revision' && (s === 'en_progreso' || s === 'pendiente')
     if (reactivating && task.due_date) {
       const today = new Date()
@@ -925,15 +934,13 @@ export default function TaskCard({
       {modal && (
         <ModalPortal>
           <div
-            className="modal-overlay"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setModal(false)
-                if (onForceClose) onForceClose()
-              }
+            className="drawer-overlay"
+            onClick={() => {
+              setModal(false)
+              if (onForceClose) onForceClose()
             }}
           >
-            <div className="modal fade-in" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer" onClick={(e) => e.stopPropagation()}>
               <div
                 style={{
                   display: 'flex',

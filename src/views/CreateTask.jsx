@@ -207,6 +207,7 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
           </div>
           <div>
             <label className="form-label">Marca / Cliente *</label>
+            {errors.marca && <p className="field-hint">{errors.marca}</p>}
             {(() => {
               // Fuente única: marcas de BD + marcas que existen en tareas (por si quedaron viejas)
               const existing = [...new Set(tasks.map((t) => t.marca).filter(Boolean))]
@@ -215,7 +216,9 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
                 <>
                   <select
                     value={showOtra ? '__otra__' : form.marca || ''}
+                    className={errors.marca ? 'field-error' : ''}
                     onChange={(e) => {
+                      if (errors.marca) setErrors((v) => ({ ...v, marca: '' }))
                       if (e.target.value === '__otra__') {
                         setShowOtra(true)
                         setForm((f) => ({ ...f, marca: '' }))
@@ -292,17 +295,23 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
             <label className="form-label">Brief y especificaciones *</label>
             <textarea
               value={form.description}
-              onChange={set('description')}
+              className={errors.description ? 'field-error' : ''}
+              onChange={(e) => {
+                set('description')(e)
+                if (errors.description) setErrors((v) => ({ ...v, description: '' }))
+              }}
               placeholder="Entregables, formatos, dimensiones..."
             />
+            {errors.description && <p className="field-hint">{errors.description}</p>}
           </div>
           <div style={{ gridColumn: '1/-1' }}>
             <label className="form-label">Responsables *</label>
+            {errors.assigned_to && <p className="field-hint">{errors.assigned_to}</p>}
             <div
               style={{
                 background: 'var(--bg3)',
                 borderRadius: 12,
-                border: '1px solid var(--border)',
+                border: errors.assigned_to ? '1px solid var(--s-vencida)' : '1px solid var(--border)',
                 padding: 14,
               }}
             >
@@ -350,8 +359,8 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill,minmax(72px,1fr))',
-                  gap: 8,
+                  gridTemplateColumns: 'repeat(auto-fill,minmax(148px,1fr))',
+                  gap: 5,
                 }}
               >
                 {users
@@ -384,7 +393,10 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
                         ? 'var(--red)'
                         : taskCount >= 5
                           ? 'var(--yellow)'
-                          : u.avatar_color
+                          : 'var(--muted)'
+                    // Colaboradores usan el color de su equipo principal
+                    const userTeam = teams.find((t) => t.id === u.team_id)
+                    const avatarBg = userTeam ? teamColor(userTeam) : u.avatar_color
                     return (
                       <button
                         key={u.id}
@@ -395,90 +407,61 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
                             ...f,
                             assigned_to: sel ? cur.filter((x) => x !== u.id) : [...cur, u.id],
                           }))
+                          if (errors.assigned_to) setErrors((v) => ({ ...v, assigned_to: '' }))
                         }}
                         style={{
                           display: 'flex',
-                          flexDirection: 'column',
                           alignItems: 'center',
-                          gap: 4,
-                          padding: '10px 6px',
-                          borderRadius: 10,
+                          gap: 8,
+                          padding: '6px 8px',
+                          borderRadius: 8,
                           cursor: 'pointer',
                           fontFamily: 'inherit',
                           background: sel ? 'var(--accent-dim)' : 'var(--bg4)',
                           border: sel ? '2px solid var(--accent)' : '2px solid transparent',
-                          position: 'relative',
                           transition: '.15s',
+                          textAlign: 'left',
                         }}
                       >
-                        {sel && (
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: 4,
-                              right: 4,
-                              fontSize: 10,
-                              background: 'var(--accent)',
-                              color: '#fff',
-                              borderRadius: '50%',
-                              width: 14,
-                              height: 14,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            ✓
-                          </span>
-                        )}
                         <div
                           style={{
-                            width: 36,
-                            height: 36,
+                            width: 30,
+                            height: 30,
                             borderRadius: '50%',
-                            background: u.avatar_color,
-                            fontSize: 13,
+                            background: avatarBg,
+                            fontSize: 11,
                             color: '#fff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontWeight: 700,
+                            flexShrink: 0,
                           }}
                         >
                           {u.initials}
                         </div>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            color: sel ? 'var(--purple2)' : 'var(--text)',
-                            textAlign: 'center',
-                            lineHeight: 1.2,
-                          }}
-                        >
-                          {u.name.split(' ')[0]}
-                        </span>
-                        <span style={{ fontSize: 10, color: loadColor, fontWeight: 600 }}>
-                          {taskCount} tareas
-                        </span>
-                        <div
-                          style={{
-                            width: '100%',
-                            height: 3,
-                            background: 'var(--bg3)',
-                            borderRadius: 2,
-                            overflow: 'hidden',
-                          }}
-                        >
+                        <div style={{ minWidth: 0, flex: 1 }}>
                           <div
                             style={{
-                              width: Math.min(100, (taskCount / 8) * 100) + '%',
-                              height: '100%',
-                              background: loadColor,
-                              borderRadius: 2,
+                              fontSize: 12,
+                              fontWeight: sel ? 700 : 500,
+                              color: sel ? 'var(--accent)' : 'var(--text)',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}
-                          />
+                          >
+                            {u.name.split(' ')[0]}
+                          </div>
+                          <div style={{ fontSize: 10, color: loadColor, fontWeight: 600 }}>
+                            {taskCount} activas
+                          </div>
                         </div>
+                        {sel && (
+                          <span style={{ color: 'var(--accent)', fontSize: 13, flexShrink: 0 }}>
+                            ✓
+                          </span>
+                        )}
                       </button>
                     )
                   })}
@@ -608,7 +591,16 @@ export default function CreateTask({ users, teams, tasks, me, token, onCreated, 
           </div>
           <div>
             <label className="form-label">Fecha límite *</label>
-            <input type="date" value={form.due_date} onChange={set('due_date')} />
+            <input
+              type="date"
+              value={form.due_date}
+              className={errors.due_date ? 'field-error' : ''}
+              onChange={(e) => {
+                set('due_date')(e)
+                if (errors.due_date) setErrors((v) => ({ ...v, due_date: '' }))
+              }}
+            />
+            {errors.due_date && <p className="field-hint">{errors.due_date}</p>}
           </div>
           <div>
             <label className="form-label">Estado inicial</label>

@@ -8,7 +8,7 @@
   --accent-dim:rgba(232,197,71,.1);--accent-glow:rgba(232,197,71,.22);
   --s-pendiente:#7c8fc9;--s-pendiente-bg:rgba(124,143,201,.1);
   --s-progreso:#4d9de0;--s-progreso-bg:rgba(77,157,224,.1);
-  --s-pausa:#8fa3b1;--s-pausa-bg:rgba(143,163,177,.1);
+  --s-pausa:#c8823a;--s-pausa-bg:rgba(200,130,58,.1);
   --s-revision:#9b7fe8;--s-revision-bg:rgba(155,127,232,.1);
   --s-completada:#2ec4a0;--s-completada-bg:rgba(46,196,160,.1);
   --s-vencida:#e85d5d;--s-vencida-bg:rgba(232,93,93,.1);
@@ -31,7 +31,7 @@ body.light{
   --accent:#c49a0a;--accent2:#d4aa1a;--accent-dim:rgba(196,154,10,.1);--accent-glow:rgba(196,154,10,.2);
   --s-pendiente:#4a67b0;--s-pendiente-bg:rgba(74,103,176,.1);
   --s-progreso:#1e7fc4;--s-progreso-bg:rgba(30,127,196,.1);
-  --s-pausa:#5a7485;--s-pausa-bg:rgba(90,116,133,.1);
+  --s-pausa:#a0621a;--s-pausa-bg:rgba(160,98,26,.1);
   --s-revision:#6a4fc4;--s-revision-bg:rgba(106,79,196,.1);
   --s-completada:#168a72;--s-completada-bg:rgba(22,138,114,.1);
   --s-vencida:#c43030;--s-vencida-bg:rgba(196,48,48,.1);
@@ -146,6 +146,10 @@ button:active:not(:disabled){opacity:.75;transform:scale(.97)}
 @keyframes dropIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes slideInLeft{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideInRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes navProgress{from{transform:scaleX(0);transform-origin:left}to{transform:scaleX(1);transform-origin:left}}
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;backdrop-filter:blur(3px)}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto;padding:28px 24px;animation:slideInRight .22s cubic-bezier(.4,0,.2,1);box-shadow:-12px 0 48px rgba(0,0,0,.5)}
 @keyframes scaleIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 /* ── #5 REALTIME BADGE — parpadeo lento cuando está desconectado ── */
 @keyframes realtimePulse{0%,100%{opacity:1}50%{opacity:.35}}
@@ -282,4 +286,4 @@ body.dense h2.section-title,body.dense .section-title{font-size:17px!important}
 body.dense .nav-item{padding:6px 10px!important;font-size:13px!important}
 body.dense .sidebar-inner{padding:14px 12px!important}
 body.dense .main-content{padding:18px 24px!important}
-.mobile-bottom-nav{display:none}@media(max-width:768px){.sidebar{display:none!important}.mobile-topbar{display:none!important}.main-content{margin-left:0!important;padding-bottom:72px!important;padding-top:0!important}.mobile-bottom-nav{display:block}}
+.mobile-bottom-nav{display:none}@media(max-width:768px){.sidebar{transform:translateX(-100%)!important;display:flex!important}.sidebar.open{transform:translateX(0)!important;box-shadow:4px 0 32px rgba(0,0,0,.5)}.mobile-topbar{display:none!important}.main-content{margin-left:0!important;padding-bottom:72px!important;padding-top:0!important}.mobile-bottom-nav{display:block}}

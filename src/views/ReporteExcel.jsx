@@ -470,8 +470,8 @@ export default function ReporteExcel({ tasks, users, teams, isOpen, onClose }) {
               padding: '9px',
               borderRadius: 8,
               border: 'none',
-              background: 'var(--accent)',
-              color: '#0d0d0d',
+              background: loading ? 'var(--bg3)' : 'var(--accent)',
+              color: loading ? 'var(--text)' : '#0d0d0d',
               cursor: loading ? 'default' : 'pointer',
               fontSize: 13,
               fontWeight: 700,
@@ -480,11 +480,43 @@ export default function ReporteExcel({ tasks, users, teams, isOpen, onClose }) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              opacity: loading ? 0.7 : 1,
+              position: 'relative',
+              overflow: 'hidden',
+              transition: 'background .2s',
             }}
           >
-            <Icon n="exportar" size={14} />
-            {loading ? 'Generando...' : 'Descargar Excel'}
+            {loading && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(90deg,transparent 0%,var(--accent-dim) 50%,transparent 100%)',
+                  animation: 'shimmer 1.4s infinite linear',
+                  backgroundSize: '600px 100%',
+                }}
+              />
+            )}
+            {loading ? (
+              <>
+                <span
+                  style={{
+                    width: 13,
+                    height: 13,
+                    border: '2px solid var(--muted)',
+                    borderTopColor: 'var(--accent)',
+                    borderRadius: '50%',
+                    animation: 'spin .7s linear infinite',
+                    flexShrink: 0,
+                  }}
+                />
+                Generando reporte...
+              </>
+            ) : (
+              <>
+                <Icon n="exportar" size={14} />
+                Descargar Excel
+              </>
+            )}
           </button>
         </div>
       </div>
