@@ -32,6 +32,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const[page,setPage]=useState("home")
   const[pageArg,setPageArg]=useState(null)
+  // NUEVO: filtro por equipo activo (independiente de pageArg para no romper otras vistas)
+  const[activeTeamId,setActiveTeamId]=useState(null)
   const[tasks,setTasks]=useState([])
   const[users,setUsers]=useState([])
   const[teams,setTeams]=useState([])
@@ -93,10 +95,27 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
     window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)
   },[])
 
+  // navigate: ahora maneja también filtro por equipo desde el sidebar
+  // - navigate("equipo_<id>") → vista Equipos (como antes)
+  // - navigate("ordenes", {teamId}) → vista Órdenes filtrada por equipo (NUEVO)
+  // - navigate("ordenes", "vencida") → vista Órdenes filtrada por status (como antes)
   const navigate=useCallback((id,arg=null)=>{
-    if(id&&id.startsWith("equipo_")){setPage("equipos");setPageArg(id.replace("equipo_",""));setSidebarOpen(false);return}
+    if(id&&id.startsWith("equipo_")){setPage("equipos");setPageArg(id.replace("equipo_",""));setActiveTeamId(null);setSidebarOpen(false);return}
+    // NUEVO: si nos pasan {teamId} guardamos el filtro y limpiamos pageArg para no confundir initialFilter
+    if(arg&&typeof arg==="object"&&arg.teamId){
+      setPage(id);
+      setActiveTeamId(arg.teamId);
+      setPageArg(null);
+      setSidebarOpen(false);
+      return
+    }
     setPage(id);setPageArg(arg);setSidebarOpen(false)
   },[])
+
+  // Limpiar filtro de equipo al cambiar a otra página que no sea órdenes
+  useEffect(()=>{
+    if(page!=="ordenes"&&activeTeamId)setActiveTeamId(null)
+  },[page,activeTeamId])
 
   const floatTask=useMemo(()=>floatTaskId?tasks.find(t=>t.id===floatTaskId)||null:null,[floatTaskId,tasks])
   const navItems=NAV.filter(n=>n.roles.includes(profile.role))
@@ -115,7 +134,8 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
 
   const views={
     home:<HomeView {...shared}/>,
-    ordenes:<OrdenesView {...shared} initialFilter={pageArg}/>,
+    // initialTeam: filtro por equipo (nuevo, opcional). No rompe nada si no se pasa.
+    ordenes:<OrdenesView {...shared} initialFilter={pageArg} initialTeam={activeTeamId} onClearTeamFilter={()=>setActiveTeamId(null)}/>,
     crear:<CreateTask {...shared} onCreated={()=>navigate("ordenes")} onBack={()=>navigate("ordenes")}/>,
     equipos:<OrdenesView {...shared} initialView="equipo"/>,
     calendario:<CalendarView {...shared}/>,
@@ -178,11 +198,40 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
             {["trabajo","admin"].map(section=>{
               const items=navItems.filter(n=>n.section===section);if(!items.length)return null
               return(<div key={section}>{section==="admin"&&<div className="nav-section">Admin</div>}
-                {items.map(n=>(<button key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>navigate(n.id)}><Icon n={n.icon} size={15}/>{n.label}</button>))}
+                {items.map(n=>(<button key={n.id} className={`nav-item${page===n.id&&!activeTeamId?" active":""}`} onClick={()=>navigate(n.id)}><Icon n={n.icon} size={15}/>{n.label}</button>))}
               </div>)
             })}
             {visibleTeams.length>0&&(<div><div className="nav-section">Equipos</div>
-              {visibleTeams.map(t=>(<button key={t.id} onClick={()=>navigate("ordenes")} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:12,color:"var(--muted2)",background:"transparent",border:"none",cursor:"pointer",width:"100%",borderRadius:6,transition:".13s",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{width:7,height:7,borderRadius:"50%",background:t.color||"var(--accent)",flexShrink:0,display:"inline-block"}}/>{t.name}</button>))}
+              {visibleTeams.map(t=>{
+                // NUEVO: marcar visualmente el equipo activo cuando estamos filtrando por él
+                const isActive=page==="ordenes"&&activeTeamId===t.id
+                return(
+                  <button
+                    key={t.id}
+                    onClick={()=>navigate("ordenes",{teamId:t.id})}
+                    style={{
+                      display:"flex",alignItems:"center",gap:8,
+                      padding:"5px 10px",fontSize:12,
+                      color:isActive?"var(--text)":"var(--muted2)",
+                      fontWeight:isActive?700:400,
+                      background:isActive?"var(--bg3)":"transparent",
+                      border:isActive?`1px solid ${(t.color||"#e8c547")}55`:"1px solid transparent",
+                      cursor:"pointer",width:"100%",borderRadius:6,
+                      transition:".13s",fontFamily:"inherit",textAlign:"left"
+                    }}
+                    onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background="var(--bg3)"}}
+                    onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="transparent"}}>
+                    <span style={{
+                      width:7,height:7,borderRadius:"50%",
+                      background:t.color||"var(--accent)",
+                      flexShrink:0,display:"inline-block",
+                      boxShadow:isActive?`0 0 6px ${t.color||"#e8c547"}99`:"none"
+                    }}/>
+                    <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
+                    {isActive&&<span style={{fontSize:9,color:"var(--accent)",fontFamily:"var(--font-mono)",fontWeight:700}}>●</span>}
+                  </button>
+                )
+              })}
             </div>)}
             {profile.role==="director"&&(
               <div style={{marginTop:8}}>
@@ -270,7 +319,7 @@ export default function Dashboard({session,isDark,toggleTheme,onLogout}){
         <div className="page-content">
           {loading
             ?<div style={{padding:40,textAlign:"center",color:"var(--muted)"}}><div className="skeleton skeleton-title" style={{width:200,margin:"0 auto 12px"}}/><div className="skeleton skeleton-text" style={{width:300,margin:"0 auto"}}/></div>
-            :(<div key={page} className="page-enter">{views[page]||views.home}</div>)
+            :(<div key={page+(activeTeamId||"")} className="page-enter">{views[page]||views.home}</div>)
           }
         </div>
       </main>
