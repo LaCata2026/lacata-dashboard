@@ -1,12 +1,74 @@
-import{useState}from'react'
+import{useState,useEffect}from'react'
 import{SB_URL,SB_ANON,LS,getRole,getAvatarColor,getInitials}from'../lib/supabase'
 import Icon from'./Icon'
-export default function SetPassword(){
-  const[pw,setPw]=useState("");const[pw2,setPw2]=useState("");const[loading,setLoading]=useState(false);const[err,setErr]=useState("")
-  const hash=window.location.hash;const params=new URLSearchParams(hash.replace("#",""));const accessToken=params.get("access_token")
 
-  // Si no hay token válido, mostrar mensaje claro
-  if(!accessToken||accessToken.split(".").length!==3){
+// Extrae el token de acceso desde 3 posibles ubicaciones:
+// 1. Hash (#access_token=...) — flujo implicit (legacy)
+// 2. Query string (?access_token=... o ?code=...) — flujo PKCE moderno
+// 3. Cookies (sb-access-token) — fallback de Supabase
+function extractToken(){
+  // Intento 1: Hash fragment
+  const hash=window.location.hash||""
+  if(hash){
+    const hashParams=new URLSearchParams(hash.replace("#",""))
+    const t=hashParams.get("access_token")
+    if(t&&t.split(".").length===3)return{token:t,refresh:hashParams.get("refresh_token"),source:"hash"}
+  }
+
+  // Intento 2: Query string (?access_token= o ?code=)
+  const search=window.location.search||""
+  if(search){
+    const searchParams=new URLSearchParams(search)
+    const t=searchParams.get("access_token")
+    if(t&&t.split(".").length===3)return{token:t,refresh:searchParams.get("refresh_token"),source:"query"}
+    const code=searchParams.get("code")
+    if(code)return{token:null,code,source:"pkce"}
+  }
+
+  // Intento 3: Cookies
+  try{
+    const cookies=document.cookie.split(";").reduce((acc,c)=>{
+      const[k,v]=c.trim().split("=")
+      if(k&&v)acc[k]=decodeURIComponent(v)
+      return acc
+    },{})
+    // Supabase usa "sb-{project-ref}-auth-token" como nombre de cookie
+    for(const k of Object.keys(cookies)){
+      if(k.startsWith("sb-")&&k.includes("auth-token")){
+        try{
+          const parsed=JSON.parse(cookies[k])
+          if(parsed?.access_token&&parsed.access_token.split(".").length===3){
+            return{token:parsed.access_token,refresh:parsed.refresh_token,source:"cookie"}
+          }
+        }catch{}
+      }
+    }
+  }catch(e){console.warn("[SetPassword] error reading cookies:",e)}
+
+  return null
+}
+
+export default function SetPassword(){
+  const[pw,setPw]=useState("")
+  const[pw2,setPw2]=useState("")
+  const[loading,setLoading]=useState(false)
+  const[err,setErr]=useState("")
+  const[tokenInfo,setTokenInfo]=useState(null)
+
+  // Intentar extraer el token al montar el componente
+  useEffect(()=>{
+    const info=extractToken()
+    console.log("[SetPassword] Token extraction:",info?{source:info.source,hasToken:!!info.token,hasCode:!!info.code}:"none")
+    setTokenInfo(info)
+  },[])
+
+  // Si no encontramos token en ningún lado, mostrar mensaje claro
+  if(tokenInfo===null){
+    // Aún cargando — esperar a que useEffect corra
+    return null
+  }
+
+  if(!tokenInfo||(!tokenInfo.token&&!tokenInfo.code)){
     return(
       <div className="login-wrap"><div className="login-card">
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
@@ -21,7 +83,7 @@ export default function SetPassword(){
             <li>No recargues la página ni cierres la pestaña antes de crear tu contraseña</li>
           </ol>
         </div>
-        <button className="btn btn-ghost" style={{width:"100%",padding:11,fontSize:13}} onClick={()=>{window.location.hash="";window.location.href="/"}}>Ir al inicio</button>
+        <button className="btn btn-ghost" style={{width:"100%",padding:11,fontSize:13}} onClick={()=>{window.location.hash="";window.location.search="";window.location.href="/"}}>Ir al inicio</button>
       </div></div>
     )
   }
@@ -32,6 +94,24 @@ export default function SetPassword(){
     if(pw!==pw2)return setErr("Las contraseñas no coinciden")
     setLoading(true)
     try{
+      let accessToken=tokenInfo.token
+      let userData=null
+
+      // Si vino como PKCE code, intercambiarlo primero por un access_token
+      if(tokenInfo.source==="pkce"&&tokenInfo.code){
+        const exchangeR=await fetch(`${SB_URL}/auth/v1/token?grant_type=pkce`,{
+          method:"POST",
+          headers:{"Content-Type":"application/json",apikey:SB_ANON},
+          body:JSON.stringify({auth_code:tokenInfo.code})
+        })
+        const exchangeD=await exchangeR.json()
+        if(!exchangeR.ok||!exchangeD.access_token){
+          throw new Error("No se pudo verificar el enlace. Por favor abre el enlace más reciente del correo.")
+        }
+        accessToken=exchangeD.access_token
+        userData=exchangeD.user||null
+      }
+
       // ── 1. Actualizar contraseña en Auth ──
       const r=await fetch(`${SB_URL}/auth/v1/user`,{
         method:"PUT",
@@ -39,15 +119,17 @@ export default function SetPassword(){
         body:JSON.stringify({password:pw})
       })
       const d=await r.json()
-      if(!r.ok||d.error||d.code)throw new Error(d.msg||d.error_description||d.error||"No se pudo guardar la contraseña. El enlace puede haber expirado — vuelve a tu correo y usa el enlace más reciente.")
+      if(!r.ok||d.error||d.code)throw new Error(d.msg||d.error_description||d.error||"No se pudo guardar la contraseña")
 
-      const email=(d.email||d.user_metadata?.email||d.new_email||"").toLowerCase()
+      const userInfo=userData||d
+      const email=(userInfo.email||userInfo.user_metadata?.email||userInfo.new_email||"").toLowerCase()
       if(!email)throw new Error("No se pudo identificar el email del usuario")
-      const fullName=d.user_metadata?.full_name||d.user_metadata?.name||""
+      const fullName=userInfo.user_metadata?.full_name||userInfo.user_metadata?.name||""
       const fallbackName=email?email.split("@")[0]:("usuario_"+Math.random().toString(36).slice(2,6))
       const name=fullName||fallbackName
+      const userId=userInfo.id||d.id
 
-      // ── 2. VERIFICAR que la contraseña realmente se guardó haciendo login ──
+      // ── 2. Login real con email+password para sesión válida ──
       const loginR=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{
         method:"POST",
         headers:{"Content-Type":"application/json",apikey:SB_ANON},
@@ -55,11 +137,11 @@ export default function SetPassword(){
       })
       const loginD=await loginR.json()
       if(!loginR.ok||!loginD.access_token){
-        throw new Error("La contraseña no se guardó correctamente. Verifica que cumpla con los requisitos mínimos (8+ caracteres) e intenta de nuevo.")
+        throw new Error("La contraseña se guardó pero no se pudo iniciar sesión automáticamente. Por favor ve al login y entra con tu correo y contraseña.")
       }
 
-      // ── 3. Buscar perfil en usuarios usando el NUEVO token ──
-      const profileR=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${d.id}&select=*`,{
+      // ── 3. Buscar perfil en usuarios ──
+      const profileR=await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${userId}&select=*`,{
         headers:{apikey:SB_ANON,Authorization:`Bearer ${loginD.access_token}`}
       })
       const profileData=await profileR.json()
@@ -69,7 +151,7 @@ export default function SetPassword(){
         profile=profileData[0]
       }else{
         const newProfile={
-          id:d.id,
+          id:userId,
           email,
           name,
           role:getRole(email),
@@ -95,11 +177,12 @@ export default function SetPassword(){
       if(typeof profile.team_ids==="string"){try{profile.team_ids=JSON.parse(profile.team_ids)}catch{profile.team_ids=[]}}
       if(!Array.isArray(profile.team_ids))profile.team_ids=[]
 
-      // ── 4. Guardar sesión con el TOKEN REAL del login ──
+      // ── 4. Guardar sesión y entrar ──
       LS.set("lc_session",{token:loginD.access_token,profile})
       if(loginD.refresh_token)LS.set("lc_refresh_token",loginD.refresh_token)
       window.location.hash=""
-      window.location.reload()
+      window.location.search=""
+      window.location.href="/"
     }catch(e){setErr(e.message)}finally{setLoading(false)}
   }
   return(
