@@ -205,7 +205,7 @@ export default function TeamDetailView({
                     background: isOpen ? 'var(--bg3)' : 'var(--bg2)',
                   }}
                 >
-                  <Av u={u} size={30} />
+                  <Av u={u} size={30} teams={allTeams} />
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 700 }}>{u.name}</span>

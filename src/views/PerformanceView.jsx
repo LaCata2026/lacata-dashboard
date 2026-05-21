@@ -155,7 +155,7 @@ export default function PerformanceView({ tasks, users, teams, onBack }) {
             borderLeft: `4px solid ${getUserColor(u, teams)}`,
           }}
         >
-          <Av u={u} size={48} />
+          <Av u={u} size={48} teams={teams} />
           <div style={{ flex: 1 }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 2 }}>{u.name}</h2>
             <p style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -369,7 +369,7 @@ export default function PerformanceView({ tasks, users, teams, onBack }) {
                 >
                   {i + 1}
                 </span>
-                <Av u={u} size={36} />
+                <Av u={u} size={36} teams={teams} />
                 <div style={{ flex: 1 }}>
                   <div
                     style={{

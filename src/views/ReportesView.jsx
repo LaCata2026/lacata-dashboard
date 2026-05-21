@@ -334,7 +334,7 @@ function TabColaborador({ tasks, users, teams, range }) {
             borderLeft: `4px solid ${getUserColor(u, teams)}`,
           }}
         >
-          <Av u={u} size={44} />
+          <Av u={u} size={44} teams={teams} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{u.name}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>{team?.name || 'Sin equipo'}</div>
@@ -494,7 +494,7 @@ function TabColaborador({ tasks, users, teams, range }) {
                   flexShrink: 0,
                 }}
               />
-              <Av u={u} size={36} />
+              <Av u={u} size={36} teams={teams} />
               <div style={{ flex: 1, minWidth: 120 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{u.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -686,7 +686,7 @@ function TabMarca({ tasks, users, teams, range }) {
                       padding: '6px 10px',
                     }}
                   >
-                    <Av u={u} size={24} />
+                    <Av u={u} size={24} teams={teams} />
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600 }}>{u.name.split(' ')[0]}</div>
                       <div
@@ -1112,7 +1112,7 @@ function TabOrdenes({ tasks, users, teams, range }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {assignedUsers.map((u) => (
                     <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Av u={u} size={18} />
+                      <Av u={u} size={18} teams={teams} />
                       <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                         {u.name.split(' ')[0]}
                       </span>

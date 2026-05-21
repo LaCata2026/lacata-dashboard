@@ -658,7 +658,7 @@ function TabOperativo({ tasks, users, teams, me, token, onRefresh, onOpenTask, o
                           }}
                           style={{ cursor: !isCollab && onViewUser ? 'pointer' : 'default' }}
                         >
-                          <Av u={m} size={24} />
+                          <Av u={m} size={24} teams={teams} />
                         </div>
                         <span
                           style={{
@@ -875,7 +875,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
             borderLeft: `4px solid ${getUserColor(u, teams)}`,
           }}
         >
-          <Av u={u} size={44} />
+          <Av u={u} size={44} teams={teams} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{u.name}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>{team?.name || 'Sin equipo'}</div>
@@ -1074,7 +1074,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
                       flexShrink: 0,
                     }}
                   />
-                  <Av u={u} size={34} />
+                  <Av u={u} size={34} teams={teams} />
                   <div style={{ flex: 1, minWidth: 100 }}>
                     <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 5 }}>{u.name}</div>
                     <div
@@ -1136,7 +1136,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
               🏆 MEJOR DESEMPEÑO
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Av u={top.u} size={28} />
+              <Av u={top.u} size={28} teams={teams} />
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{top.u.name}</div>
                 <div
@@ -1169,7 +1169,7 @@ function TabDesempeno({ tasks, users, teams, range, onOpenTask }) {
               ⚠️ NECESITA APOYO
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Av u={bot.u} size={28} />
+              <Av u={bot.u} size={28} teams={teams} />
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{bot.u.name}</div>
                 <div
@@ -1311,7 +1311,7 @@ function TabEquipos({ tasks, users, teams, range }) {
                   padding: '7px 12px',
                 }}
               >
-                <Av u={u} size={24} />
+                <Av u={u} size={24} teams={teams} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>{u.name.split(' ')[0]}</div>
                   <div
@@ -1362,7 +1362,7 @@ function TabEquipos({ tasks, users, teams, range }) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                     {a.map((u) => (
-                      <Av key={u.id} u={u} size={16} />
+                      <Av key={u.id} u={u} size={16} teams={teams} />
                     ))}
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                       {t.marca || 'Sin marca'} · {fmtD(t.created_at)}
@@ -1806,7 +1806,7 @@ function TabMarcas({ tasks, users, teams, range }) {
                       padding: '6px 10px',
                     }}
                   >
-                    <Av u={u} size={24} />
+                    <Av u={u} size={24} teams={teams} />
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600 }}>{u.name.split(' ')[0]}</div>
                       <div
@@ -1863,7 +1863,7 @@ function TabMarcas({ tasks, users, teams, range }) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
                     {a.map((u) => (
-                      <Av key={u.id} u={u} size={16} />
+                      <Av key={u.id} u={u} size={16} teams={teams} />
                     ))}
                     <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 2 }}>
                       {fmtD(t.created_at)}
@@ -2446,7 +2446,7 @@ function TabOrdenes({ tasks, users, teams, range }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {assigned.map((u) => (
                     <span key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Av u={u} size={16} />
+                      <Av u={u} size={16} teams={teams} />
                       <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                         {u.name.split(' ')[0]}
                       </span>

@@ -244,7 +244,7 @@ export default function TeamsView({
                         style={{ cursor: !isCollab && onViewUser ? 'pointer' : 'default' }}
                         title={!isCollab ? 'Ver en Desempeño' : ''}
                       >
-                        <Av u={m} size={28} />
+                        <Av u={m} size={28} teams={teams} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div
