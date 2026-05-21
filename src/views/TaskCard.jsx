@@ -11,7 +11,7 @@ export function ReassignModal({task,users,teams,token,onClose,onRefresh,me}){
   const current=Array.isArray(task.assigned_to)?task.assigned_to:[task.assigned_to].filter(Boolean);
   const [selected,setSelected]=useState([...current]);
   const [saving,setSaving]=useState(false);
-  const opts=users.filter(u=>u.role==="colaborador");
+  const opts=users.filter(u=>u.role==="colaborador"&&u.activo!==false);
   async function save(){
     if(selected.length===0){showToast("Debe haber al menos un responsable","error");return;}
     setSaving(true);
