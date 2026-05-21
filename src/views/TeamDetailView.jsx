@@ -49,28 +49,21 @@ export default function TeamDetailView({
   const displayTasks =
     sfilt === 'todas' ? teamTasks : teamTasks.filter((t) => t.status !== 'completada')
 
-  // Build grouped structure
-  const grouped = []
-  const seen = new Set()
-  displayTasks.forEach((t) => {
-    const a = Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)
-    a.forEach((id) => {
-      if (!seen.has(id)) {
-        seen.add(id)
-        grouped.push({ userId: id })
-      }
-    })
-  })
-  grouped.forEach((g) => {
-    g.tasks = displayTasks.filter((t) => {
+  // Agrupar por miembro del equipo — iterar teamUsers, no tasks,
+  // para que siempre aparezcan todos los integrantes aunque no tengan tareas
+  const grouped = teamUsers.map((u) => ({
+    userId: u.id,
+    tasks: displayTasks.filter((t) => {
       const a = Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)
-      return a.includes(g.userId)
-    })
-  })
+      return a.includes(u.id)
+    }),
+  }))
+
+  // Tareas del equipo sin responsable asignado
   const unassigned = displayTasks.filter(
     (t) =>
-      !(Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)).some((id) =>
-        teamUsers.find((u) => u.id === id)
+      !(Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to].filter(Boolean)).some(
+        (id) => teamUsers.find((u) => u.id === id)
       )
   )
 
@@ -96,7 +89,8 @@ export default function TeamDetailView({
         </h2>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-            {displayTasks.filter((t) => t.status !== 'completada').length} activas
+            {teamUsers.length} integrante{teamUsers.length !== 1 ? 's' : ''} ·{' '}
+            {teamTasks.filter((t) => t.status !== 'completada').length} activas
           </span>
           <div
             style={{
@@ -133,9 +127,7 @@ export default function TeamDetailView({
           <button
             onClick={() => {
               const allExp = {}
-              grouped.forEach((g) => {
-                allExp[g.userId] = true
-              })
+              teamUsers.forEach((u) => { allExp[u.id] = true })
               setExpanded(allExp)
             }}
             style={{
@@ -165,18 +157,18 @@ export default function TeamDetailView({
         </div>
       </div>
 
-      {displayTasks.length === 0 ? (
+      {teamUsers.length === 0 ? (
         <div className="empty">
           <div style={{ opacity: 0.3, marginBottom: 8 }}>
-            <Icon n="ordenes" size={40} color="currentColor" />
+            <Icon n="equipos" size={40} color="currentColor" />
           </div>
-          <p>No hay órdenes {sfilt === 'activas' ? 'activas' : 'en este equipo'}.</p>
+          <p>Este equipo no tiene integrantes aún.</p>
         </div>
       ) : (
         <>
           {grouped.map(({ userId, tasks: uTasks }) => {
             const u = allUsers.find((x) => x.id === userId)
-            if (!u || uTasks.length === 0) return null
+            if (!u) return null
             const isOpen = expanded[userId] !== false // default open
             const urgentes = uTasks.filter(
               (t) => t.status === 'vencida' || t.priority === 'Urgente'
@@ -289,17 +281,23 @@ export default function TeamDetailView({
                 {/* Collapsible task list */}
                 {isOpen && (
                   <div style={{ padding: '6px 12px 12px' }}>
-                    {uTasks.map((t) => (
-                      <TaskCard
-                        key={t.id}
-                        task={t}
-                        users={allUsers}
-                        teams={allTeams}
-                        me={me}
-                        token={token}
-                        onRefresh={onRefresh}
-                      />
-                    ))}
+                    {uTasks.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 4px', fontStyle: 'italic' }}>
+                        Sin órdenes {sfilt === 'activas' ? 'activas' : 'asignadas'}.
+                      </p>
+                    ) : (
+                      uTasks.map((t) => (
+                        <TaskCard
+                          key={t.id}
+                          task={t}
+                          users={allUsers}
+                          teams={allTeams}
+                          me={me}
+                          token={token}
+                          onRefresh={onRefresh}
+                        />
+                      ))
+                    )}
                   </div>
                 )}
               </div>
