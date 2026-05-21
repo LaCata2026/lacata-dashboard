@@ -136,6 +136,13 @@ export function teamColor(team) {
   for (let c of key) h = (h * 31 + c.charCodeAt(0)) % FALLBACK_BRAND.length
   return FALLBACK_BRAND[Math.abs(h)]
 }
+export function getUserColor(user, teams) {
+  if (!user) return '#888'
+  if (user.role === 'director') return 'var(--role-director)'
+  if (user.role === 'cuentas') return 'var(--role-cuentas)'
+  const team = Array.isArray(teams) ? teams.find((t) => t.id === user.team_id) : null
+  return team ? teamColor(team) : user.avatar_color || 'var(--role-colab)'
+}
 export const LS = {
   get: (k, d) => {
     try {

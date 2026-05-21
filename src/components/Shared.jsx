@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react'
+import { getUserColor } from '../lib/supabase'
 
-// Colores fijos por rol — consistentes en toda la app
-const ROLE_AVATAR_COLOR = {
-  director: 'var(--role-director)',
-  cuentas: 'var(--role-cuentas)',
-  colaborador: 'var(--role-colab)',
-}
-
-export function Av({ u, size = 32 }) {
-  const bg = ROLE_AVATAR_COLOR[u?.role] || u?.avatar_color || '#7c3aed'
+export function Av({ u, size = 32, teams }) {
+  const bg = getUserColor(u, teams)
   return (
     <div
       className="avatar"

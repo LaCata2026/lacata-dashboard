@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import {
   sb,
   teamColor,
+  getUserColor,
   COLLAB_COLORS,
   COLORS,
   MARCAS_PREDEFINIDAS,
@@ -1603,7 +1604,7 @@ export default function HomeView({
                                   width: 22,
                                   height: 22,
                                   borderRadius: '50%',
-                                  background: m.avatar_color,
+                                  background: getUserColor(m, teams),
                                   fontSize: 9,
                                   color: '#fff',
                                   display: 'flex',
@@ -2129,7 +2130,7 @@ export default function HomeView({
                       style={{
                         width: 30,
                         height: 30,
-                        background: w.avatar_color,
+                        background: getUserColor(w, teams),
                         fontSize: 11,
                         color: '#fff',
                         borderRadius: '50%',

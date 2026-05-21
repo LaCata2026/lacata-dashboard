@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import {
   sb,
   teamColor,
+  getUserColor,
   COLLAB_COLORS,
   COLORS,
   MARCAS_PREDEFINIDAS,
@@ -107,7 +108,7 @@ export function ReassignModal({ task, users, teams, token, onClose, onRefresh, m
                   transition: '.13s',
                 }}
               >
-                <Av u={u} size={28} />
+                <Av u={u} size={28} teams={teams} />
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 600 }}>{u.name}</p>
                   <p style={{ fontSize: 11, color: 'var(--muted)' }}>{uTeam?.name || ''}</p>
@@ -891,7 +892,7 @@ export default function TaskCard({
                 .filter(Boolean)
                 .map((u) => (
                   <span key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Av u={u} size={18} />
+                    <Av u={u} size={18} teams={teams} />
                     <span>{u.name}</span>
                   </span>
                 ))
@@ -1288,7 +1289,7 @@ export default function TaskCard({
                             width: 18,
                             height: 18,
                             borderRadius: '50%',
-                            background: u.avatar_color,
+                            background: getUserColor(u, teams),
                             fontSize: 7,
                             color: '#fff',
                             display: 'flex',
@@ -1839,6 +1840,7 @@ export default function TaskCard({
                                   avatar_color: c.user_color || '#888',
                                 }
                               }
+                              teams={teams}
                               size={28}
                             />
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1855,7 +1857,9 @@ export default function TaskCard({
                                   style={{
                                     fontSize: 12,
                                     fontWeight: 700,
-                                    color: c.user_color || author?.avatar_color || 'var(--text)',
+                                    color: author
+                                      ? getUserColor(author, teams)
+                                      : c.user_color || 'var(--text)',
                                   }}
                                 >
                                   {c.user_name || author?.name || '?'}
@@ -1917,9 +1921,9 @@ export default function TaskCard({
                                         <span
                                           key={i}
                                           style={{
-                                            color: u.avatar_color,
+                                            color: getUserColor(u, teams),
                                             fontWeight: 700,
-                                            background: u.avatar_color + '1a',
+                                            background: getUserColor(u, teams) + '1a',
                                             padding: '0 4px',
                                             borderRadius: 3,
                                           }}
