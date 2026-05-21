@@ -46,9 +46,11 @@ function StatCard({val,label,color,onClick,isHero}){
 ═══════════════════════════════════════════ */
 function TipBanner(){
   const [dismissed,setDismissed]=useState(()=>localStorage.getItem("lc_tip_dismissed")==="1")
-  const [notifState,setNotifState]=useState(()=>"Notification"in window?Notification.permission:"denied")
+  const [notifState,setNotifState]=useState(()=>("Notification"in window)?Notification.permission:"unsupported")
+  const [busy,setBusy]=useState(false)
+  const [justEnabled,setJustEnabled]=useState(false)
 
-  // Refrescar el estado del permiso si la ventana recobra foco (usuario pudo cambiarlo en settings)
+  // Refrescar permiso si la ventana recobra foco (usuario pudo cambiarlo en settings del browser)
   useEffect(()=>{
     function onFocus(){
       if("Notification"in window)setNotifState(Notification.permission)
@@ -58,8 +60,29 @@ function TipBanner(){
   },[])
 
   async function enableNotifs(){
-    await PushNotif.requestPermission()
-    setNotifState("Notification"in window?Notification.permission:"denied")
+    if(busy)return
+    setBusy(true)
+    try{
+      const result=await PushNotif.requestPermission()
+      // Re-leemos del API para asegurar el estado real
+      const current=("Notification"in window)?Notification.permission:"unsupported"
+      setNotifState(current)
+      if(current==="granted"){
+        setJustEnabled(true)
+        // Enviar notificación de prueba para confirmar al usuario que funciona
+        try{
+          PushNotif.send(
+            "✓ Notificaciones activadas",
+            "Te avisaremos cuando te asignen una orden o te mencionen.",
+            null
+          )
+        }catch(e){console.warn("Test notif failed:",e)}
+      }
+    }catch(e){
+      console.warn("[TipBanner] enableNotifs error:",e)
+    }finally{
+      setBusy(false)
+    }
   }
 
   function dismiss(){
@@ -67,39 +90,76 @@ function TipBanner(){
     setDismissed(true)
   }
 
-  // Si ya descartó el banner Y las notificaciones están activas → no mostramos nada
-  if(dismissed&&notifState==="granted")return null
-  // Si ya descartó pero notifs no están activas → mostramos solo botón de notifs
-  const showFullTip=!dismissed
+  // Si el navegador no soporta notificaciones, solo mostrar el tip de Cmd+K
+  const unsupported=notifState==="unsupported"
+  // Si ya descartó el banner Y notifs activas → ocultar todo
+  if(dismissed&&(notifState==="granted"||unsupported))return null
+
+  // Decidir variante del banner según estado
+  // - granted: confirmación verde + tip de Cmd+K (auto-oculto tras dismiss)
+  // - default: pedir permiso (banner amarillo)
+  // - denied: instrucciones para activar manualmente en el navegador
+  const isDenied=notifState==="denied"
+  const isGranted=notifState==="granted"
+  const bgColor=isDenied?"rgba(232,93,93,.08)":isGranted?"rgba(46,196,160,.08)":"var(--accent-dim)"
+  const borderColor=isDenied?"rgba(232,93,93,.25)":isGranted?"rgba(46,196,160,.25)":"rgba(232,197,71,.25)"
 
   return(
     <div className="fade-in" style={{
       display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
       padding:"10px 14px",marginBottom:16,
-      background:"var(--accent-dim)",border:"1px solid rgba(232,197,71,.25)",
+      background:bgColor,border:`1px solid ${borderColor}`,
       borderRadius:10,fontSize:12
     }}>
-      <span style={{fontSize:15,flexShrink:0}}>{notifState==="granted"?"💡":"🔔"}</span>
-      <span style={{flex:1,color:"var(--muted2)"}}>
-        {showFullTip
-          ?<>Usa <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd> para buscar órdenes, usuarios o equipos al instante.</>
-          :<>Recibe avisos en el escritorio cuando te asignen una orden o te mencionen.</>
-        }
+      <span style={{fontSize:15,flexShrink:0}}>
+        {isGranted?"✓":isDenied?"🔕":"🔔"}
       </span>
-      {notifState!=="granted"&&(
-        <button onClick={enableNotifs} style={{
+      <span style={{flex:1,color:"var(--muted2)",lineHeight:1.5}}>
+        {isGranted&&(
+          <>
+            <strong style={{color:"var(--s-completada)"}}>Notificaciones activas.</strong> Usa{" "}
+            <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd>{" "}
+            para buscar órdenes, usuarios o equipos al instante.
+          </>
+        )}
+        {isDenied&&(
+          <>
+            <strong style={{color:"#fca5a5"}}>Notificaciones bloqueadas.</strong> Para activarlas, haz click en el ícono de candado/configuración en la barra del navegador → Permisos → Notificaciones → Permitir.
+          </>
+        )}
+        {!isGranted&&!isDenied&&!unsupported&&(
+          <>
+            <strong style={{color:"var(--text)"}}>Activa las notificaciones</strong> para recibir avisos cuando te asignen una orden o te mencionen, incluso con la pestaña en segundo plano.
+          </>
+        )}
+        {unsupported&&(
+          <>Tu navegador no soporta notificaciones de escritorio. Usa{" "}
+            <kbd style={{background:"var(--bg3)",border:"1px solid var(--border2)",borderRadius:4,padding:"1px 5px",fontSize:11,fontFamily:"var(--font-mono)",color:"var(--text)"}}>⌘K</kbd> para buscar al instante.
+          </>
+        )}
+      </span>
+
+      {/* Botón principal: pedir permiso. Solo se muestra si el estado es default (ni granted ni denied) */}
+      {!isGranted&&!isDenied&&!unsupported&&(
+        <button onClick={enableNotifs} disabled={busy} style={{
           display:"inline-flex",alignItems:"center",gap:5,
-          fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:6,cursor:"pointer",
+          fontSize:12,fontWeight:700,padding:"6px 14px",borderRadius:6,
+          cursor:busy?"wait":"pointer",
           background:"var(--accent)",color:"#0d0d0d",border:"none",fontFamily:"var(--font-body)",
-          flexShrink:0
+          flexShrink:0,opacity:busy?.6:1,transition:".13s"
         }}>
-          🔔 Activar notificaciones
+          {busy?"Solicitando...":"🔔 Activar"}
         </button>
       )}
-      {notifState==="granted"&&showFullTip&&(
-        <span style={{fontSize:11,color:"var(--s-completada)",fontWeight:600,flexShrink:0}}>✓ Notificaciones activas</span>
+
+      {/* Confirmación visual reciente */}
+      {justEnabled&&isGranted&&(
+        <span className="fade-in" style={{fontSize:11,color:"var(--s-completada)",fontWeight:600,flexShrink:0}}>
+          ✓ ¡Listo!
+        </span>
       )}
-      <button onClick={dismiss} title="Cerrar" style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:16,padding:"0 2px",flexShrink:0,lineHeight:1}}>×</button>
+
+      <button onClick={dismiss} title="Cerrar" style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:18,padding:"0 4px",flexShrink:0,lineHeight:1}}>×</button>
     </div>
   )
 }
